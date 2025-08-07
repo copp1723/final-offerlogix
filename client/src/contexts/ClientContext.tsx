@@ -107,3 +107,72 @@ export const useBranding = () => {
   const { branding } = useClient();
   return branding;
 };
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { Client } from '@shared/schema';
+
+interface ClientContextType {
+  client: Client | null;
+  loading: boolean;
+  error: string | null;
+}
+
+const ClientContext = createContext<ClientContextType | undefined>(undefined);
+
+export function useClient() {
+  const context = useContext(ClientContext);
+  if (context === undefined) {
+    throw new Error('useClient must be used within a ClientProvider');
+  }
+  return context;
+}
+
+interface ClientProviderProps {
+  children: React.ReactNode;
+}
+
+export function ClientProvider({ children }: ClientProviderProps) {
+  const [client, setClient] = useState<Client | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchClient() {
+      try {
+        const response = await fetch('/api/branding');
+        if (!response.ok) throw new Error('Failed to fetch client');
+        const clientData = await response.json();
+        setClient(clientData);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Unknown error');
+        // Set default client on error
+        setClient({
+          id: 'default',
+          name: 'AutoCampaigns AI',
+          domain: 'localhost',
+          brandingConfig: {
+            primaryColor: '#2563eb',
+            secondaryColor: '#1e40af',
+            logoUrl: '',
+            companyName: 'AutoCampaigns AI',
+            favicon: '',
+            customCss: ''
+          },
+          settings: {},
+          active: true,
+          createdAt: new Date(),
+          updatedAt: new Date()
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchClient();
+  }, []);
+
+  return (
+    <ClientContext.Provider value={{ client, loading, error }}>
+      {children}
+    </ClientContext.Provider>
+  );
+}

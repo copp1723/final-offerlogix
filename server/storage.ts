@@ -320,3 +320,179 @@ export class DatabaseStorage implements IStorage {
 }
 
 export const storage = new DatabaseStorage();
+import { db } from "./db";
+import { campaigns, conversations, conversationMessages, leads, aiAgentConfig, users } from "@shared/schema";
+import { eq, desc } from "drizzle-orm";
+import type { InsertCampaign, InsertConversation, InsertConversationMessage, InsertLead, InsertAiAgentConfig } from "@shared/schema";
+
+export const storage = {
+  // Campaign methods
+  async getCampaigns() {
+    return await db.select().from(campaigns).orderBy(desc(campaigns.createdAt));
+  },
+
+  async getCampaign(id: string) {
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    return campaign;
+  },
+
+  async createCampaign(data: InsertCampaign) {
+    const [campaign] = await db.insert(campaigns).values(data).returning();
+    return campaign;
+  },
+
+  async updateCampaign(id: string, data: Partial<InsertCampaign>) {
+    const [campaign] = await db.update(campaigns)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(campaigns.id, id))
+      .returning();
+    return campaign;
+  },
+
+  async deleteCampaign(id: string) {
+    await db.delete(campaigns).where(eq(campaigns.id, id));
+  },
+
+  async cloneCampaign(id: string, name: string) {
+    const original = await this.getCampaign(id);
+    if (!original) throw new Error("Campaign not found");
+    
+    const { id: _, createdAt: __, updatedAt: ___, ...campaignData } = original;
+    const [cloned] = await db.insert(campaigns).values({
+      ...campaignData,
+      name,
+      originalCampaignId: id,
+      status: "draft"
+    }).returning();
+    return cloned;
+  },
+
+  // User methods
+  async updateUserRole(id: string, role: string) {
+    const [user] = await db.update(users)
+      .set({ role })
+      .where(eq(users.id, id))
+      .returning();
+    return user;
+  },
+
+  // Conversation methods
+  async getConversations(userId?: string) {
+    const query = db.select().from(conversations);
+    if (userId) {
+      return await query.where(eq(conversations.userId, userId)).orderBy(desc(conversations.updatedAt));
+    }
+    return await query.orderBy(desc(conversations.updatedAt));
+  },
+
+  async getConversation(id: string) {
+    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
+    return conversation;
+  },
+
+  async createConversation(data: InsertConversation) {
+    const [conversation] = await db.insert(conversations).values(data).returning();
+    return conversation;
+  },
+
+  async updateConversation(id: string, data: Partial<InsertConversation>) {
+    const [conversation] = await db.update(conversations)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(conversations.id, id))
+      .returning();
+    return conversation;
+  },
+
+  // Conversation message methods
+  async getConversationMessages(conversationId: string) {
+    return await db.select().from(conversationMessages)
+      .where(eq(conversationMessages.conversationId, conversationId))
+      .orderBy(conversationMessages.createdAt);
+  },
+
+  async createConversationMessage(data: InsertConversationMessage) {
+    const [message] = await db.insert(conversationMessages).values(data).returning();
+    return message;
+  },
+
+  // Lead methods
+  async getLeads(campaignId?: string) {
+    const query = db.select().from(leads);
+    if (campaignId) {
+      return await query.where(eq(leads.campaignId, campaignId)).orderBy(desc(leads.createdAt));
+    }
+    return await query.orderBy(desc(leads.createdAt));
+  },
+
+  async getLead(id: string) {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead;
+  },
+
+  async createLead(data: InsertLead) {
+    const [lead] = await db.insert(leads).values(data).returning();
+    return lead;
+  },
+
+  async createLeads(data: InsertLead[]) {
+    return await db.insert(leads).values(data).returning();
+  },
+
+  async updateLead(id: string, data: Partial<InsertLead>) {
+    const [lead] = await db.update(leads)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(leads.id, id))
+      .returning();
+    return lead;
+  },
+
+  async deleteLead(id: string) {
+    await db.delete(leads).where(eq(leads.id, id));
+  },
+
+  // AI Agent Config methods
+  async getAiAgentConfigs() {
+    return await db.select().from(aiAgentConfig).orderBy(desc(aiAgentConfig.createdAt));
+  },
+
+  async getActiveAiAgentConfig() {
+    const [config] = await db.select().from(aiAgentConfig)
+      .where(eq(aiAgentConfig.isActive, true))
+      .orderBy(desc(aiAgentConfig.createdAt));
+    return config;
+  },
+
+  async getAiAgentConfig(id: string) {
+    const [config] = await db.select().from(aiAgentConfig).where(eq(aiAgentConfig.id, id));
+    return config;
+  },
+
+  async createAiAgentConfig(data: InsertAiAgentConfig) {
+    const [config] = await db.insert(aiAgentConfig).values(data).returning();
+    return config;
+  },
+
+  async updateAiAgentConfig(id: string, data: Partial<InsertAiAgentConfig>) {
+    const [config] = await db.update(aiAgentConfig)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(aiAgentConfig.id, id))
+      .returning();
+    return config;
+  },
+
+  async deleteAiAgentConfig(id: string) {
+    await db.delete(aiAgentConfig).where(eq(aiAgentConfig.id, id));
+  },
+
+  async setActiveAiAgentConfig(id: string) {
+    // First, deactivate all configs
+    await db.update(aiAgentConfig).set({ isActive: false });
+    
+    // Then activate the specified one
+    const [config] = await db.update(aiAgentConfig)
+      .set({ isActive: true, updatedAt: new Date() })
+      .where(eq(aiAgentConfig.id, id))
+      .returning();
+    return config;
+  }
+};
