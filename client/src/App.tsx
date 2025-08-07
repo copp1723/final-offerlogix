@@ -9,7 +9,9 @@ import UserManagementPage from "@/pages/user-management";
 import LeadsPage from "@/pages/leads";
 import CampaignsPage from "@/pages/campaigns";
 import AiSettingsPage from "@/pages/ai-settings";
+import WhiteLabelPage from "@/pages/white-label";
 import NotFound from "@/pages/not-found";
+import { ClientProvider } from "@/contexts/ClientContext";
 
 function Router() {
   return (
@@ -19,6 +21,7 @@ function Router() {
       <Route path="/leads" component={LeadsPage} />
       <Route path="/campaigns" component={CampaignsPage} />
       <Route path="/ai-settings" component={AiSettingsPage} />
+      <Route path="/white-label" component={WhiteLabelPage} />
       <Route path="/users" component={UserManagementPage} />
       <Route component={NotFound} />
     </Switch>
@@ -28,10 +31,12 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Router />
-      </TooltipProvider>
+      <ClientProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Router />
+        </TooltipProvider>
+      </ClientProvider>
     </QueryClientProvider>
   );
 }

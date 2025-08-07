@@ -1,7 +1,20 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, jsonb, boolean, uuid } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+
+// Clients table for white label multi-tenancy
+export const clients = pgTable("clients", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name", { length: 255 }).notNull(),
+  domain: varchar("domain", { length: 255 }).unique(),
+  brandingConfig: jsonb("branding_config").default(sql`'{}'::jsonb`).notNull(),
+  settings: jsonb("settings").default(sql`'{}'::jsonb`).notNull(),
+  active: boolean("active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
 
 export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
@@ -9,6 +22,7 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default("user"), // admin, manager, user
   email: text("email"),
+  clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -46,6 +60,7 @@ export const campaigns = pgTable("campaigns", {
   openRate: integer("open_rate"), // percentage
   isTemplate: boolean("is_template").default(false), // Mark as reusable template
   originalCampaignId: varchar("original_campaign_id"), // Reference to source campaign when cloned
+  clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -78,6 +93,7 @@ export const leads = pgTable("leads", {
   tags: varchar("tags").array(), // For categorization
   notes: text("notes"),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
+  clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -131,6 +147,15 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
   updatedAt: true,
 });
 
+// Client types and schemas
+export const insertClientSchema = createInsertSchema(clients).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type Client = typeof clients.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;

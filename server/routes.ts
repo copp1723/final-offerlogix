@@ -1,17 +1,108 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema, insertAiAgentConfigSchema, type AiAgentConfig } from "@shared/schema";
+import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema, insertAiAgentConfigSchema, insertClientSchema, type AiAgentConfig, type Client } from "@shared/schema";
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
+import { tenantMiddleware, type TenantRequest } from "./tenant";
+import { db } from "./db";
+import { clients } from "@shared/schema";
+import { eq } from "drizzle-orm";
 // import multer from "multer";
 // import { parse } from "csv-parse/sync";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Apply tenant middleware to all API routes
+  app.use('/api', tenantMiddleware);
+
+  // Branding API - public endpoint for fetching client branding
+  app.get("/api/branding", async (req, res) => {
+    try {
+      const domain = req.query.domain as string || req.get('host') || 'localhost';
+      
+      // Try to find client by domain
+      let [client] = await db.select().from(clients).where(eq(clients.domain, domain));
+      
+      // Fall back to default client
+      if (!client) {
+        [client] = await db.select().from(clients).where(eq(clients.name, 'Default Client'));
+      }
+      
+      if (client) {
+        res.json(client);
+      } else {
+        // Return default branding
+        res.json({
+          id: 'default',
+          name: 'AutoCampaigns AI',
+          brandingConfig: {
+            primaryColor: '#2563eb',
+            secondaryColor: '#1e40af',
+            logoUrl: '',
+            companyName: 'AutoCampaigns AI',
+            favicon: '',
+            customCss: ''
+          }
+        });
+      }
+    } catch (error) {
+      console.error('Branding API error:', error);
+      res.status(500).json({ message: "Failed to fetch branding" });
+    }
+  });
+
+  // Client management routes
+  app.get("/api/clients", async (req: TenantRequest, res) => {
+    try {
+      const allClients = await db.select().from(clients);
+      res.json(allClients);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch clients" });
+    }
+  });
+
+  app.post("/api/clients", async (req: TenantRequest, res) => {
+    try {
+      const clientData = insertClientSchema.parse(req.body);
+      const [client] = await db.insert(clients).values(clientData).returning();
+      res.json(client);
+    } catch (error) {
+      console.error('Create client error:', error);
+      res.status(400).json({ message: "Invalid client data" });
+    }
+  });
+
+  app.put("/api/clients/:id", async (req: TenantRequest, res) => {
+    try {
+      const clientData = insertClientSchema.partial().parse(req.body);
+      const [client] = await db.update(clients)
+        .set({ ...clientData, updatedAt: new Date() })
+        .where(eq(clients.id, req.params.id))
+        .returning();
+      
+      if (!client) {
+        return res.status(404).json({ message: "Client not found" });
+      }
+      
+      res.json(client);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid client data" });
+    }
+  });
+
+  app.delete("/api/clients/:id", async (req: TenantRequest, res) => {
+    try {
+      await db.delete(clients).where(eq(clients.id, req.params.id));
+      res.json({ message: "Client deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete client" });
+    }
+  });
+
   // Campaign routes
-  app.get("/api/campaigns", async (req, res) => {
+  app.get("/api/campaigns", async (req: TenantRequest, res) => {
     try {
       const campaigns = await storage.getCampaigns();
       res.json(campaigns);
