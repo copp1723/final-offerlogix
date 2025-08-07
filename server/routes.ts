@@ -2,7 +2,9 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCampaignSchema } from "@shared/schema";
-import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines } from "./services/openai";
+import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames } from "./services/openai";
+import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
+import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Campaign routes
@@ -99,6 +101,105 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('AI suggest goals error:', error);
       res.status(500).json({ message: "Failed to generate goals" });
+    }
+  });
+
+  app.post("/api/ai/suggest-names", async (req, res) => {
+    try {
+      const { context } = req.body;
+      if (!context) {
+        return res.status(400).json({ message: "Context is required" });
+      }
+
+      const names = await suggestCampaignNames(context);
+      res.json({ names });
+    } catch (error) {
+      console.error('AI suggest names error:', error);
+      res.status(500).json({ message: "Failed to generate campaign names" });
+    }
+  });
+
+  // Email routes
+  app.post("/api/email/send", async (req, res) => {
+    try {
+      const { to, subject, htmlContent, textContent, fromName, fromEmail } = req.body;
+      if (!to || !subject || !htmlContent) {
+        return res.status(400).json({ message: "Required fields: to, subject, htmlContent" });
+      }
+
+      const result = await sendCampaignEmail({
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        htmlContent,
+        textContent,
+        fromName,
+        fromEmail
+      });
+      res.json(result);
+    } catch (error) {
+      console.error('Email send error:', error);
+      res.status(500).json({ message: "Failed to send email" });
+    }
+  });
+
+  app.post("/api/email/validate", async (req, res) => {
+    try {
+      const { emails } = req.body;
+      if (!emails || !Array.isArray(emails)) {
+        return res.status(400).json({ message: "Emails array is required" });
+      }
+
+      const result = await validateEmailAddresses(emails);
+      res.json(result);
+    } catch (error) {
+      console.error('Email validation error:', error);
+      res.status(500).json({ message: "Failed to validate emails" });
+    }
+  });
+
+  // SMS routes
+  app.post("/api/sms/send", async (req, res) => {
+    try {
+      const { to, message, from } = req.body;
+      if (!to || !message) {
+        return res.status(400).json({ message: "Phone number and message are required" });
+      }
+
+      const result = await sendSMS({ to, message, from });
+      res.json(result);
+    } catch (error) {
+      console.error('SMS send error:', error);
+      res.status(500).json({ message: "Failed to send SMS" });
+    }
+  });
+
+  app.post("/api/sms/campaign-alert", async (req, res) => {
+    try {
+      const { phoneNumber, campaignName, metric, value } = req.body;
+      if (!phoneNumber || !campaignName || !metric || !value) {
+        return res.status(400).json({ message: "All fields are required" });
+      }
+
+      const result = await sendCampaignAlert(phoneNumber, campaignName, metric, value);
+      res.json(result);
+    } catch (error) {
+      console.error('Campaign alert error:', error);
+      res.status(500).json({ message: "Failed to send campaign alert" });
+    }
+  });
+
+  app.post("/api/sms/validate-phone", async (req, res) => {
+    try {
+      const { phoneNumber } = req.body;
+      if (!phoneNumber) {
+        return res.status(400).json({ message: "Phone number is required" });
+      }
+
+      const result = await validatePhoneNumber(phoneNumber);
+      res.json(result);
+    } catch (error) {
+      console.error('Phone validation error:', error);
+      res.status(500).json({ message: "Failed to validate phone number" });
     }
   });
 

@@ -113,6 +113,50 @@ Keep templates under 300 words each and subject lines under 60 characters.
   }
 }
 
+export async function suggestCampaignNames(context: string): Promise<string[]> {
+  const prompt = `
+Based on this automotive campaign context, suggest 5 creative and professional campaign names:
+
+Context: ${context}
+
+Campaign names should:
+- Be memorable and catchy
+- Reflect automotive industry focus
+- Be under 50 characters
+- Sound professional for dealerships/manufacturers
+- Include action words or automotive terms when relevant
+
+Respond with JSON:
+{"names": ["name1", "name2", "name3", "name4", "name5"]}
+`;
+
+  try {
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are an automotive marketing expert. Create campaign names that resonate with automotive customers and businesses."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.8,
+      max_tokens: 200
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{"names": []}');
+    return result.names || [];
+  } catch (error) {
+    console.error('Error generating campaign names:', error);
+    throw new Error('Failed to generate campaign names');
+  }
+}
+
 export async function generateSubjectLines(context: string, campaignName: string): Promise<string[]> {
   const prompt = `
 Create 5 compelling email subject lines for an automotive campaign named "${campaignName}" with this context: ${context}

@@ -28,6 +28,8 @@ interface CampaignFormProps {
 export default function CampaignForm({ onClose, currentStep, onStepChange }: CampaignFormProps) {
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
+  const [showNameSuggestions, setShowNameSuggestions] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -89,6 +91,19 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     },
   });
 
+  const generateNames = useMutation({
+    mutationFn: (context: string) => 
+      apiRequest('POST', '/api/ai/suggest-names', { context }),
+    onSuccess: (response: any) => {
+      const names = response.json?.names || [];
+      setNameSuggestions(names);
+      setShowNameSuggestions(true);
+    },
+    onError: () => {
+      toast({ title: "Failed to generate campaign names", variant: "destructive" });
+    },
+  });
+
   const onSubmit = (data: FormData) => {
     createCampaign.mutate(data);
   };
@@ -117,6 +132,20 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     setShowSuggestions(false);
   };
 
+  const handleSuggestNames = () => {
+    const context = form.getValues('context');
+    if (context.length < 10) {
+      toast({ title: "Please provide campaign context first", variant: "destructive" });
+      return;
+    }
+    generateNames.mutate(context);
+  };
+
+  const selectName = (name: string) => {
+    form.setValue('name', name);
+    setShowNameSuggestions(false);
+  };
+
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -141,7 +170,29 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Campaign Name</FormLabel>
+              <div className="flex items-center justify-between">
+                <FormLabel>Campaign Name</FormLabel>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSuggestNames}
+                  disabled={generateNames.isPending || form.getValues('context').length < 10}
+                  className="flex items-center space-x-1"
+                >
+                  {generateNames.isPending ? (
+                    <>
+                      <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      <span>AI Suggest</span>
+                    </>
+                  )}
+                </Button>
+              </div>
               <FormControl>
                 <Input 
                   placeholder="e.g., 2024 Holiday Sales Event" 
@@ -152,6 +203,35 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
             </FormItem>
           )}
         />
+
+        {/* AI Name Suggestions */}
+        {showNameSuggestions && nameSuggestions.length > 0 && (
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+            <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center">
+              <Sparkles className="w-4 h-4 mr-2 text-blue-600" />
+              AI Campaign Name Suggestions
+            </h4>
+            <div className="space-y-2">
+              {nameSuggestions.map((name, index) => (
+                <button
+                  key={index}
+                  type="button"
+                  onClick={() => selectName(name)}
+                  className="w-full text-left p-3 bg-white hover:bg-blue-50 border border-gray-200 hover:border-blue-300 rounded-lg transition-colors text-sm text-gray-700 hover:text-blue-900"
+                >
+                  {name}
+                </button>
+              ))}
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowNameSuggestions(false)}
+              className="mt-3 text-xs text-gray-500 hover:text-gray-700"
+            >
+              Hide suggestions
+            </button>
+          </div>
+        )}
 
         {/* Campaign Context Field */}
         <FormField
