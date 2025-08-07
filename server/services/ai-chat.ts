@@ -12,6 +12,12 @@ export async function processCampaignChat(
   currentStep: string,
   campaignData: any
 ): Promise<CampaignChatResponse> {
+  // Check if we have API access first
+  if (!process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY) {
+    console.log("No AI API key available, using fallback response for:", userMessage);
+    return processStepBasedResponse(userMessage, currentStep, campaignData);
+  }
+
   const openai = getOpenAIClient();
 
   const conversationContext = `

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, User, Send, Sparkles, Settings, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import CampaignModal from "@/components/campaign/CampaignModal";
+// import CampaignModal from "@/components/campaign/CampaignModal";
 
 interface ChatMessage {
   id: string;
@@ -51,11 +51,23 @@ export default function AIChatInterface() {
   // AI Chat mutation
   const chatMutation = useMutation({
     mutationFn: async (userMessage: string) => {
-      return apiRequest("/api/ai/chat-campaign", "POST", {
-        message: userMessage,
-        currentStep,
-        campaignData,
+      const response = await fetch("/api/ai/chat-campaign", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: userMessage,
+          currentStep,
+          campaignData,
+        }),
       });
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
+      return response.json();
     },
     onSuccess: (response: any) => {
       const aiMessage: ChatMessage = {
@@ -286,11 +298,21 @@ export default function AIChatInterface() {
         </Card>
       )}
 
-      {/* Advanced Mode Modal */}
-      <CampaignModal 
-        isOpen={isAdvancedMode}
-        onClose={() => setIsAdvancedMode(false)}
-      />
+      {/* Advanced Mode Modal - Coming Soon */}
+      {isAdvancedMode && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md mx-4">
+            <h3 className="text-lg font-bold mb-4">Advanced Mode</h3>
+            <p className="text-gray-600 mb-4">
+              Advanced form-based campaign creation will be available soon. 
+              For now, please use the AI chat interface above.
+            </p>
+            <Button onClick={() => setIsAdvancedMode(false)}>
+              Continue with AI Chat
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
