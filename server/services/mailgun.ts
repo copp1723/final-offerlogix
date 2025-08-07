@@ -32,7 +32,7 @@ export async function sendCampaignEmail(emailData: EmailData): Promise<any> {
   const domain = process.env.MAILGUN_DOMAIN!;
 
   const messageData = {
-    from: `${emailData.fromName || 'AutoCampaigns AI'} <${emailData.fromEmail || `noreply@${domain}`}>`,
+    from: `${emailData.fromName || 'AutoCampaigns AI'} <${emailData.fromEmail || process.env.MAILGUN_FROM_EMAIL || `noreply@${domain}`}>`,
     to: emailData.to,
     subject: emailData.subject,
     html: emailData.htmlContent,

@@ -36,8 +36,10 @@ Design preferences: Clean, professional design with minimal colors - no purple/p
 - **Database Migrations**: Drizzle Kit for schema management and migrations
 
 ### Data Storage Solutions
-- **Primary Database**: PostgreSQL configured through Neon Database serverless
-- **Schema Design**: Campaigns table with fields for name, context, handover goals, status, AI-generated templates, subject lines, and performance metrics
+- **Primary Database**: PostgreSQL hosted on Render (ccl_3 database)
+- **Production URL**: https://ccl-3-final.onrender.com with CORS configuration
+- **Schema Design**: Campaigns table with fields for name, context, handover goals, status, AI-generated templates, subject lines, performance metrics, and email sequence configuration
+- **High-Volume Support**: Supports up to 30 email templates per campaign sequence
 - **Session Management**: PostgreSQL-based session storage using connect-pg-simple
 
 ### Authentication and Authorization
@@ -46,11 +48,16 @@ Design preferences: Clean, professional design with minimal colors - no purple/p
 - **Security**: Password hashing and session-based access control
 
 ### AI Integration Architecture
-- **AI Service Provider**: OpenRouter API for accessing various AI models
+- **AI Service Provider**: OpenRouter API (sk-or-v1-...) for accessing multiple AI models including GPT-4o
+- **Production Email System**: Mailgun integration with domain mg.watchdogai.us and swarm@mg.watchdogai.us sender
+- **SMS Notifications**: Twilio integration (+18154752252) for campaign alerts and notifications
+- **High-Volume Capability**: EMAIL_TEMPLATE_COUNT=30 for extensive email sequence campaigns
 - **Content Generation**: Specialized prompts for automotive industry content including:
-  - Email template generation for vehicle showcases and service reminders
+  - Progressive email template sequences (up to 30 templates)
+  - Vehicle showcases, service reminders, and test drive campaigns
   - Subject line optimization for automotive campaigns
   - Goal suggestion based on automotive industry KPIs
+- **AI Agent Integration**: ENABLE_AGENTS=true indicates part of larger AI ecosystem
 - **Contextual Processing**: AI processes campaign context to generate industry-specific content
 
 ### Component Architecture

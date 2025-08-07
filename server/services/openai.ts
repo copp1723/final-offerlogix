@@ -4,13 +4,16 @@ import OpenAI from "openai";
 let openai: OpenAI | null = null;
 
 function getOpenAIClient(): OpenAI {
-  if (!openai && process.env.OPENAI_API_KEY) {
-    openai = new OpenAI({ 
-      apiKey: process.env.OPENAI_API_KEY 
-    });
-  }
   if (!openai) {
-    throw new Error("OpenAI API key not configured");
+    const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error("AI API key not configured - need OPENROUTER_API_KEY or OPENAI_API_KEY");
+    }
+    
+    openai = new OpenAI({ 
+      apiKey,
+      baseURL: process.env.OPENROUTER_API_KEY ? "https://openrouter.ai/api/v1" : undefined
+    });
   }
   return openai;
 }

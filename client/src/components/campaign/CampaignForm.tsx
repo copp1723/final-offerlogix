@@ -379,7 +379,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
               <Input
                 type="number"
                 min="1"
-                max="10"
+                max="30"
                 value={numberOfTemplates}
                 onChange={(e) => setNumberOfTemplates(parseInt(e.target.value) || 5)}
                 className="w-full"
