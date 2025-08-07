@@ -43,7 +43,7 @@ export const ClientProvider = ({ children }: ClientProviderProps) => {
 
   useEffect(() => {
     if (brandingData) {
-      setActiveClient(brandingData);
+      setActiveClient(brandingData as Client);
     }
   }, [brandingData]);
 

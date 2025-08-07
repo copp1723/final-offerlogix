@@ -226,7 +226,11 @@ export default function WhiteLabelPage() {
                   <CardTitle>Create New Client</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <form action={handleCreateClient} className="space-y-4">
+                  <form onSubmit={(e) => {
+                    e.preventDefault();
+                    const formData = new FormData(e.currentTarget);
+                    handleCreateClient(formData);
+                  }} className="space-y-4">
                     <div>
                       <Label htmlFor="name">Client Name</Label>
                       <Input id="name" name="name" required />
@@ -297,7 +301,11 @@ export default function WhiteLabelPage() {
                 </CardHeader>
                 <CardContent>
                   {editMode ? (
-                    <form action={handleUpdateClient} className="space-y-4">
+                    <form onSubmit={(e) => {
+                      e.preventDefault();
+                      const formData = new FormData(e.currentTarget);
+                      handleUpdateClient(formData);
+                    }} className="space-y-4">
                       <div>
                         <Label htmlFor="name">Client Name</Label>
                         <Input id="name" name="name" defaultValue={selectedClient.name} required />

@@ -1,16 +1,26 @@
 import { Car, Bell, User } from "lucide-react";
 import { Link, useLocation } from "wouter";
+import { useBranding } from "@/contexts/ClientContext";
 
 export default function DashboardHeader() {
+  const branding = useBranding();
+  
   return (
     <header className="bg-white border-b border-gray-200">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <Car className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-xl font-semibold text-gray-900">AutoCampaigns AI</span>
+            {branding.logoUrl ? (
+              <img src={branding.logoUrl} alt="Logo" className="w-8 h-8 rounded-lg" />
+            ) : (
+              <div 
+                className="w-8 h-8 rounded-lg flex items-center justify-center"
+                style={{ backgroundColor: branding.primaryColor }}
+              >
+                <Car className="w-4 h-4 text-white" />
+              </div>
+            )}
+            <span className="text-xl font-semibold text-gray-900">{branding.companyName}</span>
           </div>
           
           <nav className="hidden md:flex items-center space-x-8">
@@ -19,6 +29,7 @@ export default function DashboardHeader() {
             <Link href="/leads" className="text-gray-500 hover:text-gray-700">Leads</Link>
             <Link href="/conversations" className="text-gray-500 hover:text-gray-700">Conversations</Link>
             <Link href="/ai-settings" className="text-gray-500 hover:text-gray-700">AI Settings</Link>
+            <Link href="/white-label" className="text-gray-500 hover:text-gray-700">White Label</Link>
             <Link href="/users" className="text-gray-500 hover:text-gray-700">Users</Link>
           </nav>
           
