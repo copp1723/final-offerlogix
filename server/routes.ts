@@ -410,6 +410,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate enhanced system prompt with conversation enhancers
+  app.post("/api/ai/enhanced-system-prompt", async (req, res) => {
+    try {
+      const { 
+        messageContent, 
+        leadName, 
+        vehicleInterest, 
+        previousMessages, 
+        season, 
+        brand, 
+        isReEngagement, 
+        useStraightTalkingStyle 
+      } = req.body;
+      
+      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      
+      const context = AutomotivePromptService.createConversationContext(
+        leadName,
+        vehicleInterest,
+        messageContent,
+        previousMessages
+      );
+      
+      const config = AutomotivePromptService.getDefaultDealershipConfig();
+      
+      const enhancedPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
+        config,
+        context,
+        {
+          season,
+          brand,
+          isReEngagement,
+          useStraightTalkingStyle
+        }
+      );
+      
+      res.json({ prompt: enhancedPrompt, context });
+    } catch (error) {
+      console.error('Enhanced system prompt generation error:', error);
+      res.status(500).json({ message: "Failed to generate enhanced system prompt" });
+    }
+  });
+
+  // Get conversation enhancers for specific context
+  app.post("/api/ai/conversation-enhancers", async (req, res) => {
+    try {
+      const { messageContent, leadName, vehicleInterest, season, brand, isReEngagement } = req.body;
+      
+      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      
+      const context = AutomotivePromptService.createConversationContext(
+        leadName,
+        vehicleInterest,
+        messageContent
+      );
+      
+      const enhancers = AutomotivePromptService.applyConversationEnhancers(
+        context,
+        season,
+        brand,
+        isReEngagement
+      );
+      
+      res.json({ enhancers, context });
+    } catch (error) {
+      console.error('Conversation enhancers error:', error);
+      res.status(500).json({ message: "Failed to get conversation enhancers" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
