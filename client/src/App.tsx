@@ -10,21 +10,26 @@ import LeadsPage from "@/pages/leads";
 import CampaignsPage from "@/pages/campaigns";
 import AiSettingsPage from "@/pages/ai-settings";
 import WhiteLabelPage from "@/pages/white-label";
+import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import { ClientProvider } from "@/contexts/ClientContext";
+import AppLayout from "@/components/layout/AppLayout";
 
 function Router() {
   return (
-    <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/conversations" component={ConversationsPage} />
-      <Route path="/leads" component={LeadsPage} />
-      <Route path="/campaigns" component={CampaignsPage} />
-      <Route path="/ai-settings" component={AiSettingsPage} />
-      <Route path="/white-label" component={WhiteLabelPage} />
-      <Route path="/users" component={UserManagementPage} />
-      <Route component={NotFound} />
-    </Switch>
+    <AppLayout>
+      <Switch>
+        <Route path="/" component={Dashboard} />
+        <Route path="/conversations" component={ConversationsPage} />
+        <Route path="/leads" component={LeadsPage} />
+        <Route path="/campaigns" component={CampaignsPage} />
+        <Route path="/ai-settings" component={AiSettingsPage} />
+        <Route path="/settings" component={SettingsPage} />
+        <Route path="/white-label" component={WhiteLabelPage} />
+        <Route path="/users" component={UserManagementPage} />
+        <Route component={NotFound} />
+      </Switch>
+    </AppLayout>
   );
 }
 

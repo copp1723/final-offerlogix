@@ -30,19 +30,12 @@ export default function Leads() {
   // Fetch leads with optional campaign filter
   const { data: leads = [], isLoading } = useQuery<Lead[]>({
     queryKey: ["/api/leads", selectedCampaign],
-    queryFn: async () => {
-      const url = selectedCampaign && selectedCampaign !== "all" ? `/api/leads?campaignId=${selectedCampaign}` : "/api/leads";
-      return await apiRequest(url) as Lead[];
-    },
   });
 
   // Create lead mutation
   const createLeadMutation = useMutation({
     mutationFn: async (leadData: any) => {
-      return await apiRequest("/api/leads", {
-        method: "POST",
-        body: JSON.stringify(leadData),
-      });
+      return await apiRequest("/api/leads", "POST", leadData);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
@@ -83,10 +76,7 @@ export default function Leads() {
   // Update lead status mutation
   const updateLeadMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      return await apiRequest(`/api/leads/${id}`, {
-        method: "PUT",
-        body: JSON.stringify({ status }),
-      });
+      return await apiRequest(`/api/leads/${id}`, "PUT", { status });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
