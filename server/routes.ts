@@ -379,6 +379,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate campaign creation prompt
+  app.post("/api/ai/campaign-prompt", async (req, res) => {
+    try {
+      const { userInput, campaignType, urgency } = req.body;
+      
+      const { CampaignPromptService } = await import('./services/campaign-prompts');
+      const prompt = CampaignPromptService.generateContextualPrompt(userInput, campaignType, urgency);
+      
+      res.json({ prompt });
+    } catch (error) {
+      console.error('Campaign prompt generation error:', error);
+      res.status(500).json({ message: "Failed to generate campaign prompt" });
+    }
+  });
+
+  // Analyze user intent for campaign creation
+  app.post("/api/ai/analyze-campaign-intent", async (req, res) => {
+    try {
+      const { message } = req.body;
+      
+      const { CampaignPromptService } = await import('./services/campaign-prompts');
+      const intent = CampaignPromptService.parseUserIntent(message);
+      const guidance = CampaignPromptService.generateResponseGuidance(intent);
+      
+      res.json({ intent, guidance });
+    } catch (error) {
+      console.error('Campaign intent analysis error:', error);
+      res.status(500).json({ message: "Failed to analyze campaign intent" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
