@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema } from "@shared/schema";
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
+import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 
@@ -300,6 +301,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(message);
     } catch (error) {
       res.status(400).json({ message: "Invalid message data" });
+    }
+  });
+
+  // AI Chat Campaign route
+  app.post("/api/ai/chat-campaign", async (req, res) => {
+    try {
+      const { message, currentStep, campaignData } = req.body;
+      
+      // AI chat logic for campaign creation
+      const response = await processCampaignChat(message, currentStep, campaignData);
+      
+      res.json(response);
+    } catch (error) {
+      console.error('AI chat campaign error:', error);
+      res.status(500).json({ message: "Failed to process chat message" });
     }
   });
 

@@ -3,7 +3,7 @@ import OpenAI from "openai";
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 let openai: OpenAI | null = null;
 
-function getOpenAIClient(): OpenAI {
+export function getOpenAIClient(): OpenAI {
   if (!openai) {
     const apiKey = process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY;
     if (!apiKey) {

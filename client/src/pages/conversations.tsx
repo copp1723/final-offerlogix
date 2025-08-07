@@ -119,54 +119,9 @@ export default function ConversationsPage() {
           <p className="text-gray-600 mt-1">Manage customer conversations and support requests</p>
         </div>
         
-        <Dialog open={newConversationOpen} onOpenChange={setNewConversationOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="w-4 h-4 mr-2" />
-              New Conversation
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Start New Conversation</DialogTitle>
-            </DialogHeader>
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                const formData = new FormData(e.currentTarget);
-                createConversationMutation.mutate({
-                  subject: formData.get("subject") as string,
-                  priority: formData.get("priority") as string,
-                });
-              }}
-              className="space-y-4"
-            >
-              <Input
-                name="subject"
-                placeholder="Conversation subject..."
-                required
-                className="w-full"
-              />
-              <Select name="priority" defaultValue="normal">
-                <SelectTrigger>
-                  <SelectValue placeholder="Select priority" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="high">High Priority</SelectItem>
-                  <SelectItem value="normal">Normal Priority</SelectItem>
-                  <SelectItem value="low">Low Priority</SelectItem>
-                </SelectContent>
-              </Select>
-              <Button
-                type="submit"
-                className="w-full"
-                disabled={createConversationMutation.isPending}
-              >
-                {createConversationMutation.isPending ? "Creating..." : "Create Conversation"}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <div className="text-sm text-gray-500">
+          Conversations are created automatically when campaigns are launched
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
