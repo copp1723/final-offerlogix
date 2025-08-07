@@ -11,7 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag } from "lucide-react";
+import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target } from "lucide-react";
+import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
 
 export default function Leads() {
@@ -141,6 +142,12 @@ export default function Leads() {
           <p className="text-muted-foreground">Manage your automotive leads and track conversions</p>
         </div>
         <div className="flex gap-2">
+          <LeadCampaignAssignment>
+            <Button variant="outline">
+              <Target className="h-4 w-4 mr-2" />
+              Assign to Campaign
+            </Button>
+          </LeadCampaignAssignment>
           <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
             <DialogTrigger asChild>
               <Button>

@@ -25,7 +25,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { Copy, Edit, Trash2, Plus, Eye } from "lucide-react";
+import { Copy, Edit, Trash2, Plus, Eye, Play } from "lucide-react";
+import CampaignExecutionModal from "@/components/campaigns/CampaignExecutionModal";
 import type { Campaign } from "@shared/schema";
 
 export default function CampaignsPage() {
@@ -164,13 +165,15 @@ export default function CampaignsPage() {
                 </div>
                 
                 <div className="flex gap-2">
+                  <CampaignExecutionModal campaign={campaign}>
+                    <Button size="sm" className="flex-1">
+                      <Play className="h-4 w-4 mr-1" />
+                      Execute
+                    </Button>
+                  </CampaignExecutionModal>
                   <Button variant="outline" size="sm" className="flex-1">
                     <Eye className="h-4 w-4 mr-1" />
                     View
-                  </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
-                    <Edit className="h-4 w-4 mr-1" />
-                    Edit
                   </Button>
                   <Button 
                     variant="outline" 

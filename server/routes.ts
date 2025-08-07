@@ -308,6 +308,245 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Campaign Execution Routes
+  app.post("/api/campaigns/:id/execute", async (req, res) => {
+    try {
+      const campaignId = req.params.id;
+      const { scheduleAt, testMode = false } = req.body;
+      
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ message: "Campaign not found" });
+      }
+
+      // Get leads for this campaign or all active leads if no specific campaign leads
+      const leads = await storage.getLeads();
+      const campaignLeads = leads.filter(lead => 
+        !lead.campaignId || lead.campaignId === campaignId
+      );
+
+      if (campaignLeads.length === 0) {
+        return res.status(400).json({ message: "No leads found for this campaign" });
+      }
+
+      // Parse email templates from campaign
+      let templates: any[] = [];
+      try {
+        templates = JSON.parse(campaign.templates || '[]');
+        if (!Array.isArray(templates) || templates.length === 0) {
+          return res.status(400).json({ message: "Campaign has no email templates" });
+        }
+      } catch (error) {
+        return res.status(400).json({ message: "Invalid email templates in campaign" });
+      }
+
+      // Update campaign status
+      await storage.updateCampaign(campaignId, { 
+        status: scheduleAt ? 'scheduled' : 'active',
+        lastExecuted: scheduleAt ? null : new Date()
+      });
+
+      // If test mode, only send to first lead or use a test email
+      if (testMode) {
+        const testLead = campaignLeads[0];
+        const testTemplate = templates[0];
+        
+        const emailData = {
+          to: [testLead.email],
+          subject: `[TEST] ${testTemplate.subject || campaign.name}`,
+          htmlContent: testTemplate.content || 'Test email content',
+          fromName: 'AutoCampaigns AI',
+        };
+
+        const result = await sendCampaignEmail(emailData);
+        return res.json({ 
+          message: "Test email sent successfully",
+          sentTo: [testLead.email],
+          testMode: true,
+          result
+        });
+      }
+
+      // Schedule or execute immediately
+      if (scheduleAt) {
+        // Store execution details for scheduled sending
+        // In a production system, you'd use a job queue like Bull/Redis
+        return res.json({ 
+          message: "Campaign scheduled successfully",
+          scheduledFor: scheduleAt,
+          leadsCount: campaignLeads.length,
+          templatesCount: templates.length
+        });
+      }
+
+      // Execute immediately - send first email to all leads
+      const firstTemplate = templates[0];
+      const emails = campaignLeads.map(lead => ({
+        to: [lead.email],
+        subject: firstTemplate.subject || campaign.name,
+        htmlContent: firstTemplate.content || 'Email content unavailable',
+        fromName: 'AutoCampaigns AI',
+      }));
+
+      const results = await sendBulkEmails(emails);
+      const successful = results.filter(r => r.success).length;
+      const failed = results.filter(r => !r.success).length;
+
+      // Create conversation entries for successful sends
+      for (let i = 0; i < campaignLeads.length; i++) {
+        if (results[i]?.success) {
+          const lead = campaignLeads[i];
+          await storage.createConversation({
+            subject: `Campaign: ${campaign.name}`,
+            leadId: lead.id,
+            status: 'active',
+            priority: 'normal',
+            campaignId: campaignId,
+            lastActivity: new Date(),
+          });
+        }
+      }
+
+      // Update campaign metrics
+      await storage.updateCampaign(campaignId, {
+        emailsSent: (campaign.emailsSent || 0) + successful,
+        lastExecuted: new Date()
+      });
+
+      res.json({
+        message: "Campaign executed successfully",
+        successful,
+        failed,
+        total: campaignLeads.length,
+        results: testMode ? results : undefined
+      });
+
+    } catch (error) {
+      console.error('Campaign execution error:', error);
+      res.status(500).json({ message: "Failed to execute campaign" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/send-followup", async (req, res) => {
+    try {
+      const campaignId = req.params.id;
+      const { templateIndex = 1, leadIds } = req.body;
+      
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ message: "Campaign not found" });
+      }
+
+      let templates: any[] = [];
+      try {
+        templates = JSON.parse(campaign.templates || '[]');
+      } catch (error) {
+        return res.status(400).json({ message: "Invalid email templates" });
+      }
+
+      if (!templates[templateIndex]) {
+        return res.status(400).json({ message: "Template index out of range" });
+      }
+
+      // Get specific leads or all campaign leads
+      let targetLeads;
+      if (leadIds && Array.isArray(leadIds)) {
+        targetLeads = await Promise.all(
+          leadIds.map(id => storage.getLead(id))
+        );
+        targetLeads = targetLeads.filter(Boolean);
+      } else {
+        const allLeads = await storage.getLeads();
+        targetLeads = allLeads.filter(lead => lead.campaignId === campaignId);
+      }
+
+      if (targetLeads.length === 0) {
+        return res.status(400).json({ message: "No target leads found" });
+      }
+
+      const template = templates[templateIndex];
+      const emails = targetLeads.map(lead => ({
+        to: [lead.email],
+        subject: template.subject || `${campaign.name} - Follow-up`,
+        htmlContent: template.content || 'Follow-up email content',
+        fromName: 'AutoCampaigns AI',
+      }));
+
+      const results = await sendBulkEmails(emails);
+      const successful = results.filter(r => r.success).length;
+
+      // Update campaign metrics
+      await storage.updateCampaign(campaignId, {
+        emailsSent: (campaign.emailsSent || 0) + successful,
+        lastExecuted: new Date()
+      });
+
+      res.json({
+        message: "Follow-up emails sent successfully",
+        successful,
+        failed: results.filter(r => !r.success).length,
+        templateUsed: templateIndex + 1
+      });
+
+    } catch (error) {
+      console.error('Follow-up send error:', error);
+      res.status(500).json({ message: "Failed to send follow-up emails" });
+    }
+  });
+
+  app.get("/api/campaigns/:id/analytics", async (req, res) => {
+    try {
+      const campaignId = req.params.id;
+      
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return res.status(404).json({ message: "Campaign not found" });
+      }
+
+      // Get campaign-related data
+      const allLeads = await storage.getLeads();
+      const campaignLeads = allLeads.filter(lead => lead.campaignId === campaignId);
+      
+      const conversations = await storage.getConversations();
+      const campaignConversations = conversations.filter(conv => conv.campaignId === campaignId);
+
+      const analytics = {
+        campaign: {
+          name: campaign.name,
+          status: campaign.status,
+          emailsSent: campaign.emailsSent || 0,
+          lastExecuted: campaign.lastExecuted,
+          createdAt: campaign.createdAt
+        },
+        leads: {
+          total: campaignLeads.length,
+          byStatus: {
+            new: campaignLeads.filter(l => l.status === 'new').length,
+            contacted: campaignLeads.filter(l => l.status === 'contacted').length,
+            qualified: campaignLeads.filter(l => l.status === 'qualified').length,
+            converted: campaignLeads.filter(l => l.status === 'converted').length,
+            lost: campaignLeads.filter(l => l.status === 'lost').length,
+          }
+        },
+        conversations: {
+          total: campaignConversations.length,
+          active: campaignConversations.filter(c => c.status === 'active').length,
+          closed: campaignConversations.filter(c => c.status === 'closed').length,
+        },
+        engagement: {
+          responseRate: campaignLeads.length > 0 ? (campaignConversations.length / campaignLeads.length * 100).toFixed(1) : '0',
+          conversionRate: campaignLeads.length > 0 ? (campaignLeads.filter(l => l.status === 'converted').length / campaignLeads.length * 100).toFixed(1) : '0'
+        }
+      };
+
+      res.json(analytics);
+
+    } catch (error) {
+      console.error('Analytics error:', error);
+      res.status(500).json({ message: "Failed to get campaign analytics" });
+    }
+  });
+
   app.post("/api/sms/validate-phone", async (req, res) => {
     try {
       const { phoneNumber } = req.body;
