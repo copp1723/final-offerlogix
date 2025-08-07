@@ -1,0 +1,56 @@
+Handover Goals and Prompt Instructions for the AI Campaign Agent
+The handover goals and prompt instructions are critical components of the AI Campaign Agent, ensuring that the generated content aligns with user expectations and achieves the desired outcomes. Below is a detailed explanation:
+
+Handover Goals
+Handover goals define the specific objectives of the campaign and guide the AI in generating content that meets these objectives. For automotive-focused campaigns, these goals are tailored to the industry.
+
+Examples of Handover Goals:
+Automotive Sales:
+"Increase test drive bookings for the latest car models."
+"Promote end-of-year clearance sales for older inventory."
+Service and Maintenance:
+"Boost service appointment scheduling for seasonal maintenance."
+"Encourage customers to redeem service coupons."
+Customer Engagement:
+"Announce dealership events, such as open houses or car shows."
+"Promote loyalty programs or referral incentives."
+How Handover Goals Work:
+The AI Suggest Button provides pre-defined or dynamically generated goals based on the campaign context.
+Users can select or refine these goals to ensure alignment with their specific needs.
+The goals are used by the AI to tailor email templates, calls-to-action, and overall messaging.
+Prompt Instructions: Do's and Don'ts
+To ensure the AI generates high-quality and relevant content, users are provided with clear instructions on how to craft effective prompts.
+
+Do's:
+Be Specific:
+Provide clear and concise context for the campaign.
+Example: "Promote the new 2025 SUV model with a focus on safety features and financing options."
+Include Key Details:
+Mention important elements like target audience, campaign goals, and unique selling points.
+Example: "Target families looking for spacious and fuel-efficient vehicles."
+Use Action-Oriented Language:
+Frame the context in terms of desired actions or outcomes.
+Example: "Encourage customers to schedule a test drive or visit the dealership."
+Don'ts:
+Avoid Vague Descriptions:
+Example: "Promote cars" (too generic and lacks focus).
+Don't Overload with Unnecessary Details:
+Keep the context concise and relevant to the campaign.
+Example: Avoid including unrelated dealership history or excessive technical specifications.
+Avoid Negative or Confusing Language:
+Example: "Don't focus on financing" (instead, specify what to focus on).
+AI Tips for Effective Prompts
+The AI Tips feature provides real-time guidance to users as they craft their prompts. These tips ensure that the input is optimized for AI processing.
+
+Examples of AI Tips:
+"Include a clear call-to-action, such as 'Schedule a test drive today!'"
+"Focus on one key message per campaign to avoid overwhelming the audience."
+"Use the Campaign Context field to highlight unique selling points, such as special offers or new features."
+Outcomes of Effective Handover and Prompts
+Aligned Campaigns:
+Ensures the generated content meets the user's objectives and resonates with the target audience.
+Improved Engagement:
+Creates clear, action-oriented messaging that drives customer actions.
+Streamlined Workflow:
+Reduces the time and effort required to create high-quality campaigns.
+The handover goals and prompt instructions are integral to the success of the AI Campaign Agent, enabling users to create impactful and effective email campaigns with minimal effort. Let me know if you'd like further clarification or assistance!
