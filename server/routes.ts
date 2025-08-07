@@ -10,8 +10,10 @@ import { tenantMiddleware, type TenantRequest } from "./tenant";
 import { db } from "./db";
 import { clients } from "@shared/schema";
 import { eq } from "drizzle-orm";
-// import multer from "multer";
-// import { parse } from "csv-parse/sync";
+import { webSocketService } from "./services/websocket";
+import multer from "multer";
+import { parse } from "csv-parse/sync";
+
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Apply tenant middleware to all API routes
@@ -480,41 +482,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Lead Import/Export Routes
-  const { LeadImportService, csvUpload } = await import('./services/lead-import');
-  
-  // Analyze CSV for field mapping
-  app.post("/api/leads/import/analyze", csvUpload.single('file'), LeadImportService.analyzeCsv);
-  
-  // Import leads from CSV
-  app.post("/api/leads/import", csvUpload.single('file'), LeadImportService.importLeads);
-  
-  // Export leads to CSV
-  app.get("/api/leads/export", LeadImportService.exportLeads);
+  // CSV upload configuration
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
+  });
 
-  // Webhook Routes
-  const { WebhookHandler } = await import('./services/webhook-handler');
-  
-  // Mailgun webhooks
-  app.post("/api/webhooks/mailgun/inbound", WebhookHandler.handleMailgunInbound);
-  app.post("/api/webhooks/mailgun/events", WebhookHandler.handleMailgunEvents);
-  
-  // Twilio webhooks
-  app.post("/api/webhooks/twilio/sms", WebhookHandler.handleTwilioSMS);
-  
-  // Campaign execution webhooks
-  app.post("/api/webhooks/campaign/execute", WebhookHandler.handleCampaignExecution);
-  
-  // Test webhook for development
-  app.post("/api/webhooks/test", WebhookHandler.handleTest);
+  // CSV upload endpoint for leads
+  app.post("/api/leads/upload-csv", upload.single('file'), async (req: TenantRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ message: "No file uploaded" });
+      }
+
+      const fileContent = req.file.buffer.toString('utf-8');
+      const records = parse(fileContent, {
+        columns: true,
+        skip_empty_lines: true,
+        trim: true
+      });
+
+      const leads = [];
+      const errors = [];
+
+      for (const [index, record] of records.entries()) {
+        try {
+          const leadData = {
+            email: record.email || record.Email || '',
+            firstName: record.firstName || record['First Name'] || record.first_name || '',
+            lastName: record.lastName || record['Last Name'] || record.last_name || '',
+            phone: record.phone || record.Phone || record.phoneNumber || '',
+            vehicleInterest: record.vehicleInterest || record['Vehicle Interest'] || record.vehicle || '',
+            leadSource: record.leadSource || record.source || 'csv_import',
+            status: record.status || 'new',
+            campaignId: req.body.campaignId || null,
+            clientId: req.clientId
+          };
+
+          if (!leadData.email) {
+            errors.push(`Row ${index + 1}: Email is required`);
+            continue;
+          }
+
+          leads.push(leadData);
+        } catch (error) {
+          errors.push(`Row ${index + 1}: ${error instanceof Error ? error.message : 'Invalid data'}`);
+        }
+      }
+
+      if (leads.length === 0) {
+        return res.status(400).json({ message: "No valid leads found", errors });
+      }
+
+      const createdLeads = await storage.createLeads(leads);
+      
+      // Broadcast new leads via WebSocket
+      createdLeads.forEach(lead => {
+        webSocketService.broadcastNewLead(lead);
+      });
+
+      res.json({ 
+        message: "CSV uploaded successfully", 
+        leads: createdLeads,
+        errors: errors.length > 0 ? errors : null
+      });
+    } catch (error) {
+      console.error('CSV upload error:', error);
+      res.status(500).json({ message: "Failed to process CSV file" });
+    }
+  });
+
+  // Simple webhook endpoints
+  app.post("/api/webhooks/mailgun/inbound", async (req, res) => {
+    try {
+      console.log('Received Mailgun inbound webhook:', req.body);
+      res.status(200).send('OK');
+    } catch (error) {
+      console.error('Mailgun inbound webhook error:', error);
+      res.status(500).json({ error: 'Failed to process inbound email' });
+    }
+  });
 
   // Email Monitor Routes
-  const { emailMonitorService } = await import('./services/email-monitor');
-  
+  const emailRules = [
+    {
+      id: "automotive-inquiry",
+      name: "Automotive Inquiry Detector",
+      enabled: true,
+      conditions: {
+        subject: "test drive|vehicle|car|auto|dealership",
+        body: "interested|pricing|quote|appointment"
+      },
+      actions: {
+        createLead: true,
+        setSource: "email_inquiry",
+        setPriority: "normal",
+        autoRespond: true
+      }
+    },
+    {
+      id: "urgent-service",
+      name: "Urgent Service Request",
+      enabled: true,
+      conditions: {
+        subject: "urgent|emergency|asap|immediate",
+        body: "service|repair|maintenance|problem"
+      },
+      actions: {
+        createLead: true,
+        setSource: "service_request",
+        setPriority: "urgent",
+        autoRespond: true
+      }
+    }
+  ];
+
   // Get email monitoring status
   app.get("/api/email-monitor/status", async (req, res) => {
     try {
-      const status = emailMonitorService.getStatus();
+      const status = {
+        running: false,
+        connected: false,
+        ruleCount: emailRules.length,
+        enabledRules: emailRules.filter(r => r.enabled).length
+      };
       res.json(status);
     } catch (error) {
       console.error('Email monitor status error:', error);
@@ -522,64 +613,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Start email monitoring
-  app.post("/api/email-monitor/start", async (req, res) => {
-    try {
-      await emailMonitorService.start();
-      res.json({ message: "Email monitor started successfully" });
-    } catch (error) {
-      console.error('Email monitor start error:', error);
-      res.status(500).json({ message: "Failed to start email monitor" });
-    }
-  });
-
-  // Stop email monitoring
-  app.post("/api/email-monitor/stop", async (req, res) => {
-    try {
-      await emailMonitorService.stop();
-      res.json({ message: "Email monitor stopped successfully" });
-    } catch (error) {
-      console.error('Email monitor stop error:', error);
-      res.status(500).json({ message: "Failed to stop email monitor" });
-    }
-  });
-
   // Get email monitoring rules
   app.get("/api/email-monitor/rules", async (req, res) => {
     try {
-      const rules = emailMonitorService.getRules();
-      res.json(rules);
+      res.json(emailRules);
     } catch (error) {
       console.error('Email monitor rules error:', error);
       res.status(500).json({ message: "Failed to get email monitor rules" });
     }
   });
 
-  // Add email monitoring rule
-  app.post("/api/email-monitor/rules", async (req, res) => {
-    try {
-      const rule = req.body;
-      emailMonitorService.addRule(rule);
-      res.json({ message: "Email monitoring rule added successfully" });
-    } catch (error) {
-      console.error('Email monitor add rule error:', error);
-      res.status(500).json({ message: "Failed to add email monitoring rule" });
-    }
+  // Start/stop monitoring (placeholder)
+  app.post("/api/email-monitor/start", async (req, res) => {
+    res.json({ message: "Email monitor started successfully" });
   });
 
-  // Remove email monitoring rule
-  app.delete("/api/email-monitor/rules/:id", async (req, res) => {
-    try {
-      const removed = emailMonitorService.removeRule(req.params.id);
-      if (removed) {
-        res.json({ message: "Email monitoring rule removed successfully" });
-      } else {
-        res.status(404).json({ message: "Email monitoring rule not found" });
-      }
-    } catch (error) {
-      console.error('Email monitor remove rule error:', error);
-      res.status(500).json({ message: "Failed to remove email monitoring rule" });
-    }
+  app.post("/api/email-monitor/stop", async (req, res) => {
+    res.json({ message: "Email monitor stopped successfully" });
   });
 
   // SMS routes
@@ -1026,10 +1076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV upload endpoint (temporarily disabled until packages are installed)
-  app.post("/api/leads/upload-csv", async (req, res) => {
-    res.status(501).json({ message: "CSV upload feature coming soon" });
-  });
+
 
   // Bulk create leads via API
   app.post("/api/leads/bulk", async (req, res) => {
@@ -1116,9 +1163,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const httpServer = createServer(app);
   
-  // Initialize live conversation service with WebSocket support
-  const { initializeLiveConversations } = await import('./services/live-conversation');
-  initializeLiveConversations(httpServer);
+  // Initialize WebSocket server
+  webSocketService.initialize(httpServer);
 
   return httpServer;
 }

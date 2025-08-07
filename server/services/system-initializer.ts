@@ -5,6 +5,10 @@ export class SystemInitializer {
     console.log('🚀 Initializing AutoCampaigns AI services...');
     
     try {
+      // Seed default AI agent configuration
+      const { seedDefaultAiConfig } = await import('./default-ai-config');
+      await seedDefaultAiConfig();
+      
       // Initialize Email Monitor
       console.log('📧 Starting email monitoring service...');
       await emailMonitorService.start();
