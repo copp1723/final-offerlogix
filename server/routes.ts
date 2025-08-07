@@ -480,6 +480,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lead Import/Export Routes
+  const { LeadImportService, csvUpload } = await import('./services/lead-import');
+  
+  // Analyze CSV for field mapping
+  app.post("/api/leads/import/analyze", csvUpload.single('file'), LeadImportService.analyzeCsv);
+  
+  // Import leads from CSV
+  app.post("/api/leads/import", csvUpload.single('file'), LeadImportService.importLeads);
+  
+  // Export leads to CSV
+  app.get("/api/leads/export", LeadImportService.exportLeads);
+
+  // Webhook Routes
+  const { WebhookHandler } = await import('./services/webhook-handler');
+  
+  // Mailgun webhooks
+  app.post("/api/webhooks/mailgun/inbound", WebhookHandler.handleMailgunInbound);
+  app.post("/api/webhooks/mailgun/events", WebhookHandler.handleMailgunEvents);
+  
+  // Twilio webhooks
+  app.post("/api/webhooks/twilio/sms", WebhookHandler.handleTwilioSMS);
+  
+  // Campaign execution webhooks
+  app.post("/api/webhooks/campaign/execute", WebhookHandler.handleCampaignExecution);
+  
+  // Test webhook for development
+  app.post("/api/webhooks/test", WebhookHandler.handleTest);
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
@@ -1013,5 +1041,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   const httpServer = createServer(app);
+  
+  // Initialize live conversation service with WebSocket support
+  const { initializeLiveConversations } = await import('./services/live-conversation');
+  initializeLiveConversations(httpServer);
+
   return httpServer;
 }
