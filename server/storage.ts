@@ -205,6 +205,17 @@ export class DatabaseStorage implements IStorage {
     return updatedConversation;
   }
 
+  // Update conversation status for handover
+  async updateConversationStatus(id: string, status: string, metadata?: any): Promise<Conversation | null> {
+    const conversation = await this.getConversation(id);
+    if (!conversation) return null;
+    
+    return this.updateConversation(id, { 
+      status, 
+      metadata: metadata ? { ...conversation.metadata, ...metadata } : conversation.metadata 
+    });
+  }
+
   // Conversation message methods
   async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
     return await db

@@ -305,6 +305,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Handover evaluation endpoint
+  app.post("/api/conversations/:id/evaluate-handover", async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { message, customCriteria } = req.body;
+
+      // Get conversation from storage
+      const conversation = await storage.getConversation(id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+
+      const { HandoverService } = await import('./services/handover-service');
+      const evaluation = await HandoverService.evaluateHandover(id, conversation, message, customCriteria);
+      
+      res.json(evaluation);
+    } catch (error) {
+      console.error('Handover evaluation error:', error);
+      res.status(500).json({ message: "Failed to evaluate handover" });
+    }
+  });
+
+  // Get handover statistics
+  app.get("/api/handover/stats", async (req, res) => {
+    try {
+      const { HandoverService } = await import('./services/handover-service');
+      const stats = HandoverService.getHandoverStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Handover stats error:', error);
+      res.status(500).json({ message: "Failed to get handover stats" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
