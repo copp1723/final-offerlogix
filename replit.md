@@ -7,6 +7,16 @@ AutoCampaigns AI is a specialized email campaign management platform designed sp
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
+Design preferences: Clean, professional design with minimal colors - no purple/pink, no emojis, use professional icons. Focus on simplicity over complex multi-step wizards.
+
+## Recent Changes (January 2025)
+
+### Design Overhaul
+- Replaced complex multi-step campaign wizard with simplified AI-focused interface
+- Changed color scheme from purple/pink gradients to professional blue/gray palette
+- Simplified campaign creation to single-step form with AI enhancement options
+- Removed complex step indicators in favor of clean, minimal design
+- Enhanced AI Campaign Agent as the primary feature with better visual prominence
 
 ## System Architecture
 
