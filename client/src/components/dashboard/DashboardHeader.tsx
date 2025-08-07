@@ -1,4 +1,5 @@
 import { Car, Bell, User } from "lucide-react";
+import { Link, useLocation } from "wouter";
 
 export default function DashboardHeader() {
   return (
@@ -13,10 +14,12 @@ export default function DashboardHeader() {
           </div>
           
           <nav className="hidden md:flex items-center space-x-8">
-            <a href="#" className="text-blue-600 hover:text-blue-700 font-medium">Dashboard</a>
-            <a href="#" className="text-gray-500 hover:text-gray-700">Campaigns</a>
-            <a href="#" className="text-gray-500 hover:text-gray-700">Analytics</a>
-            <a href="#" className="text-gray-500 hover:text-gray-700">Settings</a>
+            <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium">Dashboard</Link>
+            <Link href="/campaigns" className="text-gray-500 hover:text-gray-700">Campaigns</Link>
+            <Link href="/leads" className="text-gray-500 hover:text-gray-700">Leads</Link>
+            <Link href="/conversations" className="text-gray-500 hover:text-gray-700">Conversations</Link>
+            <Link href="/ai-settings" className="text-gray-500 hover:text-gray-700">AI Settings</Link>
+            <Link href="/users" className="text-gray-500 hover:text-gray-700">Users</Link>
           </nav>
           
           <div className="flex items-center space-x-4">

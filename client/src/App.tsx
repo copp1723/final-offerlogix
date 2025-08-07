@@ -7,6 +7,8 @@ import Dashboard from "@/pages/dashboard";
 import ConversationsPage from "@/pages/conversations";
 import UserManagementPage from "@/pages/user-management";
 import LeadsPage from "@/pages/leads";
+import CampaignsPage from "@/pages/campaigns";
+import AiSettingsPage from "@/pages/ai-settings";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -15,6 +17,8 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/conversations" component={ConversationsPage} />
       <Route path="/leads" component={LeadsPage} />
+      <Route path="/campaigns" component={CampaignsPage} />
+      <Route path="/ai-settings" component={AiSettingsPage} />
       <Route path="/users" component={UserManagementPage} />
       <Route component={NotFound} />
     </Switch>

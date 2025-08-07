@@ -4,6 +4,7 @@ import {
   conversations,
   conversationMessages,
   leads,
+  aiAgentConfig,
   type Campaign,
   type InsertCampaign,
   type User,
@@ -14,6 +15,8 @@ import {
   type InsertConversationMessage,
   type Lead,
   type InsertLead,
+  type AiAgentConfig,
+  type InsertAiAgentConfig,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -32,6 +35,7 @@ export interface IStorage {
   createCampaign(campaign: InsertCampaign): Promise<Campaign>;
   updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign>;
   deleteCampaign(id: string): Promise<void>;
+  cloneCampaign(id: string, newName?: string): Promise<Campaign>;
   
   // Conversation methods
   getConversations(userId?: string): Promise<Conversation[]>;
@@ -50,6 +54,15 @@ export interface IStorage {
   createLeads(leads: InsertLead[]): Promise<Lead[]>;
   updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead>;
   deleteLead(id: string): Promise<void>;
+  
+  // AI Agent Configuration methods
+  getAiAgentConfigs(): Promise<AiAgentConfig[]>;
+  getActiveAiAgentConfig(): Promise<AiAgentConfig | undefined>;
+  getAiAgentConfig(id: string): Promise<AiAgentConfig | undefined>;
+  createAiAgentConfig(config: InsertAiAgentConfig): Promise<AiAgentConfig>;
+  updateAiAgentConfig(id: string, config: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig>;
+  deleteAiAgentConfig(id: string): Promise<void>;
+  setActiveAiAgentConfig(id: string): Promise<AiAgentConfig>;
   getLeadsByEmail(email: string): Promise<Lead[]>;
 }
 
@@ -116,6 +129,28 @@ export class DatabaseStorage implements IStorage {
     await db
       .delete(campaigns)
       .where(eq(campaigns.id, id));
+  }
+
+  async cloneCampaign(id: string, newName?: string): Promise<Campaign> {
+    const originalCampaign = await this.getCampaign(id);
+    if (!originalCampaign) {
+      throw new Error("Campaign not found");
+    }
+
+    const clonedCampaign = {
+      name: newName || `${originalCampaign.name} (Copy)`,
+      context: originalCampaign.context,
+      handoverGoals: originalCampaign.handoverGoals,
+      status: "draft" as const,
+      templates: originalCampaign.templates,
+      subjectLines: originalCampaign.subjectLines,
+      numberOfTemplates: originalCampaign.numberOfTemplates,
+      daysBetweenMessages: originalCampaign.daysBetweenMessages,
+      isTemplate: false,
+      originalCampaignId: id,
+    };
+
+    return await this.createCampaign(clonedCampaign);
   }
 
   async updateUserRole(id: string, role: string): Promise<User> {
@@ -228,6 +263,59 @@ export class DatabaseStorage implements IStorage {
 
   async getLeadsByEmail(email: string): Promise<Lead[]> {
     return await db.select().from(leads).where(eq(leads.email, email));
+  }
+
+  // AI Agent Configuration methods
+  async getAiAgentConfigs(): Promise<AiAgentConfig[]> {
+    return await db.select().from(aiAgentConfig).orderBy(desc(aiAgentConfig.createdAt));
+  }
+
+  async getActiveAiAgentConfig(): Promise<AiAgentConfig | undefined> {
+    const [config] = await db.select().from(aiAgentConfig).where(eq(aiAgentConfig.isActive, true));
+    return config;
+  }
+
+  async getAiAgentConfig(id: string): Promise<AiAgentConfig | undefined> {
+    const [config] = await db.select().from(aiAgentConfig).where(eq(aiAgentConfig.id, id));
+    return config;
+  }
+
+  async createAiAgentConfig(config: InsertAiAgentConfig): Promise<AiAgentConfig> {
+    const [newConfig] = await db.insert(aiAgentConfig).values({
+      ...config,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    }).returning();
+    return newConfig;
+  }
+
+  async updateAiAgentConfig(id: string, config: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig> {
+    const [updatedConfig] = await db
+      .update(aiAgentConfig)
+      .set({
+        ...config,
+        updatedAt: new Date(),
+      })
+      .where(eq(aiAgentConfig.id, id))
+      .returning();
+    return updatedConfig;
+  }
+
+  async deleteAiAgentConfig(id: string): Promise<void> {
+    await db.delete(aiAgentConfig).where(eq(aiAgentConfig.id, id));
+  }
+
+  async setActiveAiAgentConfig(id: string): Promise<AiAgentConfig> {
+    // First, deactivate all configs
+    await db.update(aiAgentConfig).set({ isActive: false });
+    
+    // Then activate the selected config
+    const [activeConfig] = await db
+      .update(aiAgentConfig)
+      .set({ isActive: true, updatedAt: new Date() })
+      .where(eq(aiAgentConfig.id, id))
+      .returning();
+    return activeConfig;
   }
 }
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, integer, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, varchar, timestamp, integer, jsonb, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -44,6 +44,23 @@ export const campaigns = pgTable("campaigns", {
   numberOfTemplates: integer("number_of_templates").default(5),
   daysBetweenMessages: integer("days_between_messages").default(3),
   openRate: integer("open_rate"), // percentage
+  isTemplate: boolean("is_template").default(false), // Mark as reusable template
+  originalCampaignId: varchar("original_campaign_id"), // Reference to source campaign when cloned
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// AI Agent Configuration table
+export const aiAgentConfig = pgTable("ai_agent_config", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  name: varchar("name").notNull(), // Configuration name/profile
+  tonality: text("tonality").notNull().default("professional"), // professional, friendly, casual, enthusiastic
+  personality: text("personality"), // Description of agent personality
+  dosList: jsonb("dos_list").default([]), // Array of do's
+  dontsList: jsonb("donts_list").default([]), // Array of don'ts  
+  industry: varchar("industry").default("automotive"), // Industry specialization
+  responseStyle: text("response_style").default("helpful"), // helpful, consultative, direct
+  isActive: boolean("is_active").default(true), // Whether this config is currently active
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -82,6 +99,14 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   numberOfTemplates: true,
   daysBetweenMessages: true,
   openRate: true,
+  isTemplate: true,
+  originalCampaignId: true,
+});
+
+export const insertAiAgentConfigSchema = createInsertSchema(aiAgentConfig).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
 });
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({
@@ -112,6 +137,8 @@ export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 export type Campaign = typeof campaigns.$inferSelect;
 export type InsertLead = z.infer<typeof insertLeadSchema>;
 export type Lead = typeof leads.$inferSelect;
+export type InsertAiAgentConfig = z.infer<typeof insertAiAgentConfigSchema>;
+export type AiAgentConfig = typeof aiAgentConfig.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversationMessage = z.infer<typeof insertConversationMessageSchema>;

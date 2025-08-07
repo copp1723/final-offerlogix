@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema } from "@shared/schema";
+import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema, insertAiAgentConfigSchema, type AiAgentConfig } from "@shared/schema";
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
@@ -58,6 +58,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({ message: "Campaign deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete campaign" });
+    }
+  });
+
+  // Campaign cloning endpoint
+  app.post("/api/campaigns/:id/clone", async (req, res) => {
+    try {
+      const { name } = req.body;
+      const clonedCampaign = await storage.cloneCampaign(req.params.id, name);
+      res.json(clonedCampaign);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to clone campaign" });
     }
   });
 
@@ -396,6 +407,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     } catch (error) {
       res.status(400).json({ message: "Invalid leads data" });
+    }
+  });
+
+  // AI Agent Configuration routes
+  app.get("/api/ai-agent-configs", async (req, res) => {
+    try {
+      const configs = await storage.getAiAgentConfigs();
+      res.json(configs);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch AI agent configurations" });
+    }
+  });
+
+  app.get("/api/ai-agent-configs/active", async (req, res) => {
+    try {
+      const activeConfig = await storage.getActiveAiAgentConfig();
+      res.json(activeConfig);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active AI agent configuration" });
+    }
+  });
+
+  app.get("/api/ai-agent-configs/:id", async (req, res) => {
+    try {
+      const config = await storage.getAiAgentConfig(req.params.id);
+      if (!config) {
+        return res.status(404).json({ message: "AI agent configuration not found" });
+      }
+      res.json(config);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch AI agent configuration" });
+    }
+  });
+
+  app.post("/api/ai-agent-configs", async (req, res) => {
+    try {
+      const configData = insertAiAgentConfigSchema.parse(req.body);
+      const config = await storage.createAiAgentConfig(configData);
+      res.json(config);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid AI agent configuration data" });
+    }
+  });
+
+  app.put("/api/ai-agent-configs/:id", async (req, res) => {
+    try {
+      const configData = insertAiAgentConfigSchema.partial().parse(req.body);
+      const config = await storage.updateAiAgentConfig(req.params.id, configData);
+      res.json(config);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to update AI agent configuration" });
+    }
+  });
+
+  app.delete("/api/ai-agent-configs/:id", async (req, res) => {
+    try {
+      await storage.deleteAiAgentConfig(req.params.id);
+      res.json({ message: "AI agent configuration deleted successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete AI agent configuration" });
+    }
+  });
+
+  app.post("/api/ai-agent-configs/:id/activate", async (req, res) => {
+    try {
+      const activeConfig = await storage.setActiveAiAgentConfig(req.params.id);
+      res.json(activeConfig);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to activate AI agent configuration" });
     }
   });
 
