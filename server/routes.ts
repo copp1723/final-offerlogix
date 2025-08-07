@@ -339,6 +339,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate automotive system prompt
+  app.post("/api/ai/generate-prompt", async (req, res) => {
+    try {
+      const { dealershipConfig, conversationContext } = req.body;
+      
+      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const systemPrompt = AutomotivePromptService.generateSystemPrompt(
+        dealershipConfig || AutomotivePromptService.getDefaultDealershipConfig(),
+        conversationContext
+      );
+      
+      res.json({ systemPrompt });
+    } catch (error) {
+      console.error('Prompt generation error:', error);
+      res.status(500).json({ message: "Failed to generate system prompt" });
+    }
+  });
+
+  // Analyze conversation for automotive context
+  app.post("/api/ai/analyze-conversation", async (req, res) => {
+    try {
+      const { messageContent, leadName, vehicleInterest, previousMessages } = req.body;
+      
+      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const context = AutomotivePromptService.createConversationContext(
+        leadName,
+        vehicleInterest, 
+        messageContent,
+        previousMessages
+      );
+      
+      const guidelines = AutomotivePromptService.generateResponseGuidelines(context);
+      
+      res.json({ context, guidelines });
+    } catch (error) {
+      console.error('Conversation analysis error:', error);
+      res.status(500).json({ message: "Failed to analyze conversation" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
