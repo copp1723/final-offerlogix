@@ -7,6 +7,30 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  role: text("role").notNull().default("user"), // admin, manager, user
+  email: text("email"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const conversations = pgTable("conversations", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").references(() => campaigns.id),
+  userId: varchar("user_id").references(() => users.id),
+  subject: text("subject").notNull(),
+  status: text("status").notNull().default("active"), // active, closed, archived
+  priority: text("priority").notNull().default("normal"), // high, normal, low
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const conversationMessages = pgTable("conversation_messages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  senderId: varchar("sender_id").references(() => users.id),
+  content: text("content").notNull(),
+  messageType: text("message_type").notNull().default("text"), // text, system, email_template
+  isFromAI: integer("is_from_ai").notNull().default(0), // 0 = human, 1 = AI
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const campaigns = pgTable("campaigns", {
@@ -27,6 +51,8 @@ export const campaigns = pgTable("campaigns", {
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
+  role: true,
+  email: true,
 });
 
 export const insertCampaignSchema = createInsertSchema(campaigns).pick({
@@ -41,7 +67,27 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   openRate: true,
 });
 
+export const insertConversationSchema = createInsertSchema(conversations).pick({
+  campaignId: true,
+  userId: true,
+  subject: true,
+  status: true,
+  priority: true,
+});
+
+export const insertConversationMessageSchema = createInsertSchema(conversationMessages).pick({
+  conversationId: true,
+  senderId: true,
+  content: true,
+  messageType: true,
+  isFromAI: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 export type Campaign = typeof campaigns.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversationMessage = z.infer<typeof insertConversationMessageSchema>;
+export type ConversationMessage = typeof conversationMessages.$inferSelect;

@@ -9,14 +9,21 @@ AutoCampaigns AI is a specialized email campaign management platform designed sp
 Preferred communication style: Simple, everyday language.
 Design preferences: Clean, professional design with minimal colors - no purple/pink, no emojis, use professional icons. Focus on simplicity over complex multi-step wizards.
 
-## Recent Changes (January 2025)
+## Recent Changes (August 2025)
 
-### Design Overhaul
-- Replaced complex multi-step campaign wizard with simplified AI-focused interface
-- Changed color scheme from purple/pink gradients to professional blue/gray palette
-- Simplified campaign creation to single-step form with AI enhancement options
-- Removed complex step indicators in favor of clean, minimal design
-- Enhanced AI Campaign Agent as the primary feature with better visual prominence
+### User Role Management & Conversation System
+- Added comprehensive user role system (admin, manager, user) with distinct permissions
+- Implemented conversation management for customer support and communication
+- Created conversation UI with real-time messaging and thread management
+- Added user management interface for role assignments and permissions
+- Enhanced navigation with dedicated pages for conversations and user administration
+
+### Enhanced Production Integration
+- Updated OpenRouter API integration for multiple AI model access
+- Configured CORS support for production deployment at https://ccl-3-final.onrender.com
+- Integrated with production Mailgun domain (mg.watchdogai.us) and Twilio SMS (+18154752252)
+- Increased email template capacity to 30 templates per campaign sequence
+- Successfully connected to production Render PostgreSQL database (ccl_3)
 
 ## System Architecture
 

@@ -1,7 +1,7 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCampaignSchema } from "@shared/schema";
+import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema } from "@shared/schema";
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
@@ -215,6 +215,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Phone validation error:', error);
       res.status(500).json({ message: "Failed to validate phone number" });
+    }
+  });
+
+  // User role management routes
+  app.put("/api/users/:id/role", async (req, res) => {
+    try {
+      const { role } = req.body;
+      if (!role || !["admin", "manager", "user"].includes(role)) {
+        return res.status(400).json({ message: "Valid role is required" });
+      }
+      
+      const user = await storage.updateUserRole(req.params.id, role);
+      res.json(user);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  // Conversation routes
+  app.get("/api/conversations", async (req, res) => {
+    try {
+      const { userId } = req.query;
+      const conversations = await storage.getConversations(userId as string);
+      res.json(conversations);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch conversations" });
+    }
+  });
+
+  app.get("/api/conversations/:id", async (req, res) => {
+    try {
+      const conversation = await storage.getConversation(req.params.id);
+      if (!conversation) {
+        return res.status(404).json({ message: "Conversation not found" });
+      }
+      res.json(conversation);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch conversation" });
+    }
+  });
+
+  app.post("/api/conversations", async (req, res) => {
+    try {
+      const conversationData = insertConversationSchema.parse(req.body);
+      const conversation = await storage.createConversation(conversationData);
+      res.json(conversation);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid conversation data" });
+    }
+  });
+
+  app.put("/api/conversations/:id", async (req, res) => {
+    try {
+      const conversationData = insertConversationSchema.partial().parse(req.body);
+      const conversation = await storage.updateConversation(req.params.id, conversationData);
+      res.json(conversation);
+    } catch (error) {
+      res.status(400).json({ message: "Failed to update conversation" });
+    }
+  });
+
+  // Conversation message routes
+  app.get("/api/conversations/:id/messages", async (req, res) => {
+    try {
+      const messages = await storage.getConversationMessages(req.params.id);
+      res.json(messages);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch messages" });
+    }
+  });
+
+  app.post("/api/conversations/:id/messages", async (req, res) => {
+    try {
+      const messageData = insertConversationMessageSchema.parse({
+        ...req.body,
+        conversationId: req.params.id,
+      });
+      const message = await storage.createConversationMessage(messageData);
+      
+      // Update conversation timestamp
+      await storage.updateConversation(req.params.id, { status: "active" });
+      
+      res.json(message);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid message data" });
     }
   });
 
