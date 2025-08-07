@@ -83,17 +83,4 @@ export const tenantMiddleware = async (req: TenantRequest, res: Response, next: 
 export const withTenant = (clientId: string) => {
   return { clientId };
 };
-import type { Request, Response, NextFunction } from "express";
 
-export interface TenantRequest extends Request {
-  tenantId?: string;
-  clientId?: string;
-}
-
-export function tenantMiddleware(req: TenantRequest, res: Response, next: NextFunction) {
-  // For now, we'll pass through without tenant isolation
-  // This can be enhanced later with proper multi-tenant logic
-  const domain = req.get('host') || 'localhost';
-  req.tenantId = domain;
-  next();
-}
