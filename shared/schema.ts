@@ -48,6 +48,23 @@ export const campaigns = pgTable("campaigns", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
+// Leads table for automotive campaign management
+export const leads = pgTable("leads", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  email: varchar("email").notNull(),
+  firstName: varchar("first_name"),
+  lastName: varchar("last_name"),
+  phone: varchar("phone"),
+  vehicleInterest: varchar("vehicle_interest"), // Vehicle model/type they're interested in
+  leadSource: varchar("lead_source"), // Website, showroom, referral, etc.
+  status: varchar("status").default("new"), // new, contacted, qualified, converted, lost
+  tags: varchar("tags").array(), // For categorization
+  notes: text("notes"),
+  campaignId: varchar("campaign_id").references(() => campaigns.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -83,10 +100,18 @@ export const insertConversationMessageSchema = createInsertSchema(conversationMe
   isFromAI: true,
 });
 
+export const insertLeadSchema = createInsertSchema(leads).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 export type InsertCampaign = z.infer<typeof insertCampaignSchema>;
 export type Campaign = typeof campaigns.$inferSelect;
+export type InsertLead = z.infer<typeof insertLeadSchema>;
+export type Lead = typeof leads.$inferSelect;
 export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversationMessage = z.infer<typeof insertConversationMessageSchema>;

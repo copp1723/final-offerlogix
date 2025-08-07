@@ -1,11 +1,13 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema } from "@shared/schema";
+import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema } from "@shared/schema";
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
+// import multer from "multer";
+// import { parse } from "csv-parse/sync";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Campaign routes
@@ -316,6 +318,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('AI chat campaign error:', error);
       res.status(500).json({ message: "Failed to process chat message" });
+    }
+  });
+
+  // Lead management routes
+  // const upload = multer({ storage: multer.memoryStorage() });
+
+  // Get all leads or leads for a specific campaign
+  app.get("/api/leads", async (req, res) => {
+    try {
+      const campaignId = req.query.campaignId as string;
+      const leads = await storage.getLeads(campaignId);
+      res.json(leads);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch leads" });
+    }
+  });
+
+  // Get a specific lead
+  app.get("/api/leads/:id", async (req, res) => {
+    try {
+      const lead = await storage.getLead(req.params.id);
+      if (!lead) {
+        return res.status(404).json({ message: "Lead not found" });
+      }
+      res.json(lead);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch lead" });
+    }
+  });
+
+  // Create a new lead
+  app.post("/api/leads", async (req, res) => {
+    try {
+      const leadData = insertLeadSchema.parse(req.body);
+      const lead = await storage.createLead(leadData);
+      res.json(lead);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid lead data" });
+    }
+  });
+
+  // Update a lead
+  app.put("/api/leads/:id", async (req, res) => {
+    try {
+      const leadData = insertLeadSchema.partial().parse(req.body);
+      const lead = await storage.updateLead(req.params.id, leadData);
+      res.json(lead);
+    } catch (error) {
+      res.status(400).json({ message: "Invalid lead data" });
+    }
+  });
+
+  // Delete a lead
+  app.delete("/api/leads/:id", async (req, res) => {
+    try {
+      await storage.deleteLead(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      res.status(500).json({ message: "Failed to delete lead" });
+    }
+  });
+
+  // CSV upload endpoint (temporarily disabled until packages are installed)
+  app.post("/api/leads/upload-csv", async (req, res) => {
+    res.status(501).json({ message: "CSV upload feature coming soon" });
+  });
+
+  // Bulk create leads via API
+  app.post("/api/leads/bulk", async (req, res) => {
+    try {
+      const leadsData = req.body.leads.map((lead: any) => insertLeadSchema.parse(lead));
+      const createdLeads = await storage.createLeads(leadsData);
+      res.json({
+        message: `Successfully created ${createdLeads.length} leads`,
+        leads: createdLeads
+      });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid leads data" });
     }
   });
 

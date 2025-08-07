@@ -3,6 +3,7 @@ import {
   users,
   conversations,
   conversationMessages,
+  leads,
   type Campaign,
   type InsertCampaign,
   type User,
@@ -11,6 +12,8 @@ import {
   type InsertConversation,
   type ConversationMessage,
   type InsertConversationMessage,
+  type Lead,
+  type InsertLead,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -39,6 +42,15 @@ export interface IStorage {
   // Conversation message methods
   getConversationMessages(conversationId: string): Promise<ConversationMessage[]>;
   createConversationMessage(message: InsertConversationMessage): Promise<ConversationMessage>;
+  
+  // Lead methods
+  getLeads(campaignId?: string): Promise<Lead[]>;
+  getLead(id: string): Promise<Lead | undefined>;
+  createLead(lead: InsertLead): Promise<Lead>;
+  createLeads(leads: InsertLead[]): Promise<Lead[]>;
+  updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead>;
+  deleteLead(id: string): Promise<void>;
+  getLeadsByEmail(email: string): Promise<Lead[]>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -176,6 +188,46 @@ export class DatabaseStorage implements IStorage {
       })
       .returning();
     return newMessage;
+  }
+
+  // Lead methods
+  async getLeads(campaignId?: string): Promise<Lead[]> {
+    if (campaignId) {
+      return await db.select().from(leads).where(eq(leads.campaignId, campaignId)).orderBy(desc(leads.createdAt));
+    }
+    return await db.select().from(leads).orderBy(desc(leads.createdAt));
+  }
+
+  async getLead(id: string): Promise<Lead | undefined> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, id));
+    return lead;
+  }
+
+  async createLead(lead: InsertLead): Promise<Lead> {
+    const [newLead] = await db.insert(leads).values(lead).returning();
+    return newLead;
+  }
+
+  async createLeads(leadList: InsertLead[]): Promise<Lead[]> {
+    const newLeads = await db.insert(leads).values(leadList).returning();
+    return newLeads;
+  }
+
+  async updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead> {
+    const [updatedLead] = await db
+      .update(leads)
+      .set({ ...lead, updatedAt: new Date() })
+      .where(eq(leads.id, id))
+      .returning();
+    return updatedLead;
+  }
+
+  async deleteLead(id: string): Promise<void> {
+    await db.delete(leads).where(eq(leads.id, id));
+  }
+
+  async getLeadsByEmail(email: string): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.email, email));
   }
 }
 
