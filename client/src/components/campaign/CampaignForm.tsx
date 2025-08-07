@@ -30,6 +30,9 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
+  const [generatedTemplates, setGeneratedTemplates] = useState<string[]>([]);
+  const [numberOfTemplates, setNumberOfTemplates] = useState(5);
+  const [daysBetweenMessages, setDaysBetweenMessages] = useState(3);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -40,6 +43,8 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       context: "",
       handoverGoals: "",
       status: "draft",
+      numberOfTemplates: 5,
+      daysBetweenMessages: 3,
     },
   });
 
@@ -104,8 +109,27 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     },
   });
 
+  const generateTemplates = useMutation({
+    mutationFn: ({ context, name, numberOfTemplates }: { context: string; name: string; numberOfTemplates: number }) =>
+      apiRequest('POST', '/api/ai/generate-templates', { context, name, numberOfTemplates }),
+    onSuccess: (response: any) => {
+      const templates = response.json?.templates || [];
+      setGeneratedTemplates(templates);
+      toast({ title: `Generated ${templates.length} email templates!` });
+    },
+    onError: () => {
+      toast({ title: "Failed to generate email templates", variant: "destructive" });
+    },
+  });
+
   const onSubmit = (data: FormData) => {
-    createCampaign.mutate(data);
+    const campaignData = {
+      ...data,
+      templates: generatedTemplates,
+      numberOfTemplates,
+      daysBetweenMessages,
+    };
+    createCampaign.mutate(campaignData);
   };
 
   const contextSuggestions = [
@@ -144,6 +168,18 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   const selectName = (name: string) => {
     form.setValue('name', name);
     setShowNameSuggestions(false);
+  };
+
+  const handleGenerateTemplates = () => {
+    const context = form.getValues('context');
+    const name = form.getValues('name');
+    
+    if (!context || !name) {
+      toast({ title: "Please fill in campaign name and context first", variant: "destructive" });
+      return;
+    }
+    
+    generateTemplates.mutate({ context, name, numberOfTemplates });
   };
 
   return (
@@ -320,6 +356,124 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
             </FormItem>
           )}
         />
+
+        {/* Email Template Generation Section */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Mail className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-blue-900">AI Email Templates</h3>
+                <p className="text-sm text-blue-700">Generate email templates automatically based on your offer details and campaign goals.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Number of Messages
+              </label>
+              <Input
+                type="number"
+                min="1"
+                max="10"
+                value={numberOfTemplates}
+                onChange={(e) => setNumberOfTemplates(parseInt(e.target.value) || 5)}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500 mt-1">Number of templated emails to send (if no response)</p>
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Days Between Messages
+              </label>
+              <Input
+                type="number"
+                min="1"
+                max="30"
+                value={daysBetweenMessages}
+                onChange={(e) => setDaysBetweenMessages(parseInt(e.target.value) || 3)}
+                className="w-full"
+              />
+              <p className="text-xs text-gray-500 mt-1">Wait time between each templated email</p>
+            </div>
+          </div>
+
+          {generatedTemplates.length === 0 ? (
+            <div className="text-center py-8">
+              <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Mail className="w-8 h-8 text-gray-400" />
+              </div>
+              <p className="text-gray-500 mb-4">No templates generated yet</p>
+              <Button
+                type="button"
+                onClick={handleGenerateTemplates}
+                disabled={generateTemplates.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                {generateTemplates.isPending ? (
+                  <>
+                    <div className="w-4 h-4 border border-white border-t-transparent rounded-full animate-spin mr-2" />
+                    Generating Templates...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4 mr-2" />
+                    Generate {numberOfTemplates} Email Templates
+                  </>
+                )}
+              </Button>
+            </div>
+          ) : (
+            <div>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium text-gray-900">
+                  Generated {generatedTemplates.length} email templates
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleGenerateTemplates}
+                  disabled={generateTemplates.isPending}
+                >
+                  Regenerate
+                </Button>
+              </div>
+              <div className="space-y-3 max-h-60 overflow-y-auto">
+                {generatedTemplates.map((template, index) => (
+                  <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-900">Email {index + 1}</span>
+                      <span className="text-xs text-gray-500">{template.length} characters</span>
+                    </div>
+                    <div className="text-xs text-gray-600 line-clamp-3">
+                      {template.replace(/<[^>]*>/g, '').substring(0, 120)}...
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+            <div className="flex items-start space-x-3">
+              <div className="w-5 h-5 bg-blue-100 rounded flex items-center justify-center flex-shrink-0 mt-0.5">
+                <Lightbulb className="w-3 h-3 text-blue-600" />
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Response Mode</h4>
+                <p className="text-sm text-blue-700 leading-relaxed">
+                  When a lead replies to any email, the remaining templated emails are cancelled. The AI agent takes over for personalized back-and-forth conversation until handover.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* AI Enhancement Section */}
         <div className="border-t border-gray-200 pt-6">

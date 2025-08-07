@@ -17,6 +17,8 @@ export const campaigns = pgTable("campaigns", {
   status: text("status").notNull().default("draft"), // draft, active, scheduled, completed
   templates: jsonb("templates"), // AI-generated email templates
   subjectLines: jsonb("subject_lines"), // AI-generated subject lines
+  numberOfTemplates: integer("number_of_templates").default(5),
+  daysBetweenMessages: integer("days_between_messages").default(3),
   openRate: integer("open_rate"), // percentage
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -34,6 +36,8 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   status: true,
   templates: true,
   subjectLines: true,
+  numberOfTemplates: true,
+  daysBetweenMessages: true,
   openRate: true,
 });
 

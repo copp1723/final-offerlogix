@@ -157,6 +157,65 @@ Respond with JSON:
   }
 }
 
+export async function generateEmailTemplates(context: string, campaignName: string, numberOfTemplates: number = 5): Promise<string[]> {
+  const prompt = `
+Create ${numberOfTemplates} progressive email templates for an automotive campaign named "${campaignName}".
+
+Campaign Context: ${context}
+
+Requirements:
+- Each template should escalate in urgency/engagement level
+- Templates should be professional yet persuasive for automotive audience
+- Include automotive-specific language (test drives, service appointments, vehicle features)
+- Each template should be 100-200 words
+- Focus on different aspects: introduction, features, benefits, urgency, final offer
+- Format as HTML email content suitable for automotive customers
+
+Return JSON with this structure:
+{
+  "templates": [
+    {
+      "sequence": 1,
+      "title": "Introduction Email",
+      "content": "HTML email content here..."
+    },
+    {
+      "sequence": 2,
+      "title": "Feature Highlight", 
+      "content": "HTML email content here..."
+    }
+    // ... continue for all ${numberOfTemplates} templates
+  ]
+}
+`;
+
+  try {
+    const client = getOpenAIClient();
+    const response = await client.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: "You are an expert automotive email marketing specialist. Create compelling email sequences that drive test drives, service appointments, and vehicle sales."
+        },
+        {
+          role: "user",
+          content: prompt
+        }
+      ],
+      response_format: { type: "json_object" },
+      temperature: 0.7,
+      max_tokens: 3000
+    });
+
+    const result = JSON.parse(response.choices[0].message.content || '{"templates": []}');
+    return result.templates?.map((t: any) => t.content) || [];
+  } catch (error) {
+    console.error('Error generating email templates:', error);
+    throw new Error('Failed to generate email templates');
+  }
+}
+
 export async function generateSubjectLines(context: string, campaignName: string): Promise<string[]> {
   const prompt = `
 Create 5 compelling email subject lines for an automotive campaign named "${campaignName}" with this context: ${context}

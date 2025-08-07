@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCampaignSchema } from "@shared/schema";
-import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames } from "./services/openai";
+import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 
@@ -116,6 +116,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('AI suggest names error:', error);
       res.status(500).json({ message: "Failed to generate campaign names" });
+    }
+  });
+
+  app.post("/api/ai/generate-templates", async (req, res) => {
+    try {
+      const { context, name, numberOfTemplates = 5 } = req.body;
+      if (!context || !name) {
+        return res.status(400).json({ message: "Context and campaign name are required" });
+      }
+
+      const templates = await generateEmailTemplates(context, name, numberOfTemplates);
+      res.json({ templates });
+    } catch (error) {
+      console.error('AI generate templates error:', error);
+      res.status(500).json({ message: "Failed to generate email templates" });
     }
   });
 
