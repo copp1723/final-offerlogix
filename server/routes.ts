@@ -749,7 +749,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json({
         message: "Follow-up emails sent successfully",
         successful: successful.length,
-        failed: Array.isArray(results.failed) ? results.failed.length : 0,
+        failed: Array.isArray(results.failed) ? results.failed.length : (typeof results.failed === 'number' ? results.failed : 0),
         templateUsed: templateIndex + 1
       });
 

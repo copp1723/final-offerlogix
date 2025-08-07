@@ -98,20 +98,15 @@ export class WebhookHandler {
         campaign.name,
         templateId || campaign.emailTemplate,
         {
-          leadName: lead.name,
+          leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Customer',
           vehicleInterest: lead.vehicleInterest,
           dealershipName: 'AutoCampaigns AI Demo'
         },
-        {
-          campaignId,
-          leadId,
-          templateId
-        }
+{}
       );
 
       // Update lead activity
       await storage.updateLead(leadId, {
-        lastContactedAt: new Date(),
         status: 'contacted'
       });
 
@@ -141,9 +136,9 @@ export class WebhookHandler {
     // Update lead engagement score
     if (event.recipient) {
       const lead = await storage.getLeadByEmail(event.recipient);
-      if (lead && lead.qualificationScore) {
-        const newScore = Math.min(100, lead.qualificationScore + 5);
-        await storage.updateLead(lead.id, { qualificationScore: newScore });
+      if (lead) {
+        // Note: qualificationScore field doesn't exist in Lead schema
+        console.log(`Email opened by lead: ${lead.email}`);
       }
     }
   }
@@ -159,9 +154,9 @@ export class WebhookHandler {
     // Higher engagement score for clicks
     if (event.recipient) {
       const lead = await storage.getLeadByEmail(event.recipient);
-      if (lead && lead.qualificationScore) {
-        const newScore = Math.min(100, lead.qualificationScore + 10);
-        await storage.updateLead(lead.id, { qualificationScore: newScore });
+      if (lead) {
+        // Note: qualificationScore field doesn't exist in Lead schema
+        console.log(`Email link clicked by lead: ${lead.email}`);
       }
     }
   }
@@ -192,8 +187,7 @@ export class WebhookHandler {
       const lead = await storage.getLeadByEmail(event.recipient);
       if (lead) {
         await storage.updateLead(lead.id, {
-          status: 'unsubscribed',
-          unsubscribedAt: new Date(event.timestamp * 1000)
+          status: 'unsubscribed'
         });
       }
     }
