@@ -45,7 +45,9 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Check, Settings } from "lucide-react";
+import { Plus, Edit, Trash2, Check, Settings, Shield } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EmailValidationPanel from "@/components/campaigns/EmailValidationPanel";
 import type { AiAgentConfig } from "@shared/schema";
 import { insertAiAgentConfigSchema } from "@shared/schema";
 

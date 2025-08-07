@@ -277,6 +277,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post("/api/email/validate-content", async (req, res) => {
+    try {
+      const emailData = req.body;
+      if (!emailData.to || !emailData.subject || !emailData.htmlContent) {
+        return res.status(400).json({ message: "Required fields: to, subject, htmlContent" });
+      }
+
+      const { emailWatchdog } = await import('./services/email-validator');
+      const validation = await emailWatchdog.validateOutboundEmail(emailData);
+      
+      res.json(validation);
+    } catch (error) {
+      console.error('Email content validation error:', error);
+      res.status(500).json({ message: "Failed to validate email content" });
+    }
+  });
+
+  app.get("/api/email/validation-stats", async (req, res) => {
+    try {
+      const { emailWatchdog } = await import('./services/email-validator');
+      const stats = emailWatchdog.getValidationStats();
+      res.json(stats);
+    } catch (error) {
+      console.error('Email validation stats error:', error);
+      res.status(500).json({ message: "Failed to get validation stats" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {
