@@ -5,6 +5,7 @@ import { insertCampaignSchema, insertConversationSchema, insertConversationMessa
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
+import { mailgunService } from "./services/email/mailgun-service";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 import { tenantMiddleware, type TenantRequest } from "./tenant";
 import { db } from "./db";
@@ -13,6 +14,7 @@ import { eq } from "drizzle-orm";
 import { webSocketService } from "./services/websocket";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
+import { CSVValidationService } from "./services/csv/csv-validation";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -482,14 +484,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // CSV upload configuration
-  const upload = multer({ 
+  // CSV upload configuration (enhanced version available in lead management section)
+  const basicUpload = multer({ 
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
   });
 
-  // CSV upload endpoint for leads
-  app.post("/api/leads/upload-csv", upload.single('file'), async (req: TenantRequest, res) => {
+  // CSV upload endpoint for leads (basic version)
+  app.post("/api/leads/upload-csv-basic", basicUpload.single('file'), async (req: TenantRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -597,15 +599,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   ];
 
-  // Get email monitoring status
+  // Get email monitoring status (Enhanced)
   app.get("/api/email-monitor/status", async (req, res) => {
     try {
-      const status = {
-        running: false,
-        connected: false,
-        ruleCount: emailRules.length,
-        enabledRules: emailRules.filter(r => r.enabled).length
-      };
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const status = enhancedEmailMonitor.getStatus();
       res.json(status);
     } catch (error) {
       console.error('Email monitor status error:', error);
@@ -613,10 +611,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get email monitoring rules
+  // Get email monitoring rules (Enhanced)
   app.get("/api/email-monitor/rules", async (req, res) => {
     try {
-      res.json(emailRules);
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const rules = enhancedEmailMonitor.getTriggerRules();
+      res.json(rules);
     } catch (error) {
       console.error('Email monitor rules error:', error);
       res.status(500).json({ message: "Failed to get email monitor rules" });
@@ -664,121 +664,33 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Campaign Execution Routes
+  // Execute campaign (Enhanced with Orchestrator)
   app.post("/api/campaigns/:id/execute", async (req, res) => {
     try {
       const campaignId = req.params.id;
-      const { scheduleAt, testMode = false } = req.body;
+      const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
       
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        return res.status(404).json({ message: "Campaign not found" });
-      }
+      const { campaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      
+      const executionOptions = {
+        campaignId,
+        testMode,
+        scheduleAt: scheduleAt ? new Date(scheduleAt) : undefined,
+        selectedLeadIds,
+        maxLeadsPerBatch
+      };
 
-      // Get leads for this campaign or all active leads if no specific campaign leads
-      const leads = await storage.getLeads();
-      const campaignLeads = leads.filter(lead => 
-        !lead.campaignId || lead.campaignId === campaignId
-      );
-
-      if (campaignLeads.length === 0) {
-        return res.status(400).json({ message: "No leads found for this campaign" });
-      }
-
-      // Parse email templates from campaign
-      let templates: any[] = [];
-      try {
-        templates = JSON.parse(campaign.templates || '[]');
-        if (!Array.isArray(templates) || templates.length === 0) {
-          return res.status(400).json({ message: "Campaign has no email templates" });
-        }
-      } catch (error) {
-        return res.status(400).json({ message: "Invalid email templates in campaign" });
-      }
-
-      // Update campaign status
-      await storage.updateCampaign(campaignId, { 
-        status: scheduleAt ? 'scheduled' : 'active',
-        lastExecuted: scheduleAt ? null : new Date()
-      });
-
-      // If test mode, only send to first lead or use a test email
-      if (testMode) {
-        const testLead = campaignLeads[0];
-        const testTemplate = templates[0];
-        
-        const emailData = {
-          to: [testLead.email],
-          subject: `[TEST] ${testTemplate.subject || campaign.name}`,
-          htmlContent: testTemplate.content || 'Test email content',
-          fromName: 'AutoCampaigns AI',
-        };
-
-        const result = await sendCampaignEmail(emailData);
-        return res.json({ 
-          message: "Test email sent successfully",
-          sentTo: [testLead.email],
-          testMode: true,
-          result
-        });
-      }
-
-      // Schedule or execute immediately
-      if (scheduleAt) {
-        // Store execution details for scheduled sending
-        // In a production system, you'd use a job queue like Bull/Redis
-        return res.json({ 
-          message: "Campaign scheduled successfully",
-          scheduledFor: scheduleAt,
-          leadsCount: campaignLeads.length,
-          templatesCount: templates.length
-        });
-      }
-
-      // Execute immediately - send first email to all leads
-      const firstTemplate = templates[0];
-      const emails = campaignLeads.map(lead => ({
-        to: [lead.email],
-        subject: firstTemplate.subject || campaign.name,
-        htmlContent: firstTemplate.content || 'Email content unavailable',
-        fromName: 'AutoCampaigns AI',
-      }));
-
-      const results = await sendBulkEmails(emails);
-      const successful = results.filter(r => r.success).length;
-      const failed = results.filter(r => !r.success).length;
-
-      // Create conversation entries for successful sends
-      for (let i = 0; i < campaignLeads.length; i++) {
-        if (results[i]?.success) {
-          const lead = campaignLeads[i];
-          await storage.createConversation({
-            subject: `Campaign: ${campaign.name}`,
-            leadId: lead.id,
-            status: 'active',
-            priority: 'normal',
-            campaignId: campaignId,
-            lastActivity: new Date(),
-          });
-        }
-      }
-
-      // Update campaign metrics
-      await storage.updateCampaign(campaignId, {
-        emailsSent: (campaign.emailsSent || 0) + successful,
-        lastExecuted: new Date()
-      });
-
-      res.json({
-        message: "Campaign executed successfully",
-        successful,
-        failed,
-        total: campaignLeads.length,
-        results: testMode ? results : undefined
-      });
+      const result = await campaignOrchestrator.executeCampaign(executionOptions);
+      
+      res.json(result);
 
     } catch (error) {
       console.error('Campaign execution error:', error);
-      res.status(500).json({ message: "Failed to execute campaign" });
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to execute campaign",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -1018,7 +930,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Lead management routes
-  // const upload = multer({ storage: multer.memoryStorage() });
+  // Configure multer for CSV uploads with security validation
+  const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 10 * 1024 * 1024, // 10MB limit
+    },
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype === 'text/csv' || file.mimetype === 'application/vnd.ms-excel') {
+        cb(null, true);
+      } else {
+        cb(new Error('Only CSV files are allowed'));
+      }
+    }
+  });
 
   // Get all leads or leads for a specific campaign
   app.get("/api/leads", async (req, res) => {
@@ -1077,6 +1002,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
+
+  // Enhanced CSV Upload with Security Validation
+  app.post("/api/leads/upload-csv", upload.single('file'), async (req: TenantRequest, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ 
+          success: false,
+          message: "No file uploaded" 
+        });
+      }
+
+      const campaignId = req.body.campaignId;
+
+      // Validate CSV with comprehensive security checks
+      const validationResult = await CSVValidationService.validateCSV(
+        req.file.buffer,
+        {
+          maxFileSize: 10 * 1024 * 1024, // 10MB
+          maxRows: 5000,
+          requireColumns: ['firstName', 'lastName', 'email'],
+          sanitizeData: true
+        }
+      );
+
+      if (!validationResult.valid) {
+        return res.status(400).json({
+          success: false,
+          message: "CSV validation failed",
+          errors: validationResult.errors,
+          warnings: validationResult.warnings,
+          stats: validationResult.stats
+        });
+      }
+
+      // Create leads from validated data
+      const leadsData = validationResult.data!.map((lead: any) => ({
+        ...lead,
+        campaignId: campaignId || null,
+        status: 'new' as const,
+        source: 'csv_upload',
+        clientId: req.clientId
+      }));
+
+      const createdLeads = await storage.createLeads(leadsData);
+
+      // Send WebSocket notification
+      webSocketService.broadcast('leadsUploaded', {
+        count: createdLeads.length,
+        campaignId,
+        timestamp: new Date()
+      });
+
+      res.json({
+        success: true,
+        message: `Successfully uploaded ${createdLeads.length} leads`,
+        leads: createdLeads,
+        validationReport: CSVValidationService.generateValidationReport(validationResult),
+        stats: validationResult.stats
+      });
+
+    } catch (error) {
+      console.error('CSV upload error:', error);
+      res.status(500).json({ 
+        success: false,
+        message: "Failed to process CSV upload",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+  });
 
   // Bulk create leads via API
   app.post("/api/leads/bulk", async (req, res) => {
@@ -1158,6 +1152,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activeConfig);
     } catch (error) {
       res.status(500).json({ message: "Failed to activate AI agent configuration" });
+    }
+  });
+
+  // Execution monitoring routes
+  app.get("/api/executions", async (req, res) => {
+    try {
+      const { executionMonitor } = await import('./services/execution-monitor');
+      const executions = executionMonitor.getActiveExecutions();
+      res.json(executions);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch active executions" });
+    }
+  });
+
+  app.get("/api/executions/history", async (req, res) => {
+    try {
+      const { executionMonitor } = await import('./services/execution-monitor');
+      const limit = parseInt(req.query.limit as string) || 20;
+      const history = executionMonitor.getExecutionHistory(limit);
+      res.json(history);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch execution history" });
+    }
+  });
+
+  app.get("/api/executions/stats", async (req, res) => {
+    try {
+      const { executionMonitor } = await import('./services/execution-monitor');
+      const stats = executionMonitor.getExecutionStats();
+      res.json(stats);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch execution statistics" });
+    }
+  });
+
+  app.get("/api/executions/:id", async (req, res) => {
+    try {
+      const { executionMonitor } = await import('./services/execution-monitor');
+      const execution = executionMonitor.getExecutionStatus(req.params.id);
+      if (!execution) {
+        return res.status(404).json({ message: "Execution not found" });
+      }
+      res.json(execution);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch execution details" });
+    }
+  });
+
+  app.post("/api/executions/:id/cancel", async (req, res) => {
+    try {
+      const { executionMonitor } = await import('./services/execution-monitor');
+      const cancelled = executionMonitor.cancelExecution(req.params.id);
+      if (!cancelled) {
+        return res.status(400).json({ message: "Execution cannot be cancelled" });
+      }
+      res.json({ message: "Execution cancelled successfully" });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to cancel execution" });
     }
   });
 

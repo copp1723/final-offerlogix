@@ -1,321 +1,255 @@
-import { webSocketService } from '../websocket';
+import { storage } from '../../storage';
+import { mailgunService } from '../email/mailgun-service';
+import type { Campaign, Lead } from '@shared/schema';
 
-interface ExecutionBatch {
-  batchId: string;
-  leads: any[];
-  template: any;
-  scheduledAt: Date;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+export interface ProcessingOptions {
+  batchSize?: number;
+  delayBetweenEmails?: number;
+  testMode?: boolean;
 }
 
-interface BatchResult {
+export interface ProcessingResult {
   success: boolean;
-  batchId: string;
-  sentCount: number;
+  emailsSent: number;
+  emailsFailed: number;
   errors: string[];
-  processedLeads: any[];
-}
-
-interface EmailData {
-  to: string[];
-  subject: string;
-  htmlContent: string;
-  textContent?: string;
-  fromName?: string;
-  fromEmail?: string;
-  replyTo?: string;
-  tags?: string[];
+  executionId: string;
 }
 
 export class ExecutionProcessor {
-  private processingBatches = new Set<string>();
+  
+  async processEmailSequence(
+    campaign: Campaign,
+    leads: Lead[],
+    templateIndex: number = 0,
+    options: ProcessingOptions = {}
+  ): Promise<ProcessingResult> {
+    const { 
+      batchSize = 50, 
+      delayBetweenEmails = 1000, 
+      testMode = false 
+    } = options;
 
-  async processBatch(
-    batch: ExecutionBatch,
-    campaign: any,
-    testMode: boolean = false
-  ): Promise<BatchResult> {
-    console.log(`Processing batch: ${batch.batchId} (${batch.leads.length} leads)`);
-
-    if (this.processingBatches.has(batch.batchId)) {
-      throw new Error(`Batch ${batch.batchId} is already being processed`);
-    }
-
-    this.processingBatches.add(batch.batchId);
-
-    const result: BatchResult = {
-      success: true,
-      batchId: batch.batchId,
-      sentCount: 0,
-      errors: [],
-      processedLeads: []
-    };
+    const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    const errors: string[] = [];
+    let emailsSent = 0;
+    let emailsFailed = 0;
 
     try {
-      batch.status = 'processing';
+      // Parse campaign templates
+      let templates: any[] = [];
+      try {
+        templates = JSON.parse(campaign.templates || '[]');
+        if (!Array.isArray(templates) || templates.length === 0) {
+          throw new Error('Campaign has no email templates');
+        }
+      } catch (error) {
+        throw new Error('Invalid email templates in campaign');
+      }
 
-      // Process each lead in the batch
-      for (const lead of batch.leads) {
-        try {
-          const emailData = this.prepareEmailData(lead, batch.template, campaign, testMode);
-          
-          if (testMode) {
-            // In test mode, just log the email instead of sending
-            console.log(`[TEST MODE] Would send email to ${lead.email}: ${emailData.subject}`);
-            result.sentCount++;
-          } else {
-            // Send actual email
-            const sent = await this.sendEmail(emailData, lead, campaign);
-            if (sent) {
-              result.sentCount++;
-            } else {
-              result.errors.push(`Failed to send email to ${lead.email}`);
+      if (templateIndex >= templates.length) {
+        throw new Error(`Template index ${templateIndex} is out of range`);
+      }
+
+      const template = templates[templateIndex];
+      
+      // Process leads in batches
+      const batches = this.createBatches(leads, batchSize);
+      
+      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+        const batch = batches[batchIndex];
+        
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads)`);
+        
+        const batchResults = await Promise.allSettled(
+          batch.map(lead => this.sendEmailToLead(campaign, lead, template, testMode))
+        );
+
+        // Process batch results
+        for (let i = 0; i < batchResults.length; i++) {
+          const result = batchResults[i];
+          const lead = batch[i];
+
+          if (result.status === 'fulfilled' && result.value.success) {
+            emailsSent++;
+            
+            // Update lead status
+            try {
+              await storage.updateLead(lead.id, { 
+                status: 'contacted',
+                lastContactDate: new Date()
+              });
+            } catch (updateError) {
+              console.error(`Failed to update lead ${lead.id}:`, updateError);
             }
+          } else {
+            emailsFailed++;
+            const errorMessage = result.status === 'rejected' 
+              ? result.reason 
+              : result.value.error || 'Unknown error';
+            errors.push(`Failed to send email to ${lead.email}: ${errorMessage}`);
           }
+        }
 
-          result.processedLeads.push(lead);
-
-          // Update lead status
-          await this.updateLeadProgress(lead, batch, campaign, testMode);
-
-          // Add small delay between emails to avoid rate limiting
-          if (!testMode) {
-            await this.delay(1000); // 1 second delay
-          }
-
-        } catch (error) {
-          const errorMsg = `Error processing lead ${lead.email}: ${error instanceof Error ? error.message : 'Unknown error'}`;
-          console.error(errorMsg);
-          result.errors.push(errorMsg);
+        // Add delay between batches (except for the last batch)
+        if (batchIndex < batches.length - 1) {
+          await this.delay(delayBetweenEmails);
         }
       }
 
-      batch.status = result.errors.length === 0 ? 'completed' : 'failed';
-      result.success = result.errors.length === 0;
+      // Update campaign metrics
+      try {
+        const currentMetrics = campaign.performanceMetrics 
+          ? JSON.parse(campaign.performanceMetrics)
+          : {};
+        
+        const updatedMetrics = {
+          ...currentMetrics,
+          totalEmailsSent: (currentMetrics.totalEmailsSent || 0) + emailsSent,
+          lastExecutionDate: new Date(),
+          executionCount: (currentMetrics.executionCount || 0) + 1,
+          templatesSent: {
+            ...currentMetrics.templatesSent,
+            [templateIndex]: (currentMetrics.templatesSent?.[templateIndex] || 0) + emailsSent
+          }
+        };
 
-      console.log(`Batch ${batch.batchId} completed: ${result.sentCount}/${batch.leads.length} sent`);
-
-    } catch (error) {
-      console.error(`Batch processing failed: ${batch.batchId}`, error);
-      batch.status = 'failed';
-      result.success = false;
-      result.errors.push(error instanceof Error ? error.message : 'Batch processing failed');
-    } finally {
-      this.processingBatches.delete(batch.batchId);
-    }
-
-    return result;
-  }
-
-  private prepareEmailData(
-    lead: any,
-    template: any,
-    campaign: any,
-    testMode: boolean
-  ): EmailData {
-    // Template personalization
-    const personalizedSubject = this.personalizeContent(
-      template.subject || campaign.name,
-      lead,
-      campaign
-    );
-
-    const personalizedContent = this.personalizeContent(
-      template.content || template.body || 'Campaign email content',
-      lead,
-      campaign
-    );
-
-    // Add test mode prefix
-    const subject = testMode 
-      ? `[TEST] ${personalizedSubject}` 
-      : personalizedSubject;
-
-    return {
-      to: [lead.email],
-      subject,
-      htmlContent: this.generateHtmlContent(personalizedContent, lead, campaign),
-      textContent: this.stripHtml(personalizedContent),
-      fromName: campaign.fromName || 'AutoCampaigns AI',
-      fromEmail: campaign.fromEmail || process.env.SENDER_EMAIL || 'noreply@autocampaigns.ai',
-      replyTo: campaign.replyTo || process.env.REPLY_TO_EMAIL,
-      tags: [
-        campaign.id,
-        testMode ? 'test' : 'production',
-        'campaign-execution'
-      ]
-    };
-  }
-
-  private personalizeContent(content: string, lead: any, campaign: any): string {
-    let personalized = content;
-
-    // Lead personalization
-    const personalizations = {
-      '{{firstName}}': lead.firstName || '',
-      '{{lastName}}': lead.lastName || '',
-      '{{fullName}}': [lead.firstName, lead.lastName].filter(Boolean).join(' ') || 'Customer',
-      '{{email}}': lead.email || '',
-      '{{phone}}': lead.phone || '',
-      '{{vehicleInterest}}': lead.vehicleInterest || 'our vehicles',
-      '{{leadSource}}': lead.leadSource || 'inquiry',
-      
-      // Campaign personalization
-      '{{campaignName}}': campaign.name || '',
-      '{{dealershipName}}': campaign.dealershipName || 'Our Dealership',
-      
-      // Dynamic content
-      '{{currentDate}}': new Date().toLocaleDateString(),
-      '{{currentYear}}': new Date().getFullYear().toString(),
-    };
-
-    for (const [placeholder, value] of Object.entries(personalizations)) {
-      personalized = personalized.replace(new RegExp(placeholder, 'g'), value);
-    }
-
-    return personalized;
-  }
-
-  private generateHtmlContent(content: string, lead: any, campaign: any): string {
-    // Convert plain text to HTML if needed
-    let htmlContent = content.includes('<html>') || content.includes('<body>') 
-      ? content 
-      : `<div>${content.replace(/\n/g, '<br>')}</div>`;
-
-    // Add basic email structure if not present
-    if (!htmlContent.includes('<html>')) {
-      htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>${campaign.name || 'AutoCampaigns Email'}</title>
-    <style>
-        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-        .header { background-color: #f8f9fa; padding: 20px; text-align: center; }
-        .content { padding: 20px; }
-        .footer { background-color: #f8f9fa; padding: 15px; text-align: center; font-size: 12px; color: #666; }
-        .cta-button { 
-            display: inline-block; 
-            padding: 12px 24px; 
-            background-color: #007bff; 
-            color: white; 
-            text-decoration: none; 
-            border-radius: 5px;
-            margin: 10px 0;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h2>${campaign.name || 'AutoCampaigns AI'}</h2>
-        </div>
-        <div class="content">
-            ${htmlContent}
-        </div>
-        <div class="footer">
-            <p>This email was sent as part of the "${campaign.name}" campaign.</p>
-            <p>You're receiving this because you expressed interest in our vehicles.</p>
-            <p>If you wish to unsubscribe, please reply with "UNSUBSCRIBE".</p>
-        </div>
-    </div>
-</body>
-</html>`;
-    }
-
-    return htmlContent;
-  }
-
-  private stripHtml(html: string): string {
-    return html
-      .replace(/<[^>]*>/g, '')
-      .replace(/&nbsp;/g, ' ')
-      .replace(/&amp;/g, '&')
-      .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>')
-      .trim();
-  }
-
-  private async sendEmail(emailData: EmailData, lead: any, campaign: any): Promise<boolean> {
-    try {
-      // Check if Mailgun service is available
-      if (process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-        return await this.sendViaMailgun(emailData);
-      } else {
-        // Fallback: Log email details for development
-        console.log(`[EMAIL LOG] To: ${emailData.to[0]}, Subject: ${emailData.subject}`);
-        return true;
+        await storage.updateCampaign(campaign.id, {
+          performanceMetrics: JSON.stringify(updatedMetrics),
+          lastExecuted: new Date(),
+          emailsSent: (campaign.emailsSent || 0) + emailsSent
+        });
+      } catch (updateError) {
+        console.error('Failed to update campaign metrics:', updateError);
+        errors.push('Failed to update campaign metrics');
       }
-    } catch (error) {
-      console.error('Email sending failed:', error);
-      return false;
-    }
-  }
 
-  private async sendViaMailgun(emailData: EmailData): Promise<boolean> {
-    try {
-      // Import Mailgun service dynamically to avoid dependency issues
-      const { sendCampaignEmail } = await import('../email/mailgun-service');
-      
-      const result = await sendCampaignEmail({
-        to: emailData.to,
-        subject: emailData.subject,
-        htmlContent: emailData.htmlContent,
-        textContent: emailData.textContent,
-        fromName: emailData.fromName,
-        fromEmail: emailData.fromEmail,
-        replyTo: emailData.replyTo,
-        tags: emailData.tags
-      });
-
-      return result.success;
-    } catch (error) {
-      console.error('Mailgun sending failed:', error);
-      return false;
-    }
-  }
-
-  private async updateLeadProgress(lead: any, batch: ExecutionBatch, campaign: any, testMode: boolean) {
-    try {
-      // Import storage dynamically to avoid circular dependency
-      const { storage } = await import('../../storage');
-      
-      const updateData: any = {
-        status: testMode ? 'test_contacted' : 'contacted',
-        lastContactedAt: new Date(),
-        notes: lead.notes 
-          ? `${lead.notes}\n\n[${new Date().toISOString()}] Campaign email sent: ${campaign.name}`
-          : `Campaign email sent: ${campaign.name}`
+      return {
+        success: errors.length === 0 || emailsSent > 0,
+        emailsSent,
+        emailsFailed,
+        errors,
+        executionId
       };
 
-      await storage.updateLead(lead.id, updateData);
+    } catch (error) {
+      console.error('Email sequence processing failed:', error);
+      return {
+        success: false,
+        emailsSent: 0,
+        emailsFailed: leads.length,
+        errors: [error instanceof Error ? error.message : 'Unknown processing error'],
+        executionId
+      };
+    }
+  }
 
-      // Broadcast lead update
-      webSocketService.broadcast({
-        type: 'lead_updated',
-        leadId: lead.id,
-        lead: { ...lead, ...updateData }
-      });
+  private async sendEmailToLead(
+    campaign: Campaign, 
+    lead: Lead, 
+    template: any, 
+    testMode: boolean
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Personalize email content
+      const personalizedSubject = this.personalizeContent(template.subject || campaign.name, lead);
+      const personalizedContent = this.personalizeContent(template.content || template.body || '', lead);
+
+      const emailData = {
+        to: lead.email,
+        subject: testMode ? `[TEST] ${personalizedSubject}` : personalizedSubject,
+        html: personalizedContent,
+        from: `AutoCampaigns AI <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
+      };
+
+      const result = await mailgunService.sendEmail(emailData);
+      
+      if (!result.success) {
+        return { success: false, error: result.error };
+      }
+
+      console.log(`✅ Email sent to ${lead.email} for campaign ${campaign.name}`);
+      return { success: true };
 
     } catch (error) {
-      console.error('Error updating lead progress:', error);
+      console.error(`❌ Failed to send email to ${lead.email}:`, error);
+      return { 
+        success: false, 
+        error: error instanceof Error ? error.message : 'Unknown email error' 
+      };
     }
+  }
+
+  private personalizeContent(content: string, lead: Lead): string {
+    if (!content) return '';
+
+    return content
+      .replace(/\{\{firstName\}\}/g, lead.firstName || 'Customer')
+      .replace(/\{\{first_name\}\}/g, lead.firstName || 'Customer')
+      .replace(/\{\{lastName\}\}/g, lead.lastName || '')
+      .replace(/\{\{last_name\}\}/g, lead.lastName || '')
+      .replace(/\{\{email\}\}/g, lead.email)
+      .replace(/\{\{vehicleInterest\}\}/g, lead.vehicleInterest || 'our vehicles')
+      .replace(/\{\{vehicle_interest\}\}/g, lead.vehicleInterest || 'our vehicles')
+      .replace(/\{\{phone\}\}/g, lead.phone || '')
+      .replace(/\{\{budget\}\}/g, lead.budget || '')
+      .replace(/\{\{timeframe\}\}/g, lead.timeframe || '')
+      .replace(/\{\{source\}\}/g, lead.source || 'website');
+  }
+
+  private createBatches<T>(items: T[], batchSize: number): T[][] {
+    const batches: T[][] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      batches.push(items.slice(i, i + batchSize));
+    }
+    return batches;
   }
 
   private delay(ms: number): Promise<void> {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  // Public methods for monitoring
-  getActiveBatches(): string[] {
-    return Array.from(this.processingBatches);
-  }
+  async validateEmailLimits(campaignId: string, leadCount: number): Promise<{
+    valid: boolean;
+    message?: string;
+    dailyLimit?: number;
+    dailySent?: number;
+  }> {
+    try {
+      // Check daily email limits (implement your business logic here)
+      const dailyLimit = 1000; // Example: 1000 emails per day per campaign
+      
+      // Get today's sent emails for this campaign
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return { valid: false, message: 'Campaign not found' };
+      }
 
-  isProcessingBatch(batchId: string): boolean {
-    return this.processingBatches.has(batchId);
+      const metrics = campaign.performanceMetrics 
+        ? JSON.parse(campaign.performanceMetrics)
+        : {};
+      
+      const dailySent = metrics.dailySent || 0;
+      const remainingQuota = dailyLimit - dailySent;
+
+      if (leadCount > remainingQuota) {
+        return {
+          valid: false,
+          message: `Email limit exceeded. Daily limit: ${dailyLimit}, already sent: ${dailySent}, requested: ${leadCount}`,
+          dailyLimit,
+          dailySent
+        };
+      }
+
+      return { valid: true, dailyLimit, dailySent };
+
+    } catch (error) {
+      console.error('Email limit validation error:', error);
+      return { 
+        valid: false, 
+        message: 'Failed to validate email limits' 
+      };
+    }
   }
 }
 

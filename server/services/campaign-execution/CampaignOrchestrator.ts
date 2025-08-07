@@ -1,7 +1,5 @@
 import { storage } from '../../storage';
 import { webSocketService } from '../websocket';
-import { LeadAssignmentService } from './LeadAssignmentService';
-import { ExecutionProcessor } from './ExecutionProcessor';
 
 interface CampaignExecutionOptions {
   campaignId: string;
@@ -35,14 +33,143 @@ interface ExecutionBatch {
 }
 
 export class CampaignOrchestrator {
-  private leadAssignmentService: LeadAssignmentService;
-  private executionProcessor: ExecutionProcessor;
   private activeExecutions = new Map<string, any>();
 
   constructor() {
-    this.leadAssignmentService = new LeadAssignmentService();
-    this.executionProcessor = new ExecutionProcessor();
+    // Services will be imported dynamically to avoid circular dependencies
   }
+
+  async executeCampaign(options: CampaignExecutionOptions): Promise<CampaignExecutionResult> {
+    const { campaignId, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = options;
+    
+    try {
+      // Import services dynamically
+      const { ExecutionProcessor } = await import('./ExecutionProcessor');
+      const { LeadAssignmentService } = await import('./LeadAssignmentService');
+      
+      const executionProcessor = new ExecutionProcessor();
+      const leadAssignmentService = new LeadAssignmentService();
+
+      // Get campaign
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return {
+          success: false,
+          message: "Campaign not found",
+          error: "Campaign not found"
+        };
+      }
+
+      // Get leads
+      let targetLeads: any[];
+      if (selectedLeadIds && selectedLeadIds.length > 0) {
+        targetLeads = await Promise.all(
+          selectedLeadIds.map(id => storage.getLead(id))
+        );
+        targetLeads = targetLeads.filter(Boolean);
+      } else {
+        const allLeads = await storage.getLeads();
+        targetLeads = allLeads.filter(lead => 
+          !lead.campaignId || lead.campaignId === campaignId
+        );
+      }
+
+      if (targetLeads.length === 0) {
+        return {
+          success: false,
+          message: "No leads found for this campaign",
+          error: "No leads available"
+        };
+      }
+
+      // Assign unassigned leads to this campaign
+      const unassignedLeads = targetLeads.filter(lead => !lead.campaignId);
+      if (unassignedLeads.length > 0) {
+        const assignmentResult = await leadAssignmentService.assignLeadsToCampaigns(
+          unassignedLeads,
+          [campaign]
+        );
+        console.log(`Assigned ${assignmentResult.assignedLeads} leads to campaign`);
+      }
+
+      // Update campaign status
+      await storage.updateCampaign(campaignId, { 
+        status: options.scheduleAt ? 'scheduled' : 'active',
+        lastExecuted: options.scheduleAt ? null : new Date()
+      });
+
+      // If test mode, limit to first lead
+      if (testMode) {
+        targetLeads = targetLeads.slice(0, 1);
+      }
+
+      // Process email sequence
+      const processingResult = await executionProcessor.processEmailSequence(
+        campaign,
+        targetLeads,
+        0, // Start with first template
+        {
+          batchSize: maxLeadsPerBatch,
+          testMode,
+          delayBetweenEmails: testMode ? 0 : 1000
+        }
+      );
+
+      // Create conversations for successful sends
+      if (!testMode && processingResult.emailsSent > 0) {
+        for (const lead of targetLeads.slice(0, processingResult.emailsSent)) {
+          try {
+            await storage.createConversation({
+              subject: `Campaign: ${campaign.name}`,
+              leadId: lead.id,
+              status: 'active',
+              priority: 'normal',
+              campaignId: campaignId,
+              lastActivity: new Date(),
+            });
+          } catch (convError) {
+            console.error(`Failed to create conversation for lead ${lead.id}:`, convError);
+          }
+        }
+      }
+
+      // Broadcast execution update
+      webSocketService.broadcast('campaignExecuted', {
+        campaignId,
+        emailsSent: processingResult.emailsSent,
+        emailsFailed: processingResult.emailsFailed,
+        testMode,
+        timestamp: new Date()
+      });
+
+      return {
+        success: processingResult.success,
+        message: testMode 
+          ? `Test email sent to ${processingResult.emailsSent} lead(s)`
+          : `Campaign executed successfully`,
+        emailsSent: processingResult.emailsSent,
+        emailsFailed: processingResult.emailsFailed,
+        totalLeads: targetLeads.length,
+        errors: processingResult.errors,
+        executionId: processingResult.executionId,
+        testMode
+      };
+
+    } catch (error) {
+      console.error('Campaign execution error:', error);
+      return {
+        success: false,
+        message: "Failed to execute campaign",
+        error: error instanceof Error ? error.message : 'Unknown error',
+        emailsSent: 0,
+        emailsFailed: 0,
+        totalLeads: 0
+      };
+    }
+  }
+}
+
+export const campaignOrchestrator = new CampaignOrchestrator();
 
   async executeCampaign(options: CampaignExecutionOptions): Promise<ExecutionResult> {
     const executionId = `exec_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

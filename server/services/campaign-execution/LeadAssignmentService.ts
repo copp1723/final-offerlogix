@@ -1,427 +1,373 @@
 import { storage } from '../../storage';
 import { webSocketService } from '../websocket';
+import type { Lead, Campaign, Conversation } from '@shared/schema';
 
-interface AssignmentRule {
+export interface AssignmentRule {
   id: string;
   name: string;
   enabled: boolean;
   criteria: {
-    leadSource?: string[];
     vehicleInterest?: string[];
-    priority?: string[];
-    tags?: string[];
-    dateRange?: {
-      start: Date;
-      end: Date;
-    };
+    budget?: { min?: number; max?: number };
+    timeframe?: string[];
+    source?: string[];
+    location?: string[];
   };
-  assignment: {
-    campaignId: string;
-    priority?: 'low' | 'normal' | 'high' | 'urgent';
-    addTags?: string[];
-    assignToUser?: string;
-  };
+  priority: number; // Higher number = higher priority
+  assignTo?: string; // User ID or team
+  campaignId?: string;
 }
 
-interface BulkAssignmentOptions {
-  leadIds: string[];
-  campaignId: string;
-  priority?: string;
-  tags?: string[];
-  overwriteExisting?: boolean;
-}
-
-interface AssignmentResult {
+export interface AssignmentResult {
   success: boolean;
-  assignedCount: number;
-  skippedCount: number;
+  assignedLeads: number;
+  skippedLeads: number;
   errors: string[];
-  assignedLeads: any[];
+  assignments: Array<{
+    leadId: string;
+    campaignId?: string;
+    conversationId?: string;
+    assignedTo?: string;
+  }>;
 }
 
 export class LeadAssignmentService {
-  private assignmentRules: AssignmentRule[] = [];
-
-  constructor() {
-    this.loadDefaultAssignmentRules();
-  }
-
-  async assignLeadToCampaign(leadId: string, campaignId: string, options?: {
-    priority?: string;
-    tags?: string[];
-    notes?: string;
-  }): Promise<boolean> {
-    try {
-      const lead = await storage.getLead(leadId);
-      if (!lead) {
-        console.error(`Lead not found: ${leadId}`);
-        return false;
-      }
-
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        console.error(`Campaign not found: ${campaignId}`);
-        return false;
-      }
-
-      // Check if lead is already assigned to this campaign
-      if (lead.campaignId === campaignId) {
-        console.log(`Lead ${leadId} already assigned to campaign ${campaignId}`);
-        return true;
-      }
-
-      // Prepare update data
-      const updateData: any = {
-        campaignId,
-        status: 'assigned'
-      };
-
-      if (options?.priority) {
-        updateData.priority = options.priority;
-      }
-
-      if (options?.tags) {
-        const existingTags = lead.tags ? JSON.parse(lead.tags) : [];
-        const newTags = [...new Set([...existingTags, ...options.tags])];
-        updateData.tags = JSON.stringify(newTags);
-      }
-
-      if (options?.notes) {
-        const existingNotes = lead.notes || '';
-        updateData.notes = existingNotes 
-          ? `${existingNotes}\n\n[${new Date().toISOString()}] ${options.notes}`
-          : options.notes;
-      }
-
-      // Update lead
-      await storage.updateLead(leadId, updateData);
-
-      console.log(`Assigned lead ${leadId} to campaign ${campaignId}`);
-
-      // Create conversation for lead-campaign interaction
-      await this.createLeadConversation(lead, campaign);
-
-      // Broadcast assignment
-      webSocketService.broadcast({
-        type: 'lead_assigned',
-        leadId,
-        campaignId,
-        lead: { ...lead, ...updateData }
-      });
-
-      return true;
-
-    } catch (error) {
-      console.error(`Error assigning lead to campaign:`, error);
-      return false;
+  private assignmentRules: AssignmentRule[] = [
+    {
+      id: 'high_value_leads',
+      name: 'High Value Leads',
+      enabled: true,
+      criteria: {
+        budget: { min: 50000 },
+        timeframe: ['immediate', 'within_month']
+      },
+      priority: 10,
+      assignTo: 'senior_sales'
+    },
+    {
+      id: 'luxury_vehicles',
+      name: 'Luxury Vehicle Interest',
+      enabled: true,
+      criteria: {
+        vehicleInterest: ['BMW', 'Mercedes', 'Audi', 'Lexus', 'Tesla']
+      },
+      priority: 8,
+      assignTo: 'luxury_specialist'
+    },
+    {
+      id: 'quick_conversion',
+      name: 'Quick Conversion Potential',
+      enabled: true,
+      criteria: {
+        timeframe: ['immediate', 'within_week']
+      },
+      priority: 7,
+      assignTo: 'conversion_team'
     }
-  }
+  ];
 
-  async bulkAssignLeads(options: BulkAssignmentOptions): Promise<AssignmentResult> {
+  /**
+   * Assign leads to campaigns based on intelligent rules
+   */
+  async assignLeadsToCampaigns(
+    leads: Lead[],
+    availableCampaigns: Campaign[]
+  ): Promise<AssignmentResult> {
     const result: AssignmentResult = {
       success: true,
-      assignedCount: 0,
-      skippedCount: 0,
+      assignedLeads: 0,
+      skippedLeads: 0,
       errors: [],
-      assignedLeads: []
+      assignments: []
     };
 
     try {
-      const campaign = await storage.getCampaign(options.campaignId);
-      if (!campaign) {
-        throw new Error(`Campaign not found: ${options.campaignId}`);
-      }
-
-      for (const leadId of options.leadIds) {
+      for (const lead of leads) {
         try {
-          const lead = await storage.getLead(leadId);
-          if (!lead) {
-            result.errors.push(`Lead not found: ${leadId}`);
-            continue;
-          }
+          const assignment = await this.assignSingleLead(lead, availableCampaigns);
+          
+          if (assignment.campaignId) {
+            // Update lead with campaign assignment
+            await storage.updateLead(lead.id, {
+              campaignId: assignment.campaignId,
+              status: 'assigned'
+            });
 
-          // Skip if already assigned and not overwriting
-          if (lead.campaignId && !options.overwriteExisting) {
-            result.skippedCount++;
-            continue;
-          }
+            // Create conversation if needed
+            if (assignment.createConversation) {
+              const conversation = await storage.createConversation({
+                subject: `Lead Assignment: ${lead.firstName} ${lead.lastName}`,
+                leadId: lead.id,
+                status: 'active',
+                priority: assignment.priority || 'normal',
+                campaignId: assignment.campaignId,
+                lastActivity: new Date(),
+              });
 
-          // Assign lead
-          const assigned = await this.assignLeadToCampaign(leadId, options.campaignId, {
-            priority: options.priority,
-            tags: options.tags,
-            notes: `Bulk assigned to campaign: ${campaign.name}`
-          });
+              assignment.conversationId = conversation.id;
+            }
 
-          if (assigned) {
-            result.assignedCount++;
-            result.assignedLeads.push({ ...lead, campaignId: options.campaignId });
+            result.assignments.push({
+              leadId: lead.id,
+              campaignId: assignment.campaignId,
+              conversationId: assignment.conversationId,
+              assignedTo: assignment.assignedTo
+            });
+
+            result.assignedLeads++;
+
+            // Send real-time notification
+            webSocketService.broadcast('leadAssigned', {
+              leadId: lead.id,
+              campaignId: assignment.campaignId,
+              assignmentReason: assignment.reason,
+              timestamp: new Date()
+            });
+
           } else {
-            result.errors.push(`Failed to assign lead: ${leadId}`);
+            result.skippedLeads++;
           }
 
-        } catch (error) {
-          result.errors.push(`Error processing lead ${leadId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        } catch (leadError) {
+          result.errors.push(`Failed to assign lead ${lead.id}: ${leadError instanceof Error ? leadError.message : 'Unknown error'}`);
+          result.skippedLeads++;
         }
       }
 
-      // Update campaign lead count
-      await this.updateCampaignLeadCount(options.campaignId);
-
-      // Broadcast bulk assignment completion
-      webSocketService.broadcast({
-        type: 'bulk_assignment_complete',
-        campaignId: options.campaignId,
-        result
-      });
-
-      if (result.errors.length > 0) {
-        result.success = false;
-      }
+      result.success = result.errors.length === 0 || result.assignedLeads > 0;
 
     } catch (error) {
       result.success = false;
-      result.errors.push(error instanceof Error ? error.message : 'Unknown bulk assignment error');
+      result.errors.push(`Assignment process failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
 
     return result;
   }
 
-  async autoAssignLeadsByCriteria(campaignId: string): Promise<AssignmentResult> {
-    const result: AssignmentResult = {
-      success: true,
-      assignedCount: 0,
-      skippedCount: 0,
-      errors: [],
-      assignedLeads: []
-    };
-
-    try {
-      // Get unassigned leads
-      const allLeads = await storage.getLeads();
-      const unassignedLeads = allLeads.filter(lead => !lead.campaignId);
-
-      const campaign = await storage.getCampaign(campaignId);
-      if (!campaign) {
-        throw new Error(`Campaign not found: ${campaignId}`);
-      }
-
-      // Apply assignment rules
-      for (const lead of unassignedLeads) {
-        const shouldAssign = await this.evaluateLeadForCampaign(lead, campaign);
-        
-        if (shouldAssign) {
-          const assigned = await this.assignLeadToCampaign(lead.id, campaignId, {
-            notes: `Auto-assigned based on campaign criteria`
-          });
-
-          if (assigned) {
-            result.assignedCount++;
-            result.assignedLeads.push({ ...lead, campaignId });
-          }
-        }
-      }
-
-    } catch (error) {
-      result.success = false;
-      result.errors.push(error instanceof Error ? error.message : 'Auto-assignment error');
-    }
-
-    return result;
-  }
-
-  private async evaluateLeadForCampaign(lead: any, campaign: any): Promise<boolean> {
-    try {
-      // Parse campaign context for assignment criteria
-      const context = campaign.context || '';
-      const handoverGoals = campaign.handoverGoals || '';
-      
-      // Check vehicle interest match
-      if (lead.vehicleInterest && context) {
-        const vehicleKeywords = this.extractVehicleKeywords(context);
-        if (vehicleKeywords.length > 0) {
-          const matchesVehicle = vehicleKeywords.some(keyword =>
-            lead.vehicleInterest.toLowerCase().includes(keyword.toLowerCase())
-          );
-          if (matchesVehicle) return true;
-        }
-      }
-
-      // Check lead source match
-      if (lead.leadSource) {
-        const sourceKeywords = ['website', 'referral', 'showroom', 'email'];
-        if (context.toLowerCase().includes(lead.leadSource.toLowerCase())) {
-          return true;
-        }
-      }
-
-      // Check priority match
-      if (campaign.priority && lead.priority) {
-        if (campaign.priority === lead.priority) return true;
-      }
-
-      // Default criteria for new leads
-      if (lead.status === 'new' && context.toLowerCase().includes('new')) {
-        return true;
-      }
-
-      return false;
-
-    } catch (error) {
-      console.error('Error evaluating lead for campaign:', error);
-      return false;
-    }
-  }
-
-  private extractVehicleKeywords(text: string): string[] {
-    const vehiclePatterns = [
-      /(Toyota|Honda|Ford|Chevrolet|BMW|Mercedes|Audi|Lexus|Nissan|Hyundai|Kia|Volkswagen|Subaru|Mazda|Volvo|Acura|Infiniti|Cadillac|Lincoln|Buick|GMC|Jeep|Chrysler|Dodge|Ram)/gi,
-      /(Camry|Civic|F-150|Accord|Prius|Corolla|Silverado|Elantra|Altima|Sentra|Malibu|Equinox|Escape|Explorer|Pilot)/gi
-    ];
-
-    const keywords: string[] = [];
+  /**
+   * Assign a single lead to the most appropriate campaign
+   */
+  private async assignSingleLead(
+    lead: Lead, 
+    availableCampaigns: Campaign[]
+  ): Promise<{
+    campaignId?: string;
+    assignedTo?: string;
+    priority?: 'low' | 'normal' | 'high' | 'urgent';
+    reason?: string;
+    createConversation?: boolean;
+    conversationId?: string;
+  }> {
     
-    for (const pattern of vehiclePatterns) {
-      const matches = text.match(pattern);
-      if (matches) {
-        keywords.push(...matches);
-      }
+    // Skip if lead already has a campaign
+    if (lead.campaignId) {
+      return { reason: 'Lead already assigned to campaign' };
     }
 
-    return [...new Set(keywords)];
-  }
-
-  private async createLeadConversation(lead: any, campaign: any) {
-    try {
-      // Check if conversation already exists
-      const existingConversations = await storage.getConversations(lead.id);
-      
-      const campaignConversation = existingConversations.find(conv =>
-        conv.subject?.includes(campaign.name) || conv.subject?.includes('Campaign')
+    // Find best matching rule
+    const matchingRule = this.findBestMatchingRule(lead);
+    
+    if (!matchingRule) {
+      // Default assignment to general campaign
+      const generalCampaign = availableCampaigns.find(c => 
+        c.status === 'active' && 
+        (c.name.toLowerCase().includes('general') || c.name.toLowerCase().includes('default'))
       );
 
-      if (campaignConversation) {
-        console.log(`Conversation already exists for lead ${lead.id} and campaign ${campaign.name}`);
-        return campaignConversation;
-      }
-
-      // Create new conversation
-      const conversation = await storage.createConversation({
-        userId: lead.id,
-        campaignId: campaign.id,
-        subject: `Campaign Assignment: ${campaign.name}`,
-        status: 'active',
-        priority: 'normal'
-      });
-
-      // Add initial message
-      await storage.createConversationMessage({
-        conversationId: conversation.id,
-        content: `Lead ${lead.firstName || lead.email} has been assigned to campaign "${campaign.name}".`,
-        senderId: 'system',
-        isFromAI: 1
-      });
-
-      console.log(`Created conversation for lead assignment: ${conversation.id}`);
-      return conversation;
-
-    } catch (error) {
-      console.error('Error creating lead conversation:', error);
+      return {
+        campaignId: generalCampaign?.id,
+        priority: 'normal',
+        reason: 'Default assignment - no specific rules matched',
+        createConversation: true
+      };
     }
-  }
 
-  private async updateCampaignLeadCount(campaignId: string) {
-    try {
-      const allLeads = await storage.getLeads();
-      const campaignLeads = allLeads.filter(lead => lead.campaignId === campaignId);
-      
-      const campaign = await storage.getCampaign(campaignId);
-      if (campaign) {
-        const metrics = campaign.performanceMetrics 
-          ? JSON.parse(campaign.performanceMetrics)
-          : {};
-        
-        metrics.assignedLeads = campaignLeads.length;
-        
-        await storage.updateCampaign(campaignId, {
-          performanceMetrics: JSON.stringify(metrics)
-        });
-      }
-    } catch (error) {
-      console.error('Error updating campaign lead count:', error);
+    // Find campaign matching the rule
+    let targetCampaign: Campaign | undefined;
+
+    if (matchingRule.campaignId) {
+      targetCampaign = availableCampaigns.find(c => c.id === matchingRule.campaignId);
+    } else {
+      // Find campaign based on criteria
+      targetCampaign = this.findMatchingCampaign(lead, availableCampaigns, matchingRule);
     }
+
+    if (!targetCampaign) {
+      // Fall back to any active campaign
+      targetCampaign = availableCampaigns.find(c => c.status === 'active');
+    }
+
+    const priority = this.determinePriority(matchingRule.priority);
+
+    return {
+      campaignId: targetCampaign?.id,
+      assignedTo: matchingRule.assignTo,
+      priority,
+      reason: `Matched rule: ${matchingRule.name}`,
+      createConversation: true
+    };
   }
 
-  private loadDefaultAssignmentRules() {
-    this.assignmentRules = [
-      {
-        id: 'new-lead-auto-assign',
-        name: 'New Lead Auto Assignment',
-        enabled: true,
-        criteria: {
-          leadSource: ['website', 'email_inquiry'],
-          priority: ['normal', 'high']
-        },
-        assignment: {
-          campaignId: 'default',
-          priority: 'normal',
-          addTags: ['auto_assigned']
-        }
-      },
-      {
-        id: 'urgent-priority-assign',
-        name: 'Urgent Priority Assignment',
-        enabled: true,
-        criteria: {
-          priority: ['urgent']
-        },
-        assignment: {
-          campaignId: 'urgent-response',
-          priority: 'urgent',
-          addTags: ['urgent', 'priority']
-        }
+  /**
+   * Find the best matching assignment rule for a lead
+   */
+  private findBestMatchingRule(lead: Lead): AssignmentRule | null {
+    const activeRules = this.assignmentRules
+      .filter(rule => rule.enabled)
+      .sort((a, b) => b.priority - a.priority); // Sort by priority (highest first)
+
+    for (const rule of activeRules) {
+      if (this.leadMatchesRule(lead, rule)) {
+        return rule;
       }
-    ];
+    }
+
+    return null;
   }
 
-  // Public methods for rule management
+  /**
+   * Check if a lead matches a specific rule
+   */
+  private leadMatchesRule(lead: Lead, rule: AssignmentRule): boolean {
+    const { criteria } = rule;
+
+    // Check vehicle interest
+    if (criteria.vehicleInterest && criteria.vehicleInterest.length > 0) {
+      if (!lead.vehicleInterest || 
+          !criteria.vehicleInterest.some(interest => 
+            lead.vehicleInterest!.toLowerCase().includes(interest.toLowerCase())
+          )) {
+        return false;
+      }
+    }
+
+    // Check budget range
+    if (criteria.budget) {
+      const leadBudget = this.parseBudget(lead.budget);
+      if (leadBudget !== null) {
+        if (criteria.budget.min && leadBudget < criteria.budget.min) return false;
+        if (criteria.budget.max && leadBudget > criteria.budget.max) return false;
+      } else if (criteria.budget.min || criteria.budget.max) {
+        return false; // Budget criteria specified but lead has no valid budget
+      }
+    }
+
+    // Check timeframe
+    if (criteria.timeframe && criteria.timeframe.length > 0) {
+      if (!lead.timeframe || 
+          !criteria.timeframe.includes(lead.timeframe.toLowerCase())) {
+        return false;
+      }
+    }
+
+    // Check source
+    if (criteria.source && criteria.source.length > 0) {
+      if (!lead.source || 
+          !criteria.source.includes(lead.source.toLowerCase())) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  /**
+   * Find matching campaign based on lead and rule criteria
+   */
+  private findMatchingCampaign(
+    lead: Lead, 
+    campaigns: Campaign[], 
+    rule: AssignmentRule
+  ): Campaign | undefined {
+    
+    const activeCampaigns = campaigns.filter(c => c.status === 'active');
+
+    // Look for campaigns with relevant context/content
+    if (lead.vehicleInterest) {
+      const vehicleSpecificCampaign = activeCampaigns.find(c => 
+        c.context?.toLowerCase().includes(lead.vehicleInterest!.toLowerCase()) ||
+        c.name.toLowerCase().includes(lead.vehicleInterest!.toLowerCase())
+      );
+      if (vehicleSpecificCampaign) return vehicleSpecificCampaign;
+    }
+
+    // Look for timeframe-specific campaigns
+    if (lead.timeframe) {
+      const timeframeCampaign = activeCampaigns.find(c => 
+        c.context?.toLowerCase().includes(lead.timeframe!.toLowerCase()) ||
+        c.name.toLowerCase().includes(lead.timeframe!.toLowerCase())
+      );
+      if (timeframeCampaign) return timeframeCampaign;
+    }
+
+    // Return first active campaign as fallback
+    return activeCampaigns[0];
+  }
+
+  /**
+   * Parse budget string to number
+   */
+  private parseBudget(budget?: string): number | null {
+    if (!budget) return null;
+
+    // Remove non-numeric characters except decimal points and commas
+    const cleaned = budget.replace(/[^\d.,]/g, '');
+    
+    // Handle common formats
+    if (cleaned.includes('k') || cleaned.includes('K')) {
+      return parseFloat(cleaned.replace(/[kK]/g, '')) * 1000;
+    }
+    
+    const parsed = parseFloat(cleaned.replace(/,/g, ''));
+    return isNaN(parsed) ? null : parsed;
+  }
+
+  /**
+   * Determine conversation priority based on rule priority
+   */
+  private determinePriority(rulePriority: number): 'low' | 'normal' | 'high' | 'urgent' {
+    if (rulePriority >= 10) return 'urgent';
+    if (rulePriority >= 7) return 'high';
+    if (rulePriority >= 4) return 'normal';
+    return 'low';
+  }
+
+  /**
+   * Get current assignment rules
+   */
   getAssignmentRules(): AssignmentRule[] {
     return [...this.assignmentRules];
   }
 
-  addAssignmentRule(rule: AssignmentRule) {
-    this.assignmentRules.push(rule);
+  /**
+   * Update assignment rules
+   */
+  updateAssignmentRules(rules: AssignmentRule[]): void {
+    this.assignmentRules = rules;
+    console.log(`Updated ${rules.length} assignment rules`);
   }
 
+  /**
+   * Add new assignment rule
+   */
+  addAssignmentRule(rule: AssignmentRule): void {
+    this.assignmentRules.push(rule);
+    console.log(`Added new assignment rule: ${rule.name}`);
+  }
+
+  /**
+   * Remove assignment rule
+   */
   removeAssignmentRule(ruleId: string): boolean {
     const initialLength = this.assignmentRules.length;
     this.assignmentRules = this.assignmentRules.filter(rule => rule.id !== ruleId);
-    return this.assignmentRules.length < initialLength;
-  }
-
-  async getLeadsByCampaign(campaignId: string): Promise<any[]> {
-    const allLeads = await storage.getLeads();
-    return allLeads.filter(lead => lead.campaignId === campaignId);
-  }
-
-  async unassignLead(leadId: string): Promise<boolean> {
-    try {
-      await storage.updateLead(leadId, {
-        campaignId: null,
-        status: 'new',
-        notes: `${new Date().toISOString()}: Unassigned from campaign`
-      });
-
-      webSocketService.broadcast({
-        type: 'lead_unassigned',
-        leadId
-      });
-
-      return true;
-    } catch (error) {
-      console.error('Error unassigning lead:', error);
-      return false;
+    const removed = this.assignmentRules.length < initialLength;
+    
+    if (removed) {
+      console.log(`Removed assignment rule: ${ruleId}`);
     }
+    
+    return removed;
   }
 }
 

@@ -1,5 +1,5 @@
 import imaps, { ImapSimple } from 'imap-simple';
-import { simpleParser, ParsedMail } from 'mailparser';
+import { simpleParser } from 'mailparser';
 import { storage } from '../storage';
 import { webSocketService } from './websocket';
 
