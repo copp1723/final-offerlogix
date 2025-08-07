@@ -252,7 +252,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const result = await sendCampaignEmail(
-        Array.isArray(to) ? to : [to],
+        to as string,
         subject,
         htmlContent,
         textContent || '',
@@ -507,7 +507,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const errors = [];
 
       for (let index = 0; index < records.length; index++) {
-        const record = records[index];
+        const record = records[index] as any;
         try {
           const leadData = {
             email: record.email || record.Email || '',
@@ -706,7 +706,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let templates: any[] = [];
       try {
-        templates = JSON.parse(campaign.templates || '[]');
+        templates = JSON.parse(campaign.templates as string || '[]');
       } catch (error) {
         return res.status(400).json({ message: "Invalid email templates" });
       }
@@ -739,18 +739,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }));
 
       const results = await sendBulkEmails(emails);
-      const successful = results.successful || [];
+      const successful = results.success || [];
 
       // Update campaign metrics - note: using status field instead of non-existent emailsSent
       await storage.updateCampaign(campaignId, {
-        status: 'sent',
-        updatedAt: new Date()
+        status: 'sent'
       });
 
       res.json({
         message: "Follow-up emails sent successfully",
         successful: successful.length,
-        failed: (results.failed || []).length,
+        failed: Array.isArray(results.failed) ? results.failed.length : 0,
         templateUsed: templateIndex + 1
       });
 

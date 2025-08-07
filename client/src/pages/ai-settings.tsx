@@ -256,13 +256,13 @@ export default function AiSettingsPage() {
 
       {/* Active Configuration Card */}
       {activeConfig && (
-        <Card className="mb-6 border-green-200 bg-green-50">
+        <Card className="mb-6 border-green-200 bg-green-50">{/* Fixed type assertion */}
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Settings className="h-5 w-5" />
-                  Active Configuration: {activeConfig.name}
+                  Active Configuration: {(activeConfig as any)?.name || 'Default'}
                 </CardTitle>
                 <CardDescription>
                   Currently controlling AI agent behavior
@@ -276,13 +276,13 @@ export default function AiSettingsPage() {
           <CardContent>
             <div className="grid md:grid-cols-2 gap-4 text-sm">
               <div>
-                <strong>Tonality:</strong> {activeConfig.tonality}
+                <strong>Tonality:</strong> {(activeConfig as any)?.tonality || 'Professional'}
               </div>
               <div>
-                <strong>Response Style:</strong> {activeConfig.responseStyle}
+                <strong>Response Style:</strong> {(activeConfig as any)?.responseStyle || 'Conversational'}
               </div>
               <div>
-                <strong>Industry:</strong> {activeConfig.industry}
+                <strong>Industry:</strong> {(activeConfig as any)?.industry || 'Automotive'}
               </div>
             </div>
           </CardContent>
@@ -342,7 +342,7 @@ export default function AiSettingsPage() {
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
-                      <Button variant="outline" size="sm" disabled={config.isActive}>
+                      <Button variant="outline" size="sm" disabled={Boolean(config.isActive)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </AlertDialogTrigger>
@@ -429,7 +429,7 @@ export default function AiSettingsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Response Style</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Select response style" />
@@ -456,7 +456,8 @@ export default function AiSettingsPage() {
                     <FormControl>
                       <Textarea 
                         placeholder="Describe the agent's personality and approach..."
-                        {...field} 
+                        {...field}
+                        value={field.value || ''}
                       />
                     </FormControl>
                     <FormDescription>

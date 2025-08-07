@@ -21,6 +21,7 @@ export default function UserManagementPage() {
       role: "admin",
       email: "admin@dealership.com",
       createdAt: new Date("2024-01-15"),
+      clientId: null,
     },
     {
       id: "2", 
@@ -29,6 +30,7 @@ export default function UserManagementPage() {
       role: "manager",
       email: "manager@dealership.com",
       createdAt: new Date("2024-02-10"),
+      clientId: null,
     },
     {
       id: "3",
@@ -37,6 +39,7 @@ export default function UserManagementPage() {
       role: "user",
       email: "rep1@dealership.com",
       createdAt: new Date("2024-03-05"),
+      clientId: null,
     },
     {
       id: "4",
@@ -45,6 +48,7 @@ export default function UserManagementPage() {
       role: "user", 
       email: "rep2@dealership.com",
       createdAt: new Date("2024-03-12"),
+      clientId: null,
     },
   ];
 

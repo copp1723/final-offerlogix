@@ -91,8 +91,7 @@ export class CampaignOrchestrator {
 
       // Update campaign status
       await storage.updateCampaign(campaignId, { 
-        status: options.scheduleAt ? 'scheduled' : 'active',
-        lastExecuted: options.scheduleAt ? null : new Date()
+        status: options.scheduleAt ? 'scheduled' : 'active'
       });
 
       // If test mode, limit to first lead
@@ -118,11 +117,9 @@ export class CampaignOrchestrator {
           try {
             await storage.createConversation({
               subject: `Campaign: ${campaign.name}`,
-              leadId: lead.id,
               status: 'active',
               priority: 'normal',
               campaignId: campaignId,
-              lastActivity: new Date(),
             });
           } catch (convError) {
             console.error(`Failed to create conversation for lead ${lead.id}:`, convError);
