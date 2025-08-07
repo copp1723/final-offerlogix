@@ -74,142 +74,87 @@ Ask natural questions to gather automotive campaign information.`,
       response_format: { type: "json_object" },
     });
 
-    let aiResponse;
-    try {
-      aiResponse = JSON.parse(response.choices[0].message.content || "{}");
-    } catch {
-      // Fallback if JSON parsing fails
-      return processStepBasedResponse(userMessage, currentStep, campaignData);
+    const aiResponse = response.choices[0]?.message?.content;
+    if (!aiResponse) {
+      throw new Error("No response from AI");
     }
 
+    const parsedResponse = JSON.parse(aiResponse);
+    
     return {
-      message: aiResponse.message || processStepBasedResponse(userMessage, currentStep, campaignData).message,
-      nextStep: aiResponse.nextStep || getNextStep(currentStep, userMessage),
-      campaignData: aiResponse.campaignData || {},
-      isComplete: aiResponse.isComplete || false,
+      message: parsedResponse.message || "Let's create your automotive email campaign! What type of campaign are you looking to create?",
+      nextStep: parsedResponse.nextStep || "campaign_type",
+      campaignData: parsedResponse.campaignData || campaignData,
+      isComplete: parsedResponse.isComplete || false
     };
+
   } catch (error) {
     console.error("AI chat error:", error);
     return processStepBasedResponse(userMessage, currentStep, campaignData);
   }
 }
 
-function processStepBasedResponse(
-  userMessage: string,
-  currentStep: string,
-  campaignData: any
-): CampaignChatResponse {
-  const responses: Record<string, any> = {
-    campaign_type: {
-      message: "Great! I can help you create that campaign. Who is your main target audience for this campaign? Are you focusing on new car buyers, existing customers for service, or a specific demographic?",
-      nextStep: "target_audience",
-      campaignData: extractCampaignType(userMessage),
-    },
-    target_audience: {
-      message: "Perfect! Now, what's your main goal for this campaign? Are you looking to book test drives, schedule service appointments, generate sales leads, or something else?",
-      nextStep: "goals", 
-      campaignData: extractTargetAudience(userMessage),
-    },
-    goals: {
-      message: "Excellent! Let's get into the specifics. How many email messages would you like in this campaign sequence? And how many days apart should each message be sent?",
-      nextStep: "details",
-      campaignData: extractGoals(userMessage),
-    },
-    details: {
-      message: "Perfect! I have all the information needed to create your automotive email campaign. Let me generate personalized email templates based on your requirements. Would you like me to proceed?",
-      nextStep: "complete",
-      campaignData: extractDetails(userMessage),
-      isComplete: true,
-    },
-    complete: {
-      message: "Your campaign is ready! I can now generate the email templates and set up your campaign. Would you like to review the details or proceed with creation?",
-      isComplete: true,
-    },
-  };
-
-  const response = responses[currentStep] || responses.campaign_type;
-  
-  return {
-    message: response.message,
-    nextStep: response.nextStep,
-    campaignData: { ...campaignData, ...(response.campaignData || {}) },
-    isComplete: response.isComplete || false,
-  };
-}
-
-function extractCampaignType(message: string): any {
-  const lowerMessage = message.toLowerCase();
-  
-  if (lowerMessage.includes("service") || lowerMessage.includes("maintenance")) {
-    return { context: "Service reminder campaign", name: "Service Maintenance Campaign" };
-  } else if (lowerMessage.includes("test drive") || lowerMessage.includes("drive")) {
-    return { context: "Test drive follow-up campaign", name: "Test Drive Campaign" };
-  } else if (lowerMessage.includes("new") || lowerMessage.includes("launch") || lowerMessage.includes("model")) {
-    return { context: "New vehicle launch campaign", name: "New Vehicle Launch" };
-  } else if (lowerMessage.includes("seasonal") || lowerMessage.includes("holiday") || lowerMessage.includes("summer") || lowerMessage.includes("winter")) {
-    return { context: "Seasonal promotion campaign", name: "Seasonal Promotion" };
-  } else {
-    return { context: `Automotive email campaign: ${message}`, name: "Custom Campaign" };
+function processStepBasedResponse(userMessage: string, currentStep: string, campaignData: any): CampaignChatResponse {
+  // Fallback logic for when AI is not available
+  switch (currentStep) {
+    case "welcome":
+    case "campaign_type":
+      return {
+        message: "Welcome! I'm here to help you create an automotive email campaign. What type of campaign would you like to create? For example: new vehicle launch, service reminders, test drive follow-up, or seasonal promotions?",
+        nextStep: "target_audience",
+        campaignData: { ...campaignData, type: userMessage },
+        isComplete: false
+      };
+      
+    case "target_audience":
+      return {
+        message: "Great! Who is your target audience for this campaign? Are you targeting new buyers, existing customers, or a specific demographic?",
+        nextStep: "goals",
+        campaignData: { ...campaignData, audience: userMessage },
+        isComplete: false
+      };
+      
+    case "goals":
+      return {
+        message: "Perfect! What are your main goals for this campaign? For example: schedule test drives, book service appointments, generate sales leads, or improve customer retention?",
+        nextStep: "details",
+        campaignData: { ...campaignData, goals: userMessage },
+        isComplete: false
+      };
+      
+    case "details":
+      return {
+        message: "Excellent! Let me gather a few more details. How many emails would you like in this sequence, and how many days between each email?",
+        nextStep: "complete",
+        campaignData: { 
+          ...campaignData, 
+          details: userMessage,
+          name: `${campaignData.type || 'Automotive'} Campaign`,
+          context: `${campaignData.type || 'Automotive'} campaign targeting ${campaignData.audience || 'customers'} with goals to ${campaignData.goals || 'increase engagement'}`,
+          handoverGoals: campaignData.goals || 'Increase customer engagement and drive sales',
+          numberOfTemplates: 5,
+          daysBetweenMessages: 3
+        },
+        isComplete: false
+      };
+      
+    case "complete":
+      return {
+        message: "Perfect! I have all the information needed to create your automotive email campaign. The campaign will be set up with your specifications.",
+        nextStep: "complete",
+        campaignData: { 
+          ...campaignData,
+          finalDetails: userMessage
+        },
+        isComplete: true
+      };
+      
+    default:
+      return {
+        message: "Let's start creating your automotive email campaign! What type of campaign would you like to create?",
+        nextStep: "campaign_type",
+        campaignData: campaignData,
+        isComplete: false
+      };
   }
-}
-
-function extractTargetAudience(message: string): any {
-  const lowerMessage = message.toLowerCase();
-  
-  if (lowerMessage.includes("new") && lowerMessage.includes("buyer")) {
-    return { handoverGoals: "Target new car buyers with personalized vehicle recommendations" };
-  } else if (lowerMessage.includes("existing") || lowerMessage.includes("current")) {
-    return { handoverGoals: "Engage existing customers for retention and service" };
-  } else if (lowerMessage.includes("young") || lowerMessage.includes("millennial")) {
-    return { handoverGoals: "Target young demographic with modern vehicle features" };
-  } else {
-    return { handoverGoals: `Target audience: ${message}` };
-  }
-}
-
-function extractGoals(message: string): any {
-  const lowerMessage = message.toLowerCase();
-  
-  if (lowerMessage.includes("test drive") || lowerMessage.includes("drive")) {
-    return { handoverGoals: "Generate test drive bookings and showroom visits" };
-  } else if (lowerMessage.includes("service") || lowerMessage.includes("appointment")) {
-    return { handoverGoals: "Schedule service appointments and maintenance visits" };
-  } else if (lowerMessage.includes("lead") || lowerMessage.includes("sales")) {
-    return { handoverGoals: "Generate qualified sales leads and conversions" };
-  } else {
-    return { handoverGoals: `Campaign goal: ${message}` };
-  }
-}
-
-function extractDetails(message: string): any {
-  const details: any = {};
-  
-  // Extract number of emails
-  const emailMatch = message.match(/(\d+)\s*(email|message|template)/i);
-  if (emailMatch) {
-    details.numberOfTemplates = parseInt(emailMatch[1]);
-  } else {
-    details.numberOfTemplates = 5; // default
-  }
-  
-  // Extract days between messages
-  const daysMatch = message.match(/(\d+)\s*day/i);
-  if (daysMatch) {
-    details.daysBetweenMessages = parseInt(daysMatch[1]);
-  } else {
-    details.daysBetweenMessages = 3; // default
-  }
-  
-  return details;
-}
-
-function getNextStep(currentStep: string, userMessage: string): string {
-  const steps = ["campaign_type", "target_audience", "goals", "details", "complete"];
-  const currentIndex = steps.indexOf(currentStep);
-  
-  if (currentIndex < steps.length - 1) {
-    return steps[currentIndex + 1];
-  }
-  
-  return "complete";
 }

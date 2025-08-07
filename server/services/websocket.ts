@@ -139,14 +139,14 @@ class WebSocketService {
 
   // Public methods for external services
   broadcastNewLead(lead: any) {
-    this.broadcast({
+    this.internalBroadcast({
       type: 'new_lead',
       lead
     });
   }
 
   broadcastNewConversation(conversation: any) {
-    this.broadcast({
+    this.internalBroadcast({
       type: 'new_conversation',
       conversation
     });
@@ -160,7 +160,16 @@ class WebSocketService {
     });
   }
 
-  private broadcast(data: any) {
+  broadcast(type: string, data: any) {
+    const message = { type, ...data };
+    this.clients.forEach((client) => {
+      if (client.ws.readyState === WebSocket.OPEN) {
+        client.ws.send(JSON.stringify(message));
+      }
+    });
+  }
+
+  private internalBroadcast(data: any) {
     this.clients.forEach((client) => {
       if (client.ws.readyState === WebSocket.OPEN) {
         client.ws.send(JSON.stringify(data));

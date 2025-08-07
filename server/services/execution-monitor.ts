@@ -49,13 +49,19 @@ export class ExecutionMonitor {
     this.addLog(executionId, `Execution started for campaign ${campaignId} with ${totalLeads} leads`);
 
     // Broadcast execution start
-    webSocketService.broadcast('executionStarted', {
-      executionId,
-      campaignId,
-      totalLeads,
-      testMode,
-      timestamp: new Date()
-    });
+    try {
+      if (webSocketService.broadcast) {
+        webSocketService.broadcast('executionStarted', {
+          executionId,
+          campaignId,
+          totalLeads,
+          testMode,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('WebSocket broadcast error:', error);
+    }
 
     return executionId;
   }
@@ -81,12 +87,18 @@ export class ExecutionMonitor {
     this.addLog(executionId, `Progress: ${execution.progress.processedLeads}/${execution.progress.totalLeads} leads processed (${progressPercent}%)`);
 
     // Broadcast progress update
-    webSocketService.broadcast('executionProgress', {
-      executionId,
-      progress: execution.progress,
-      progressPercent,
-      timestamp: new Date()
-    });
+    try {
+      if (webSocketService.broadcast) {
+        webSocketService.broadcast('executionProgress', {
+          executionId,
+          progress: execution.progress,
+          progressPercent,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('WebSocket broadcast error:', error);
+    }
   }
 
   /**
@@ -100,12 +112,18 @@ export class ExecutionMonitor {
     this.addLog(executionId, `ERROR: ${error}`);
 
     // Broadcast error
-    webSocketService.broadcast('executionError', {
-      executionId,
-      error,
-      errorCount: execution.errors.length,
-      timestamp: new Date()
-    });
+    try {
+      if (webSocketService.broadcast) {
+        webSocketService.broadcast('executionError', {
+          executionId,
+          error,
+          errorCount: execution.errors.length,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('WebSocket broadcast error:', error);
+    }
   }
 
   /**
@@ -153,13 +171,19 @@ export class ExecutionMonitor {
     }
 
     // Broadcast completion
-    webSocketService.broadcast('executionCompleted', {
-      executionId,
-      success,
-      finalStats: execution.progress,
-      duration,
-      timestamp: new Date()
-    });
+    try {
+      if (webSocketService.broadcast) {
+        webSocketService.broadcast('executionCompleted', {
+          executionId,
+          success,
+          finalStats: execution.progress,
+          duration,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('WebSocket broadcast error:', error);
+    }
   }
 
   /**
@@ -180,10 +204,16 @@ export class ExecutionMonitor {
     this.activeExecutions.delete(executionId);
 
     // Broadcast cancellation
-    webSocketService.broadcast('executionCancelled', {
-      executionId,
-      timestamp: new Date()
-    });
+    try {
+      if (webSocketService.broadcast) {
+        webSocketService.broadcast('executionCancelled', {
+          executionId,
+          timestamp: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('WebSocket broadcast error:', error);
+    }
 
     return true;
   }

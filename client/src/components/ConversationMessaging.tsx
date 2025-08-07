@@ -37,7 +37,7 @@ export function ConversationMessaging({ conversationId, userId = "current-user" 
   // Initialize messages from API
   useEffect(() => {
     if (initialMessages) {
-      setMessages(initialMessages);
+      setMessages(Array.isArray(initialMessages) ? initialMessages : []);
     }
   }, [initialMessages]);
 
@@ -64,19 +64,16 @@ export function ConversationMessaging({ conversationId, userId = "current-user" 
   // Send message mutation
   const sendMessageMutation = useMutation({
     mutationFn: async (content: string) => {
-      return apiRequest(`/api/conversations/${conversationId}/messages`, {
-        method: 'POST',
-        body: JSON.stringify({
-          content,
-          senderId: userId,
-          isFromAI: 0
-        })
+      return apiRequest(`/api/conversations/${conversationId}/messages`, 'POST', {
+        content,
+        senderId: userId,
+        isFromAI: 0
       });
     },
     onSuccess: (newMessage) => {
       // Update UI immediately if WebSocket is not connected
-      if (!isConnected) {
-        setMessages(prev => [...prev, newMessage]);
+      if (!isConnected && newMessage) {
+        setMessages(prev => [...prev, newMessage as Message]);
       }
       
       // Invalidate conversation queries

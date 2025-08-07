@@ -286,15 +286,15 @@ export default function EmailValidationPanel() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="text-center p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-blue-600">{validationStats.rulesCount}</div>
+                    <div className="text-2xl font-bold text-blue-600">{(validationStats as any)?.rulesCount || 0}</div>
                     <div className="text-sm text-gray-600">Total Rules</div>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-green-600">{validationStats.enabledRules}</div>
+                    <div className="text-2xl font-bold text-green-600">{(validationStats as any)?.enabledRules || 0}</div>
                     <div className="text-sm text-gray-600">Active Rules</div>
                   </div>
                   <div className="text-center p-4 border rounded-lg">
-                    <div className="text-2xl font-bold text-purple-600">{validationStats.spamKeywordsCount}</div>
+                    <div className="text-2xl font-bold text-purple-600">{(validationStats as any)?.spamKeywordsCount || 0}</div>
                     <div className="text-sm text-gray-600">Spam Keywords</div>
                   </div>
                 </div>
