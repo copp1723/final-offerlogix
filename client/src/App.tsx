@@ -13,6 +13,7 @@ import WhiteLabelPage from "@/pages/white-label";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
 import AutomotivePromptsPage from "@/pages/automotive-prompts";
+import EmailMonitorPage from "@/pages/email-monitor";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -26,6 +27,7 @@ function Router() {
         <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/ai-settings" component={AiSettingsPage} />
         <Route path="/automotive-prompts" component={AutomotivePromptsPage} />
+        <Route path="/email-monitor" component={EmailMonitorPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/white-label" component={WhiteLabelPage} />
         <Route path="/users" component={UserManagementPage} />

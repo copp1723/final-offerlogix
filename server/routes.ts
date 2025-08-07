@@ -508,6 +508,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Test webhook for development
   app.post("/api/webhooks/test", WebhookHandler.handleTest);
 
+  // Email Monitor Routes
+  const { emailMonitorService } = await import('./services/email-monitor');
+  
+  // Get email monitoring status
+  app.get("/api/email-monitor/status", async (req, res) => {
+    try {
+      const status = emailMonitorService.getStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Email monitor status error:', error);
+      res.status(500).json({ message: "Failed to get email monitor status" });
+    }
+  });
+
+  // Start email monitoring
+  app.post("/api/email-monitor/start", async (req, res) => {
+    try {
+      await emailMonitorService.start();
+      res.json({ message: "Email monitor started successfully" });
+    } catch (error) {
+      console.error('Email monitor start error:', error);
+      res.status(500).json({ message: "Failed to start email monitor" });
+    }
+  });
+
+  // Stop email monitoring
+  app.post("/api/email-monitor/stop", async (req, res) => {
+    try {
+      await emailMonitorService.stop();
+      res.json({ message: "Email monitor stopped successfully" });
+    } catch (error) {
+      console.error('Email monitor stop error:', error);
+      res.status(500).json({ message: "Failed to stop email monitor" });
+    }
+  });
+
+  // Get email monitoring rules
+  app.get("/api/email-monitor/rules", async (req, res) => {
+    try {
+      const rules = emailMonitorService.getRules();
+      res.json(rules);
+    } catch (error) {
+      console.error('Email monitor rules error:', error);
+      res.status(500).json({ message: "Failed to get email monitor rules" });
+    }
+  });
+
+  // Add email monitoring rule
+  app.post("/api/email-monitor/rules", async (req, res) => {
+    try {
+      const rule = req.body;
+      emailMonitorService.addRule(rule);
+      res.json({ message: "Email monitoring rule added successfully" });
+    } catch (error) {
+      console.error('Email monitor add rule error:', error);
+      res.status(500).json({ message: "Failed to add email monitoring rule" });
+    }
+  });
+
+  // Remove email monitoring rule
+  app.delete("/api/email-monitor/rules/:id", async (req, res) => {
+    try {
+      const removed = emailMonitorService.removeRule(req.params.id);
+      if (removed) {
+        res.json({ message: "Email monitoring rule removed successfully" });
+      } else {
+        res.status(404).json({ message: "Email monitoring rule not found" });
+      }
+    } catch (error) {
+      console.error('Email monitor remove rule error:', error);
+      res.status(500).json({ message: "Failed to remove email monitoring rule" });
+    }
+  });
+
   // SMS routes
   app.post("/api/sms/send", async (req, res) => {
     try {

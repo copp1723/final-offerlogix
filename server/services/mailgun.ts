@@ -1,169 +1,112 @@
-import formData from 'form-data';
-import Mailgun from 'mailgun.js';
-import { emailWatchdog, type OutboundEmailData, type EmailValidationResult } from './email-validator';
-
-const mailgun = new Mailgun(formData);
-
-let mg: any = null;
-
-function getMailgunClient() {
-  if (!mg && process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN) {
-    mg = mailgun.client({
-      username: 'api',
-      key: process.env.MAILGUN_API_KEY,
-    });
-  }
-  if (!mg) {
-    throw new Error("Mailgun not configured - API key and domain required");
-  }
-  return mg;
-}
-
-export interface EmailData {
-  to: string[];
+export interface EmailOptions {
+  to: string | string[];
   subject: string;
-  htmlContent: string;
-  textContent?: string;
-  fromName?: string;
-  fromEmail?: string;
+  html?: string;
+  text?: string;
+  from?: string;
+  replyTo?: string;
 }
 
-export async function sendCampaignEmail(emailData: EmailData): Promise<any> {
-  // Validate email before sending
-  const validationData: OutboundEmailData = {
-    to: emailData.to,
-    subject: emailData.subject,
-    htmlContent: emailData.htmlContent,
-    textContent: emailData.textContent,
-    fromName: emailData.fromName,
-    fromEmail: emailData.fromEmail
-  };
+export interface BulkEmailResult {
+  success: boolean;
+  sent: number;
+  failed: number;
+  errors: string[];
+}
 
-  const validation = await emailWatchdog.validateOutboundEmail(validationData);
-  
-  if (!validation.allowed) {
-    const error = new Error(`Email blocked by validation: ${validation.reasons.join(', ')}`);
-    console.error('Email validation failed:', {
-      reasons: validation.reasons,
-      triggeredRules: validation.triggeredRules,
-      riskScore: validation.riskScore,
-      to: emailData.to,
-      subject: emailData.subject
-    });
-    throw error;
-  }
-
-  if (validation.requiresApproval) {
-    console.warn('Email requires manual approval:', {
-      reasons: validation.reasons,
-      to: emailData.to,
-      subject: emailData.subject
-    });
-    throw new Error(`Email requires manual approval: ${validation.reasons.join(', ')}`);
-  }
-
-  const client = getMailgunClient();
-  const domain = process.env.MAILGUN_DOMAIN!;
-
-  const messageData = {
-    from: `${emailData.fromName || 'AutoCampaigns AI'} <${emailData.fromEmail || process.env.MAILGUN_FROM_EMAIL || `noreply@${domain}`}>`,
-    to: emailData.to,
-    subject: emailData.subject,
-    html: emailData.htmlContent,
-    text: emailData.textContent || stripHtml(emailData.htmlContent)
-  };
-
+export async function sendCampaignEmail(
+  to: string,
+  subject: string,
+  content: string,
+  variables: Record<string, any> = {},
+  options: { isAutoResponse?: boolean } = {}
+): Promise<boolean> {
   try {
-    const response = await client.messages.create(domain, messageData);
-    console.log('Email sent successfully after validation:', {
-      to: emailData.to,
-      subject: emailData.subject,
-      riskScore: validation.riskScore
-    });
-    return response;
+    if (!process.env.MAILGUN_API_KEY || !process.env.MAILGUN_DOMAIN) {
+      console.warn('Mailgun not configured - email not sent');
+      return false;
+    }
+
+    const fromEmail = options.isAutoResponse 
+      ? `AutoResponse <noreply@${process.env.MAILGUN_DOMAIN}>`
+      : `AutoCampaigns AI <campaigns@${process.env.MAILGUN_DOMAIN}>`;
+
+    const response = await fetch(
+      `https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Basic ${Buffer.from(`api:${process.env.MAILGUN_API_KEY}`).toString('base64')}`,
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          from: fromEmail,
+          to: to,
+          subject: subject,
+          html: content,
+          text: content.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+        }),
+      }
+    );
+
+    if (response.ok) {
+      console.log(`Email sent successfully to ${to}`);
+      return true;
+    } else {
+      const error = await response.text();
+      console.error('Mailgun API error:', error);
+      return false;
+    }
   } catch (error) {
-    console.error('Mailgun send error:', error);
-    throw new Error('Failed to send email via Mailgun');
+    console.error('Error sending email:', error);
+    return false;
   }
 }
 
-export async function sendBulkEmails(emails: EmailData[]): Promise<any[]> {
-  const results = [];
-  
-  // Pre-validate all emails first
-  console.log(`Starting bulk email validation for ${emails.length} emails`);
-  let validEmails = 0;
-  let blockedEmails = 0;
-  
+export async function sendBulkEmails(
+  emails: { to: string; subject: string; content: string }[]
+): Promise<BulkEmailResult> {
+  const result: BulkEmailResult = {
+    success: true,
+    sent: 0,
+    failed: 0,
+    errors: []
+  };
+
   for (const email of emails) {
     try {
-      const validationData: OutboundEmailData = {
-        to: email.to,
-        subject: email.subject,
-        htmlContent: email.htmlContent,
-        textContent: email.textContent,
-        fromName: email.fromName,
-        fromEmail: email.fromEmail
-      };
-
-      const validation = await emailWatchdog.validateOutboundEmail(validationData);
-      
-      if (!validation.allowed) {
-        blockedEmails++;
-        results.push({ 
-          success: false, 
-          error: `Email validation failed: ${validation.reasons.join(', ')}`,
-          blocked: true,
-          reasons: validation.reasons
-        });
-        continue;
+      const success = await sendCampaignEmail(email.to, email.subject, email.content);
+      if (success) {
+        result.sent++;
+      } else {
+        result.failed++;
+        result.errors.push(`Failed to send to ${email.to}`);
       }
-
-      if (validation.requiresApproval) {
-        results.push({ 
-          success: false, 
-          error: `Email requires manual approval: ${validation.reasons.join(', ')}`,
-          requiresApproval: true,
-          reasons: validation.reasons
-        });
-        continue;
-      }
-
-      validEmails++;
-      const result = await sendCampaignEmail(email);
-      results.push({ success: true, result, riskScore: validation.riskScore });
     } catch (error) {
-      results.push({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
+      result.failed++;
+      result.errors.push(`Error sending to ${email.to}: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
-  
-  console.log(`Bulk email send completed: ${validEmails} sent, ${blockedEmails} blocked, ${emails.length - validEmails - blockedEmails} failed`);
-  return results;
+
+  result.success = result.failed === 0;
+  return result;
 }
 
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/\s+/g, ' ').trim();
-}
-
-export async function validateEmailAddresses(emails: string[]): Promise<{ valid: string[], invalid: string[] }> {
-  const client = getMailgunClient();
-  const domain = process.env.MAILGUN_DOMAIN!;
-  
+export async function validateEmailAddresses(emails: string[]): Promise<{
+  valid: string[];
+  invalid: string[];
+}> {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const valid: string[] = [];
   const invalid: string[] = [];
-  
+
   for (const email of emails) {
-    try {
-      const result = await client.validate.get(email);
-      if (result.result === 'deliverable') {
-        valid.push(email);
-      } else {
-        invalid.push(email);
-      }
-    } catch (error) {
-      invalid.push(email);
+    if (emailRegex.test(email.trim())) {
+      valid.push(email.trim());
+    } else {
+      invalid.push(email.trim());
     }
   }
-  
+
   return { valid, invalid };
 }

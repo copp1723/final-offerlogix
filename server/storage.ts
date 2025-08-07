@@ -206,14 +206,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Update conversation status for handover
-  async updateConversationStatus(id: string, status: string, metadata?: any): Promise<Conversation | null> {
+  async updateConversationStatus(id: string, status: string): Promise<Conversation | null> {
     const conversation = await this.getConversation(id);
     if (!conversation) return null;
     
-    return this.updateConversation(id, { 
-      status, 
-      metadata: metadata ? { ...conversation.metadata, ...metadata } : conversation.metadata 
-    });
+    return this.updateConversation(id, { status });
   }
 
   // Conversation message methods
@@ -274,6 +271,15 @@ export class DatabaseStorage implements IStorage {
 
   async getLeadsByEmail(email: string): Promise<Lead[]> {
     return await db.select().from(leads).where(eq(leads.email, email));
+  }
+
+  async getLeadByEmail(email: string): Promise<Lead | null> {
+    const [lead] = await db.select().from(leads).where(eq(leads.email, email));
+    return lead || null;
+  }
+
+  async getConversationsByLead(leadId: string): Promise<Conversation[]> {
+    return await db.select().from(conversations).where(eq(conversations.userId, leadId)).orderBy(desc(conversations.createdAt));
   }
 
   // AI Agent Configuration methods

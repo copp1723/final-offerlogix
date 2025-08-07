@@ -93,7 +93,30 @@ app.use((req, res, next) => {
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, () => {
+  }, async () => {
     log(`serving on port ${port}`);
+    
+    // Initialize services after server starts
+    try {
+      const { SystemInitializer } = await import('./services/system-initializer');
+      await SystemInitializer.initializeServices();
+    } catch (error) {
+      console.error('Failed to initialize services:', error);
+    }
   });
+
+  // Graceful shutdown
+  const shutdown = async (signal: string) => {
+    console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
+    try {
+      const { SystemInitializer } = await import('./services/system-initializer');
+      await SystemInitializer.shutdownServices();
+    } catch (error) {
+      console.error('Error during shutdown:', error);
+    }
+    process.exit(0);
+  };
+
+  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => shutdown('SIGTERM'));
 })();

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { storage } from '../storage';
 import { liveConversationService } from './live-conversation';
 import { AutomotivePromptService } from './automotive-prompts';
+import { emailMonitorService } from './email-monitor';
 
 interface MailgunInboundEvent {
   sender: string;
