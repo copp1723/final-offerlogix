@@ -1,120 +1,154 @@
-/**
- * Supermemory Integration Service
- * Provides fast, multi-modal, persistent recall for AI agent
- */
+// Legacy wrapper for backward compatibility
+// New implementation uses the comprehensive integrations/supermemory system
 
-import supermemory from 'supermemory';
+import { 
+  MemoryMapper, 
+  searchMemories as newSearchMemories, 
+  isRAGEnabled 
+} from '../integrations/supermemory';
 
-let _client: ReturnType<typeof supermemory> | null = null;
+// Supermemory service for persistent AI memory
+class SupermemoryService {
+  private static instance: SupermemoryService | null = null;
 
-export function getSupermemory() {
-  if (!_client) {
-    const apiKey = process.env.SUPERMEMORY_API_KEY;
-    if (!apiKey) {
-      console.warn('SUPERMEMORY_API_KEY is not set - memory features disabled');
-      return null;
+  private constructor() {
+    if (!isRAGEnabled()) {
+      console.warn('Supermemory API key not found - memory features disabled');
     }
-    _client = supermemory({ apiKey });
   }
-  return _client;
-}
 
-export async function addMemory({
-  content,
-  metadata = {},
-  containerTags = [],
-  userId,
-}: {
-  content: string;
-  metadata?: Record<string, any>;
-  containerTags?: string[];
-  userId?: string;
-}) {
-  try {
-    const client = getSupermemory();
-    if (!client) {
-      console.warn('Supermemory client not available - skipping memory add');
-      return null;
+  static getInstance(): SupermemoryService {
+    if (!SupermemoryService.instance) {
+      SupermemoryService.instance = new SupermemoryService();
     }
-    
-    return await client.memory.create({ 
-      content, 
-      metadata, 
-      containerTags, 
-      userId 
-    });
-  } catch (error) {
-    console.warn('Failed to add memory to Supermemory:', error);
-    return null;
+    return SupermemoryService.instance;
   }
-}
 
-export async function searchMemories(q: string, opts: any = {}) {
-  try {
-    const client = getSupermemory();
-    if (!client) {
-      console.warn('Supermemory client not available - returning empty results');
-      return { results: [] };
+  async ingestCampaign(campaignData: any, clientId: string = 'default'): Promise<void> {
+    if (!isRAGEnabled()) return;
+    
+    try {
+      const summary = `Campaign: ${campaignData.name}
+Context: ${campaignData.context}
+Goals: ${campaignData.handoverGoals}
+Target Audience: ${campaignData.targetAudience}
+Templates: ${campaignData.numberOfTemplates || 5}`;
+
+      await MemoryMapper.writeCampaignSummary({
+        type: 'campaign_summary',
+        clientId,
+        campaignId: campaignData.id,
+        summary,
+        meta: { name: campaignData.name }
+      });
+      
+    } catch (error) {
+      console.warn('Failed to ingest campaign to Supermemory:', error);
     }
+  }
+
+  async ingestEmailSend(emailData: any, clientId: string = 'default'): Promise<void> {
+    if (!isRAGEnabled()) return;
     
-    const defaults = {
-      limit: 8,
-      documentThreshold: 0.6,
-      onlyMatchingChunks: true,
-      rewriteQuery: true,
-    };
+    try {
+      const content = `Email sent to ${emailData.recipient}
+Campaign: ${emailData.campaignId}
+Subject: ${emailData.subject}
+Timestamp: ${new Date().toISOString()}`;
+
+      await MemoryMapper.writeMailEvent({
+        type: 'mail_event',
+        clientId,
+        campaignId: emailData.campaignId,
+        leadEmail: emailData.recipient,
+        content,
+        meta: { event: 'sent', subject: emailData.subject }
+      });
+      
+    } catch (error) {
+      console.warn('Failed to ingest email send to Supermemory:', error);
+    }
+  }
+
+  async ingestEmailEvent(event: any, clientId: string = 'default'): Promise<void> {
+    if (!isRAGEnabled()) return;
     
-    return await client.search.execute({ q, ...defaults, ...opts });
-  } catch (error) {
-    console.warn('Failed to search memories in Supermemory:', error);
-    return { results: [] };
+    try {
+      const content = `Email ${event.event}: ${event.recipient}
+Message ID: ${event['message-id']}
+Timestamp: ${event.timestamp}
+${event.url ? `URL: ${event.url}` : ''}`;
+
+      await MemoryMapper.writeMailEvent({
+        type: 'mail_event',
+        clientId,
+        leadEmail: event.recipient,
+        content,
+        meta: { 
+          event: event.event, 
+          messageId: event['message-id'],
+          timestamp: event.timestamp,
+          url: event.url 
+        }
+      });
+      
+    } catch (error) {
+      console.warn('Failed to ingest email event to Supermemory:', error);
+    }
+  }
+
+  async ingestLeadMessage(message: any, clientId: string = 'default'): Promise<void> {
+    if (!isRAGEnabled()) return;
+    
+    try {
+      const content = `Lead message from ${message.leadEmail}
+Content: ${message.content}
+Timestamp: ${message.timestamp}
+Campaign: ${message.campaignId || 'none'}`;
+
+      await MemoryMapper.writeLeadMessage({
+        type: 'lead_msg',
+        clientId,
+        campaignId: message.campaignId,
+        leadEmail: message.leadEmail,
+        content: message.content,
+        meta: { timestamp: message.timestamp }
+      });
+      
+    } catch (error) {
+      console.warn('Failed to ingest lead message to Supermemory:', error);
+    }
+  }
+
+  async searchMemories(query: string, options: any = {}): Promise<any[]> {
+    if (!isRAGEnabled()) return [];
+    
+    try {
+      const result = await newSearchMemories({
+        q: query,
+        clientId: options.userId || 'default',
+        campaignId: options.campaignId,
+        leadEmailHash: options.leadEmailHash,
+        limit: options.limit || 8,
+        timeoutMs: 300
+      });
+      
+      return result.results || [];
+      
+    } catch (error) {
+      console.warn('Failed to search Supermemory:', error);
+      return [];
+    }
   }
 }
 
-/**
- * Helper to extract content from search results
- */
-export function extractMemoryContent(searchResults: any): string[] {
-  try {
-    return searchResults.results?.flatMap((r: any) => 
-      r.chunks?.map((c: any) => c.content) || []
-    ).slice(0, 6) || [];
-  } catch (error) {
-    console.warn('Failed to extract memory content:', error);
-    return [];
-  }
+export const supermemoryService = SupermemoryService.getInstance();
+
+// Helper functions for compatibility
+export async function searchMemories(query: string, options: any = {}): Promise<any[]> {
+  return supermemoryService.searchMemories(query, options);
 }
 
-/**
- * Memory ingestion wrapper with error handling and logging
- */
-export async function ingestMemory(type: string, data: any, options: {
-  clientId?: string;
-  campaignId?: string;
-  leadEmail?: string;
-  leadId?: string;
-}) {
-  const { clientId, campaignId, leadEmail, leadId } = options;
-  
-  const containerTags = [
-    clientId ? `client:${clientId}` : 'client:default',
-    campaignId ? `campaign:${campaignId}` : undefined,
-    leadEmail ? `lead:${leadEmail}` : undefined,
-    leadId ? `leadId:${leadId}` : undefined,
-    `type:${type}`
-  ].filter(Boolean) as string[];
-
-  return await addMemory({
-    content: typeof data === 'string' ? data : JSON.stringify(data),
-    metadata: {
-      type,
-      clientId,
-      campaignId,
-      leadEmail,
-      leadId,
-      timestamp: new Date().toISOString()
-    },
-    containerTags,
-    userId: clientId
-  });
+export function extractMemoryContent(results: any[]): string[] {
+  return results.map(r => r.content || '').filter(Boolean);
 }

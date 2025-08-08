@@ -1,5 +1,5 @@
 import { LLMClient } from './llm-client';
-import { searchMemories, extractMemoryContent } from './supermemory';
+import { searchForCampaignChat, campaignChatPrompt } from '../integrations/supermemory';
 
 interface CampaignChatResponse {
   message: string;
@@ -75,20 +75,17 @@ export class CampaignChatService {
   ): Promise<CampaignChatResponse> {
     try {
       // Get relevant past campaign data from Supermemory for context
-      let retrievedContext: string[] = [];
+      let ragResults: any = null;
       try {
         const clientId = existingData.clientId || 'default';
-        const contextQuery = `automotive campaign ${existingData.context || userMessage}`;
         
-        const pastCampaigns = await searchMemories(contextQuery, {
-          userId: clientId,
-          filters: {
-            AND: [{ key: 'type', value: 'campaign' }]
-          },
-          limit: 3
+        ragResults = await searchForCampaignChat({
+          clientId,
+          campaignId: existingData.id,
+          userTurn: userMessage,
+          detectedType: existingData.context,
+          vehicleKeywords: this.extractVehicleKeywords(userMessage + ' ' + (existingData.context || ''))
         });
-        
-        retrievedContext = extractMemoryContent(pastCampaigns);
       } catch (error) {
         console.warn('Failed to retrieve past campaigns from Supermemory:', error);
       }
@@ -227,6 +224,20 @@ export class CampaignChatService {
     targetAudience?: string
   ): Promise<string> {
     try {
+      let contextSection = '';
+      if (ragResults && ragResults.results && ragResults.results.length > 0) {
+        const snippets = ragResults.results.map((r: any) => ({
+          title: r.metadata?.name || r.metadata?.title,
+          content: r.content
+        }));
+        
+        contextSection = `
+## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:
+${snippets.map((s: any) => `${s.title ? `${s.title}: ` : ''}${s.content}`).join('\n---\n')}
+Use this historical data to inform your handover criteria generation.
+`;
+      }
+
       const conversionPrompt = `
 # ROLE: Expert Automotive Handover Intelligence Designer
 You are a world-class automotive sales intelligence expert who specializes in converting natural language into precise, actionable AI handover criteria. You understand buyer psychology, sales processes, and automotive industry nuances.
@@ -237,11 +248,7 @@ You are a world-class automotive sales intelligence expert who specializes in co
 **Target Audience:** "${targetAudience || 'General automotive prospects'}"
 **User's Natural Language Criteria:** "${userInput}"
 
-${retrievedContext.length > 0 ? `
-## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:
-${retrievedContext.join('\n---\n')}
-Use this historical data to inform your handover criteria generation.
-` : ''}
+${contextSection}
 
 ## YOUR MISSION:
 Transform the user's informal handover criteria into a sophisticated AI evaluation prompt that captures the essence of buyer readiness for THIS specific campaign context.
@@ -441,5 +448,26 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
       progress: Math.round(((stepIndex + 1) / totalSteps) * 100),
       stepName: currentStep
     };
+  }
+
+  /**
+   * Extract vehicle-related keywords from user input for better RAG retrieval
+   */
+  private static extractVehicleKeywords(text: string): string[] {
+    const vehicleTypes = ['truck', 'suv', 'sedan', 'coupe', 'convertible', 'wagon', 'hatchback', 'minivan', 'crossover'];
+    const brands = ['ford', 'toyota', 'honda', 'chevrolet', 'nissan', 'hyundai', 'kia', 'subaru', 'mazda', 'volkswagen'];
+    const keywords: string[] = [];
+    
+    const lowerText = text.toLowerCase();
+    
+    vehicleTypes.forEach(type => {
+      if (lowerText.includes(type)) keywords.push(type);
+    });
+    
+    brands.forEach(brand => {
+      if (lowerText.includes(brand)) keywords.push(brand);
+    });
+    
+    return keywords;
   }
 }

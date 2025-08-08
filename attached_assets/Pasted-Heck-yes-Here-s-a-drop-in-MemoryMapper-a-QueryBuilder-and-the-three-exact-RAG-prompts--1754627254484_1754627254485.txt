@@ -1,0 +1,484 @@
+Heck yes. Here’s a drop-in **MemoryMapper**, a **QueryBuilder**, and the three **exact RAG prompts** you asked for. All TypeScript, minimal assumptions, and easy to wire into your existing services.
+
+---
+
+# 1) Memory client bootstrap
+
+```ts
+// src/integrations/supermemory/client.ts
+import Supermemory from "supermemory";
+
+export const supermemory =
+  process.env.SUPERMEMORY_API_KEY
+    ? new Supermemory({ apiKey: process.env.SUPERMEMORY_API_KEY })
+    : null;
+
+export function isRAGEnabled() {
+  return !!supermemory && process.env.SUPERMEMORY_RAG !== "off";
+}
+```
+
+---
+
+# 2) MemoryMapper (normalized writes + redaction + batching)
+
+```ts
+// src/integrations/supermemory/MemoryMapper.ts
+import crypto from "crypto";
+import { supermemory, isRAGEnabled } from "./client";
+
+type Tag = `client:${string}` | `campaign:${string}` | `lead:${string}` | `type:${string}`;
+
+export type MemoryWrite =
+  | { type: "mail_event";  clientId: string; campaignId?: string; leadEmail?: string; content: string; meta?: Record<string, any>; }
+  | { type: "lead_msg";    clientId: string; campaignId?: string; leadEmail?: string; content: string; meta?: Record<string, any>; }
+  | { type: "email_template"; clientId: string; campaignId?: string; name: string; html: string; meta?: Record<string, any>; }
+  | { type: "campaign_summary"; clientId: string; campaignId: string; summary: string; meta?: Record<string, any>; }
+  | { type: "oem_doc";     clientId: string; title: string; content: string; meta?: Record<string, any>; }
+  | { type: "handover_event"; clientId: string; campaignId?: string; leadEmail?: string; content: string; meta?: Record<string, any>; }
+  | { type: "webhook";     clientId: string; source: "mailgun" | "twilio" | "internal"; content: string; meta?: Record<string, any>; };
+
+const queue: any[] = [];
+let flushTimer: NodeJS.Timeout | null = null;
+
+export const MemoryMapper = {
+  async write(item: MemoryWrite) {
+    if (!isRAGEnabled()) return;
+
+    const { content, metadata, containerTags } = normalize(item);
+    queue.push({ content, metadata, containerTags });
+
+    // debounce + batch (flush every ~750ms or 20 items)
+    if (queue.length >= 20) await flush();
+    else {
+      if (flushTimer) clearTimeout(flushTimer);
+      flushTimer = setTimeout(() => flush().catch(() => {}), 750);
+    }
+  },
+
+  // Convenience helpers
+  writeMailEvent(args: Extract<MemoryWrite, { type: "mail_event" }>) { return this.write(args); },
+  writeLeadMessage(args: Extract<MemoryWrite, { type: "lead_msg" }>) { return this.write(args); },
+  writeTemplate(args: Extract<MemoryWrite, { type: "email_template" }>) { return this.write(args); },
+  writeCampaignSummary(args: Extract<MemoryWrite, { type: "campaign_summary" }>) { return this.write(args); },
+  writeOEMDoc(args: Extract<MemoryWrite, { type: "oem_doc" }>) { return this.write(args); },
+  writeHandoverEvent(args: Extract<MemoryWrite, { type: "handover_event" }>) { return this.write(args); },
+  writeWebhook(args: Extract<MemoryWrite, { type: "webhook" }>) { return this.write(args); },
+};
+
+function normalize(item: MemoryWrite) {
+  const baseTags: Tag[] = [
+    `client:${item.clientId}`,
+    `type:${item.type}`,
+  ];
+
+  let leadTag: Tag | undefined;
+  // link by hashed email for safety but keep deterministic join key
+  if ("leadEmail" in item && item.leadEmail) {
+    leadTag = `lead:${hashEmail(item.leadEmail)}` as Tag;
+  }
+  const campaignTag = "campaignId" in item && item.campaignId ? `campaign:${item.campaignId}` as Tag : undefined;
+
+  const containerTags = [ ...baseTags, campaignTag, leadTag ].filter(Boolean) as Tag[];
+
+  // Build content + metadata safely
+  const content =
+    item.type === "email_template" ? stripPII(item.html)
+    : item.type === "oem_doc" ? stripPII(`${item.title}\n\n${item.content}`)
+    : stripPII((item as any).content);
+
+  const metadata: Record<string, any> = {
+    type: item.type,
+    ...(("name" in item && item.name) ? { name: item.name } : {}),
+    ...(("title" in item && item.title) ? { title: item.title } : {}),
+    ...(("campaignId" in item && item.campaignId) ? { campaignId: item.campaignId } : {}),
+    ...(("leadEmail" in item && item.leadEmail) ? { leadHash: hashEmail(item.leadEmail) } : {}),
+    ...(item.meta || {}),
+  };
+
+  return { content, metadata, containerTags };
+}
+
+async function flush() {
+  if (!isRAGEnabled() || queue.length === 0) return;
+  const batch = queue.splice(0, 20);
+  try {
+    await Promise.all(
+      batch.map((b) =>
+        supermemory!.memory.create({
+          content: b.content,
+          metadata: b.metadata,
+          containerTags: b.containerTags,
+        })
+      )
+    );
+  } catch (err) {
+    // swallow to avoid impacting critical-path; your logs will still capture
+    console.error("[Supermemory] batch write failed", err);
+  }
+}
+
+function hashEmail(email: string) {
+  return crypto.createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16);
+}
+
+// very basic PII scrub—good enough for email bodies/log lines
+function stripPII(text: string) {
+  if (!text) return text;
+  return text
+    .replace(/\b[\w._%+-]+@[\w.-]+\.[A-Za-z]{2,}\b/g, (m) => `${m.split("@")[0].slice(0,2)}***@***`)
+    .replace(/\b(\+?1[\s-]?)?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}\b/g, "***-***-****");
+}
+```
+
+**How to use (examples):**
+
+```ts
+// mailgun webhook -> store event
+await MemoryMapper.writeMailEvent({
+  type: "mail_event",
+  clientId,
+  campaignId,
+  leadEmail,
+  content: `Mailgun ${event.event}: ${event["message-id"]}`,
+  meta: { event, ts: Date.now() }
+});
+
+// lead chat message -> store
+await MemoryMapper.writeLeadMessage({
+  type: "lead_msg",
+  clientId,
+  campaignId,
+  leadEmail,
+  content: leadMessageText,
+  meta: { channel: "email" }
+});
+```
+
+---
+
+# 3) QueryBuilder (consistent searches + guardrails + timeout)
+
+```ts
+// src/integrations/supermemory/QueryBuilder.ts
+import { supermemory, isRAGEnabled } from "./client";
+
+export interface SearchInput {
+  q: string;
+  clientId: string;
+  campaignId?: string;
+  leadEmailHash?: string;         // use MemoryMapper.hashEmail output if you store it
+  limit?: number;
+  documentThreshold?: number;
+  chunkThreshold?: number;
+  onlyMatchingChunks?: boolean;
+  categoriesFilter?: string[];
+  extraTags?: string[];
+  rewriteQuery?: boolean;
+  timeoutMs?: number;             // hard latency budget
+}
+
+export async function searchMemories(input: SearchInput) {
+  if (!isRAGEnabled()) return { results: [], total: 0, timing: 0, skipped: true };
+
+  const payload = buildSearchPayload(input);
+
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort(), input.timeoutMs ?? 300);
+
+  try {
+    const res = await supermemory!.search.execute(payload, { signal: controller.signal as any });
+    clearTimeout(t);
+    return res;
+  } catch (err) {
+    clearTimeout(t);
+    // graceful fallback on timeout/any error
+    return { results: [], total: 0, timing: 0, skipped: true, error: String((err as Error).message) };
+  }
+}
+
+export function buildSearchPayload({
+  q, clientId, campaignId, leadEmailHash,
+  limit = 8, documentThreshold = 0.6, chunkThreshold = 0.6,
+  onlyMatchingChunks = true, categoriesFilter, extraTags = [],
+  rewriteQuery = true,
+}: SearchInput) {
+  const containerTags = [
+    `client:${clientId}`,
+    campaignId ? `campaign:${campaignId}` : null,
+    leadEmailHash ? `lead:${leadEmailHash}` : null,
+    ...extraTags,
+  ].filter(Boolean);
+
+  return {
+    q,
+    limit,
+    documentThreshold,
+    chunkThreshold,
+    onlyMatchingChunks,
+    rewriteQuery,
+    filters: undefined,        // you can wire metadata filters here if needed
+    categoriesFilter,
+    containerTags,
+  };
+}
+
+/** Opinionated helpers for your three hot paths */
+
+export async function searchForCampaignChat(opts: {
+  clientId: string;
+  campaignId?: string;
+  userTurn: string;
+  detectedType?: string;        // "new_inventory" | "seasonal_service" | ...
+  vehicleKeywords?: string[];
+}) {
+  const q = [
+    opts.userTurn,
+    opts.detectedType?.replace(/_/g, " "),
+    ...(opts.vehicleKeywords || []),
+    "previous campaign performance OR winning template OR high CTR OR conversion",
+  ].filter(Boolean).join(" ");
+
+  return searchMemories({
+    q,
+    clientId: opts.clientId,
+    campaignId: opts.campaignId,
+    limit: 6,
+    documentThreshold: 0.65,
+    chunkThreshold: 0.65,
+    onlyMatchingChunks: true,
+    rewriteQuery: true,
+    timeoutMs: 300,
+  });
+}
+
+export async function searchForLeadSignals(opts: {
+  clientId: string;
+  leadEmailHash: string;
+}) {
+  const q = "asap today urgent payment monthly best price test drive financing trade-in ready to buy timeline";
+  return searchMemories({
+    q,
+    clientId: opts.clientId,
+    leadEmailHash: opts.leadEmailHash,
+    limit: 10,
+    documentThreshold: 0.55,
+    chunkThreshold: 0.6,
+    onlyMatchingChunks: true,
+    rewriteQuery: true,
+    timeoutMs: 250,
+  });
+}
+
+export async function searchForOptimizationComparables(opts: {
+  clientId: string;
+  vehicleType?: string;       // suv | truck | sedan | mixed
+  season?: string;            // spring | summer | fall | winter
+  goal?: string;              // test drives | service appts | sales | financing
+}) {
+  const q = [
+    opts.vehicleType, opts.season, opts.goal,
+    "send time performance open rate click through conversion best practices",
+  ].filter(Boolean).join(" ");
+  return searchMemories({
+    q,
+    clientId: opts.clientId,
+    limit: 8,
+    documentThreshold: 0.6,
+    chunkThreshold: 0.6,
+    rewriteQuery: true,
+    timeoutMs: 350,
+  });
+}
+```
+
+---
+
+# 4) The three exact prompts (chat, scoring, optimization)
+
+```ts
+// src/integrations/supermemory/prompts.ts
+
+export function campaignChatPrompt({
+  userTurn,
+  detectedType,
+  snippets,
+}: {
+  userTurn: string;
+  detectedType?: string;
+  snippets: Array<{ title?: string; content: string }>;
+}) {
+  const context = snippets.slice(0, 3).map((s, i) =>
+    `SNIPPET ${i + 1}${s.title ? ` — ${s.title}` : ""}:\n${s.content}`
+  ).join("\n\n");
+
+  return `You are an AI Campaign Agent for automotive marketing. Use prior wins as inspiration, not gospel.
+
+USER INTENT: ${userTurn}
+DETECTED TYPE: ${detectedType ?? "unknown"}
+
+PRIOR WINS (top 3):
+${context || "None"}
+
+INSTRUCTIONS:
+- Ask ONE next best question that moves the campaign forward.
+- If a pattern in prior wins is relevant (send time, subject style, vehicle angle), briefly mention it (one line).
+- Keep tone friendly, concise, and practical.
+
+Return JSON:
+{
+  "message": "assistant reply",
+  "nextStep": "campaign_type|target_audience|goals|details|complete",
+  "campaignData": { ...merge any safe inferred fields... },
+  "isComplete": false
+}`;
+}
+
+export function leadScoringPrompt({
+  leadSummary,
+  snippets,
+}: {
+  leadSummary: string; // last 3–5 messages, timestamps, reply latency you computed
+  snippets: Array<{ content: string }>;
+}) {
+  const evidence = snippets.slice(0, 6).map((s) => s.content).join("\n---\n");
+
+  return `You are scoring a single automotive lead.
+
+LEAD RECENT TIMELINE:
+${leadSummary}
+
+EVIDENCE FROM MEMORY (keyword hits: urgency/payment/price/test drive):
+${evidence || "None"}
+
+SCORE FIELDS (0-100):
+- qualification: considers vehicle specificity, payment/financing mentions, test-drive intent
+- urgency: considers words "asap", "today", "this week", quick reply cadence
+- handover: overall buy-readiness
+
+Return JSON:
+{
+  "qualification": 0-100,
+  "urgency": 0-100,
+  "handover": 0-100,
+  "signals": ["string", ...],
+  "reasoning": "1-3 short bullets"
+}`;
+}
+
+export function optimizationPrompt({
+  campaignContext,
+  snippets,
+}: {
+  campaignContext: { vehicleType?: string; season?: string; goal?: string; };
+  snippets: Array<{ title?: string; content: string }>;
+}) {
+  const comps = snippets.slice(0, 6).map((s, i) =>
+`COMPARABLE ${i + 1}${s.title ? ` — ${s.title}` : ""}:
+${s.content}`).join("\n\n");
+
+  const ctx = JSON.stringify(campaignContext);
+
+  return `You are generating optimization guidance for an automotive email campaign.
+
+CAMPAIGN CONTEXT: ${ctx}
+
+COMPARABLES (same client or similar goals):
+${comps || "None"}
+
+REQUIRED OUTPUT JSON:
+{
+  "sendTime": {"dayOfWeek": "Mon|Tue|...|Sun", "hour": 8-20, "confidence": 0-100, "reason": "short"},
+  "sequence": [
+    {"step": 1, "type": "introduction|vehicle_showcase|incentive_offer|urgency_close", "dayOffset": 0, "note": "short"},
+    {"step": 2, "type": "...", "dayOffset": 3, "note": "short"}
+  ],
+  "contentAngles": ["fuel economy", "family features", "payment examples"],
+  "expectedLift": {"metric": "open|ctr|reply|handover", "percent": 1-30}
+}`;
+}
+```
+
+---
+
+# 5) Example wiring
+
+### a) In your campaign chat route
+
+```ts
+import { searchForCampaignChat } from "@/integrations/supermemory/QueryBuilder";
+import { campaignChatPrompt } from "@/integrations/supermemory/prompts";
+import { LLMClient } from "@/ai/LLMClient";
+
+const res = await searchForCampaignChat({
+  clientId,
+  campaignId,
+  userTurn: body.message,
+  detectedType: detected.campaignType,
+  vehicleKeywords: detected.keywords,
+});
+
+const snippets = (res.results ?? [])
+  .flatMap((r: any) => r.chunks?.map((c: any) => ({ title: r.title, content: c.content })) ?? [])
+  .slice(0, 3);
+
+const prompt = campaignChatPrompt({ userTurn: body.message, detectedType: detected.campaignType, snippets });
+
+const ai = await LLMClient.generate({
+  model: "openai/gpt-4o-mini",
+  system: "You are an AI Campaign Agent. Always return valid JSON.",
+  user: prompt,
+  json: true,
+  maxTokens: 1200,
+  temperature: 0.2,
+});
+```
+
+### b) In lead scoring
+
+```ts
+import { searchForLeadSignals } from "@/integrations/supermemory/QueryBuilder";
+import { leadScoringPrompt } from "@/integrations/supermemory/prompts";
+
+const mem = await searchForLeadSignals({ clientId, leadEmailHash });
+const snippets = (mem.results ?? []).flatMap((r: any) => r.chunks ?? []);
+const prompt = leadScoringPrompt({ leadSummary, snippets });
+
+const ai = await LLMClient.generate({
+  model: "openai/gpt-4o-mini",
+  system: "You analyze leads; output strict JSON.",
+  user: prompt,
+  json: true,
+  temperature: 0.2,
+});
+```
+
+### c) In predictive optimization
+
+```ts
+import { searchForOptimizationComparables } from "@/integrations/supermemory/QueryBuilder";
+import { optimizationPrompt } from "@/integrations/supermemory/prompts";
+
+const mem = await searchForOptimizationComparables({ clientId, vehicleType, season, goal });
+const snippets = (mem.results ?? []).flatMap((r: any) => r.chunks?.map((c: any) => ({ title: r.title, content: c.content })) ?? []);
+const prompt = optimizationPrompt({ campaignContext: { vehicleType, season, goal }, snippets });
+
+const ai = await LLMClient.generate({
+  model: "openai/gpt-4o-mini",
+  system: "You optimize campaigns; output strict JSON.",
+  user: prompt,
+  json: true,
+  temperature: 0.2,
+});
+```
+
+---
+
+# 6) Env + flags to set
+
+* `SUPERMEMORY_API_KEY=...`
+* `SUPERMEMORY_RAG=on` (set `off` to hard-disable)
+
+---
+
+If you want, I can also ship a tiny **React “Memory Stream”** component for your lead sidebar that pulls the last 10 memories (with safe titles and icons). Want that too?
