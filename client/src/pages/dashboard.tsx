@@ -14,6 +14,10 @@ export default function Dashboard() {
     queryKey: ['/api/intelligence/dashboard'],
     refetchInterval: 60000 // Refresh every minute
   });
+
+  // Type-safe access to intelligence data
+  const leadScoring = intelligenceData?.leadScoring || { totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0 };
+  const predictiveOpt = intelligenceData?.predictiveOptimization || { recommendationCount: 0, insights: {} };
   
   return (
     <div className="p-6 space-y-8">
@@ -27,8 +31,8 @@ export default function Dashboard() {
         <AIChatInterface />
       </div>
 
-      {/* Dashboard Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-6">
+      {/* Dashboard Cards - Even 4-card layout */}
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
         <QuickStats />
         
         {/* Lead Scoring Summary */}
@@ -40,19 +44,19 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{intelligenceData?.leadScoring?.totalLeads || 0}</div>
+            <div className="text-2xl font-bold">{leadScoring.totalLeads}</div>
             <p className="text-xs text-muted-foreground mb-3">Leads Analyzed</p>
             <div className="flex items-center space-x-2">
-              <Badge className="bg-red-100 text-red-800 text-xs">{intelligenceData?.leadScoring?.hotLeads || 0} Hot</Badge>
-              <Badge className="bg-orange-100 text-orange-800 text-xs">{intelligenceData?.leadScoring?.warmLeads || 0} Warm</Badge>
-              <Badge className="bg-blue-100 text-blue-800 text-xs">{intelligenceData?.leadScoring?.coldLeads || 0} Cold</Badge>
+              <Badge className="bg-red-100 text-red-800 text-xs">{leadScoring.hotLeads} Hot</Badge>
+              <Badge className="bg-orange-100 text-orange-800 text-xs">{leadScoring.warmLeads} Warm</Badge>
+              <Badge className="bg-blue-100 text-blue-800 text-xs">{leadScoring.coldLeads} Cold</Badge>
             </div>
             <div className="mt-3">
               <div className="flex justify-between text-xs">
                 <span>Avg Score</span>
-                <span>{Math.round(intelligenceData?.leadScoring?.averageScore || 0)}%</span>
+                <span>{Math.round(leadScoring.averageScore)}%</span>
               </div>
-              <Progress value={intelligenceData?.leadScoring?.averageScore || 0} className="mt-1" />
+              <Progress value={leadScoring.averageScore} className="mt-1" />
             </div>
           </CardContent>
         </Card>
@@ -66,15 +70,15 @@ export default function Dashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{intelligenceData?.predictiveOptimization?.recommendationCount || 0}</div>
+            <div className="text-2xl font-bold">{predictiveOpt.recommendationCount}</div>
             <p className="text-xs text-muted-foreground mb-3">Recommendations</p>
-            {intelligenceData?.predictiveOptimization?.insights?.optimalSendTimes?.[0] && (
+            {predictiveOpt.insights?.optimalSendTimes?.[0] && (
               <div className="text-xs text-gray-600">
                 <div className="font-medium">Best Send Time:</div>
                 <div>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][intelligenceData.predictiveOptimization.insights.optimalSendTimes[0].dayOfWeek]} at {intelligenceData.predictiveOptimization.insights.optimalSendTimes[0].hour}:00
+                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][predictiveOpt.insights.optimalSendTimes[0].dayOfWeek]} at {predictiveOpt.insights.optimalSendTimes[0].hour}:00
                 </div>
-                <div className="text-green-600">{intelligenceData.predictiveOptimization.insights.optimalSendTimes[0].confidence}% confidence</div>
+                <div className="text-green-600">{predictiveOpt.insights.optimalSendTimes[0].confidence}% confidence</div>
               </div>
             )}
           </CardContent>

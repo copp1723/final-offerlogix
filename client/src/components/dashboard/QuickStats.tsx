@@ -37,20 +37,6 @@ export default function QuickStats() {
 
   return (
     <>
-      {/* Active Campaigns Card */}
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm font-medium flex items-center">
-            <Activity className="h-4 w-4 mr-2 text-blue-600" />
-            Active Campaigns
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{activeCampaigns}</div>
-          <p className="text-xs text-muted-foreground">Running campaigns</p>
-        </CardContent>
-      </Card>
-
       {/* Engaged Leads Card */}
       <Card>
         <CardHeader className="pb-2">

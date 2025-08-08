@@ -51,7 +51,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             primaryColor: '#2563eb',
             secondaryColor: '#1e40af',
             logoUrl: '',
-            companyName: 'AutoCampaigns AI',
+            companyName: 'OneKeel Swarm',
             favicon: '',
             customCss: ''
           }
