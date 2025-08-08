@@ -259,7 +259,7 @@ export class HandoverService {
   }
 
   private static detectIntents(content: string): string[] {
-    const intents = [];
+    const intents: string[] = [];
     
     if (/\b(test drive|test driving)\b/.test(content)) intents.push('test_drive_interest');
     if (/\b(price|pricing|cost|how much)\b/.test(content)) intents.push('pricing_inquiry');
