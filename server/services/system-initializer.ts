@@ -13,7 +13,7 @@ export async function initializeSystem(server?: import('http').Server) {
     try {
       const { webSocketService } = await import('./websocket');
       webSocketService.initialize(server);
-      console.log('✅ WebSocket server initialized on /ws');
+      // WebSocket service logs its own success; avoid duplicate here.
     } catch (error) {
       console.warn('⚠️ WebSocket initialization failed:', error);
     }
@@ -32,13 +32,11 @@ export async function initializeSystem(server?: import('http').Server) {
       console.log('✅ Enhanced email monitoring service started');
     } catch (error) {
       console.error('❌ Email monitor failed to start:', error);
-      console.log('📧 Starting enhanced email monitoring service...');
-      console.log('Continuing without email monitoring...');
+      console.log('📧 Email monitoring disabled due to startup error.');
     }
   } else {
     console.warn('⚠️ IMAP credentials not configured. Email monitoring disabled.');
-    console.log('📧 Starting enhanced email monitoring service...');
-    console.log('✅ Enhanced email monitoring service started');
+    // Do not log "started" when disabled.
   }
 
   // Campaign orchestrator
@@ -54,9 +52,7 @@ export async function initializeSystem(server?: import('http').Server) {
   if (enableScheduler) {
     try {
       campaignScheduler.startScheduler();
-      console.log('📅 Starting campaign scheduler...');
-      console.log('📅 Campaign scheduler started');
-      console.log('✅ Campaign scheduler started');
+      // Scheduler logs internally; avoid duplicates here.
     } catch (error) {
       console.error('❌ Campaign scheduler failed to start:', error);
     }

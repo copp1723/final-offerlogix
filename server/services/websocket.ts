@@ -13,7 +13,11 @@ class WebSocketService {
   private clients: Map<string, ClientConnection> = new Map();
 
   initialize(server: Server) {
-    this.wss = new WebSocketServer({ 
+    if (this.wss) {
+      console.warn('WebSocket server already initialized. Skipping.');
+      return;
+    }
+    this.wss = new WebSocketServer({
       server,
       path: '/ws',
       perMessageDeflate: false

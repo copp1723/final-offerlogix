@@ -3,6 +3,8 @@ import { simpleParser, ParsedMail } from 'mailparser';
 import { storage } from '../storage';
 import { webSocketService } from './websocket';
 import { parseLeadEmail, validateLeadData, shouldProcessForLeadIngestion } from './lead-ingestion-parser';
+import fs from 'fs';
+import path from 'path';
 
 interface EmailTriggerRule {
   id: string;
@@ -87,9 +89,22 @@ export class EnhancedEmailMonitor {
         tls: true,
         authTimeout: 3000,
         connTimeout: 10000,
-        tlsOptions: {
-          rejectUnauthorized: process.env.EMAIL_ALLOW_SELF_SIGNED_IMAP === 'true' ? false : process.env.NODE_ENV === 'production'
-        }
+        tlsOptions: (() => {
+          const caFile = process.env.IMAP_CA_CERT_FILE;
+          const caPem = process.env.IMAP_CA_CERT_PEM;
+          const allowSelfSigned = process.env.EMAIL_ALLOW_SELF_SIGNED_IMAP === 'true';
+          let ca;
+          try {
+            if (caPem) ca = [Buffer.from(caPem, 'utf8')];
+            else if (caFile) ca = [fs.readFileSync(path.resolve(caFile))];
+          } catch (e) {
+            console.warn('Failed to read IMAP CA certificate:', e);
+          }
+          return {
+            ca,
+            rejectUnauthorized: allowSelfSigned ? false : true
+          };
+        })()
       },
     };
 

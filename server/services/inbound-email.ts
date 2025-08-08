@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { createHmac } from 'crypto';
 import { storage } from '../storage';
 import { liveConversationService } from './live-conversation';
 import { AutomotivePromptService } from './automotive-prompts';
@@ -134,7 +135,6 @@ export class InboundEmailService {
     }
 
     try {
-      const { createHmac } = require('crypto');
       const hmac = createHmac('sha256', signingKey)
         .update(String(event.timestamp) + String(event.token))
         .digest('hex');
