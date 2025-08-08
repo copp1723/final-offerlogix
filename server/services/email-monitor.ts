@@ -61,6 +61,9 @@ export class EmailMonitorService {
         host: process.env.IMAP_HOST,
         port: Number(process.env.IMAP_PORT) || 993,
         tls: true,
+        tlsOptions: {
+          rejectUnauthorized: false
+        },
         authTimeout: 3000,
         connTimeout: 10000,
       },
