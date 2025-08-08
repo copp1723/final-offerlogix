@@ -4,7 +4,7 @@ services:
     env: node
     plan: starter
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npm run build:render
-    preDeployCommand: npm run db:push
+    preDeployCommand: npm run db:push && npm run db:sql
     startCommand: npm start
     region: oregon
     envVars:
