@@ -1,0 +1,25 @@
+2025-08-08T12:39:03.692874373Z ==> Cloning from https://github.com/copp1723/mailmind_swarm
+2025-08-08T12:39:04.548439245Z ==> Checking out commit 3c002ef337f5b44361c5019ca7db9c0f67ef93a2 in branch main
+2025-08-08T12:39:05.790214442Z ==> Downloading cache...
+2025-08-08T12:39:18.622006282Z ==> Transferred 174MB in 8s. Extraction took 4s.
+2025-08-08T12:39:25.075459751Z ==> Using Node.js version 22.16.0 (default)
+2025-08-08T12:39:25.105435971Z ==> Docs on specifying a Node.js version: https://render.com/docs/node-version
+2025-08-08T12:39:25.169135669Z ==> Running build command 'npm run build'...
+2025-08-08T12:39:25.291081939Z 
+2025-08-08T12:39:25.29110603Z > rest-express@1.0.0 build
+2025-08-08T12:39:25.29111097Z > vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+2025-08-08T12:39:25.291114001Z 
+2025-08-08T12:39:25.457300745Z failed to load config from /opt/render/project/src/vite.config.ts
+2025-08-08T12:39:25.457690317Z error during build:
+2025-08-08T12:39:25.457697258Z Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@replit/vite-plugin-runtime-error-modal' imported from /opt/render/project/src/vite.config.ts.timestamp-1754656765454-c4ea622d871af.mjs
+2025-08-08T12:39:25.457700278Z     at Object.getPackageJSONURL (node:internal/modules/package_json_reader:256:9)
+2025-08-08T12:39:25.457703168Z     at packageResolve (node:internal/modules/esm/resolve:768:81)
+2025-08-08T12:39:25.457705218Z     at moduleResolve (node:internal/modules/esm/resolve:854:18)
+2025-08-08T12:39:25.457707278Z     at defaultResolve (node:internal/modules/esm/resolve:984:11)
+2025-08-08T12:39:25.457709918Z     at ModuleLoader.defaultResolve (node:internal/modules/esm/loader:780:12)
+2025-08-08T12:39:25.457712118Z     at #cachedDefaultResolve (node:internal/modules/esm/loader:704:25)
+2025-08-08T12:39:25.457714019Z     at ModuleLoader.resolve (node:internal/modules/esm/loader:687:38)
+2025-08-08T12:39:25.457716259Z     at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:305:38)
+2025-08-08T12:39:25.457718439Z     at ModuleJob._link (node:internal/modules/esm/module_job:137:49)
+2025-08-08T12:39:25.476673043Z ==> Build failed 😞
+2025-08-08T12:39:25.476697224Z ==> Common ways to troubleshoot your deploy: https://render.com/docs/troubleshooting-deploys
