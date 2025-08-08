@@ -21,23 +21,31 @@ export class CampaignChatService {
       id: 'context',
       question: "What type of automotive campaign would you like to create? (e.g., new vehicle launch, service reminders, test drive promotion)",
       dataField: 'context',
-      followUp: 'Great! Tell me more about your campaign goals and target audience.'
+      followUp: 'Perfect! Tell me more about your goals and what you want to achieve.'
+    },
+    {
+      id: 'goals',
+      question: "What are your main goals for this campaign? What do you want customers to do?",
+      dataField: 'handoverGoals',
+      followUp: 'Excellent! That gives me a clear picture of what you want to accomplish.'
+    },
+    {
+      id: 'target_audience',
+      question: "Who is your target audience? (e.g., existing customers, new prospects, specific demographics)",
+      dataField: 'targetAudience',
+      followUp: 'Great! Understanding your audience helps me create better content.'
     },
     {
       id: 'name',
       question: "What would you like to name this campaign?",
-      dataField: 'name'
-    },
-    {
-      id: 'goals',
-      question: "What are your main goals for this campaign? (e.g., generate test drives, increase service bookings, promote new models)",
-      dataField: 'handoverGoals'
+      dataField: 'name',
+      followUp: 'Perfect name! Now that I understand your campaign goals and audience...'
     },
     {
       id: 'handover_criteria',
-      question: "When do you want leads to be handed over to your sales team? Describe the signals that indicate a customer is ready (e.g., 'when they ask about pricing', 'when they want to schedule a test drive', 'when they seem urgent or ready to buy')",
+      question: "When do you want leads to be handed over to your sales team? Based on your goals, describe the signals that show a customer is ready (e.g., 'when they ask about pricing', 'when they want to schedule a test drive', 'when they seem urgent or ready to buy')",
       dataField: 'handoverCriteria',
-      followUp: 'Perfect! I\'ll create smart handover rules based on what you described.'
+      followUp: 'Perfect! I\'ll create smart handover rules based on what you described and your campaign goals.'
     },
     {
       id: 'email_templates',
@@ -69,9 +77,14 @@ export class CampaignChatService {
       const updatedData = { ...existingData };
       updatedData[currentStepData.dataField] = userMessage;
 
-      // Special processing for handover criteria
+      // Special processing for handover criteria - uses campaign context and goals
       if (currentStep === 'handover_criteria') {
-        const handoverPrompt = await this.convertHandoverCriteriaToPrompt(userMessage);
+        const handoverPrompt = await this.convertHandoverCriteriaToPrompt(
+          userMessage, 
+          updatedData.context,
+          updatedData.handoverGoals,
+          updatedData.targetAudience
+        );
         updatedData.handoverPrompt = handoverPrompt;
       }
 
@@ -119,29 +132,40 @@ export class CampaignChatService {
   /**
    * Convert user's natural language handover criteria into structured AI prompt
    */
-  private static async convertHandoverCriteriaToPrompt(userInput: string): Promise<string> {
+  private static async convertHandoverCriteriaToPrompt(
+    userInput: string, 
+    campaignContext?: string,
+    campaignGoals?: string,
+    targetAudience?: string
+  ): Promise<string> {
     try {
       const conversionPrompt = `
 You are an expert at converting natural language handover criteria into structured automotive AI prompts.
 
-USER INPUT: "${userInput}"
+CAMPAIGN CONTEXT: "${campaignContext || 'General automotive campaign'}"
+CAMPAIGN GOALS: "${campaignGoals || 'Generate automotive leads'}"
+TARGET AUDIENCE: "${targetAudience || 'General automotive prospects'}"
+USER'S HANDOVER CRITERIA: "${userInput}"
 
-Convert this into a structured handover prompt that an AI can use to detect when customers should be handed over to sales. The prompt should:
-1. Identify specific keywords and phrases to watch for
-2. Define behavioral signals that indicate readiness
-3. Set urgency levels based on language used
-4. Include automotive-specific buying signals
+Based on the campaign context and goals above, convert the user's handover criteria into a structured handover prompt that an AI can use to detect when customers should be handed over to sales. The prompt should:
+
+1. Align with the specific campaign goals and context
+2. Identify keywords and phrases relevant to this campaign type
+3. Define behavioral signals that indicate readiness for THIS specific campaign
+4. Set urgency levels based on language used
+5. Include automotive-specific buying signals relevant to the campaign goals
 
 Return a JSON object with this structure:
 {
-  "handoverPrompt": "Detailed prompt for AI to use when evaluating handover situations",
-  "keywords": ["list", "of", "trigger", "words"],
-  "signals": ["behavioral", "signals", "to", "detect"],
+  "handoverPrompt": "Detailed prompt for AI to use when evaluating handover situations for this specific campaign",
+  "campaignSpecific": true,
+  "keywords": ["campaign-relevant", "trigger", "words"],
+  "signals": ["behavioral", "signals", "specific", "to", "campaign"],
   "urgencyIndicators": ["immediate", "urgent", "language"],
-  "automotiveContext": ["vehicle", "specific", "buying", "signals"]
+  "automotiveContext": ["campaign-specific", "automotive", "signals"]
 }
 
-Focus on automotive industry context like test drives, financing, trade-ins, pricing inquiries, and service appointments.`;
+Focus on making this handover prompt specific to the campaign goals and automotive context provided.`;
 
       const result = await generateContent(conversionPrompt);
       const parsed = JSON.parse(result);

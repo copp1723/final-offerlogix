@@ -955,6 +955,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           name: response.data.name,
           context: response.data.context,
           handoverGoals: response.data.handoverGoals,
+          targetAudience: response.data.targetAudience,
           handoverPrompt: response.data.handoverPrompt,
           templates: response.data.templates || [],
           subjectLines: response.data.subjectLines || [],

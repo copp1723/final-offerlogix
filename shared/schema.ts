@@ -61,6 +61,7 @@ export const campaigns = pgTable("campaigns", {
   name: text("name").notNull(),
   context: text("context").notNull(),
   handoverGoals: text("handover_goals"),
+  targetAudience: text("target_audience"), // Campaign target audience
   handoverPrompt: text("handover_prompt"), // AI prompt for custom handover evaluation
   status: text("status").notNull().default("draft"), // draft, active, scheduled, completed
   templates: jsonb("templates"), // AI-generated email templates
