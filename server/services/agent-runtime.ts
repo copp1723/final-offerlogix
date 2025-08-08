@@ -140,7 +140,7 @@ export class AgentRuntime {
         limit: 5
       });
 
-      return results.map((r: any) => ({
+      return (results.results || []).map((r: any) => ({
         id: r.id || 'unknown',
         score: r.score || 0.7,
         snippet: r.content?.slice(0, 500) || ''
@@ -241,11 +241,15 @@ export class AgentRuntime {
           input.leadId ? `lead:${input.leadId}` : null
         ].filter(Boolean) as string[];
 
-        await supermemoryModule.memoryMapper.addMemory({
+        const { MemoryMapper } = await import('../integrations/supermemory');
+        await MemoryMapper.writeLeadMessage({
+          type: 'lead_msg',
+          clientId: input.clientId || 'default',
+          campaignId: undefined,
+          leadEmail: input.leadId,
           content: `[AI Reply] ${reply}`,
-          tags,
-          metadata: {
-            type: 'ai_reply',
+          meta: {
+            ai_reply: true,
             conversationId: input.conversationId,
             timestamp: new Date().toISOString()
           }

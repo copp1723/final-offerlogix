@@ -173,7 +173,7 @@ export class ExecutionProcessor {
         emailData.html
       );
       
-      const result = { success, error: success ? null : 'Failed to send email' };
+      const result = { success, error: success ? undefined : 'Failed to send email' };
       
       if (!result.success) {
         return { success: false, error: result.error };

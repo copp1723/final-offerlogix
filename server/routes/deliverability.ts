@@ -126,7 +126,10 @@ router.post('/check-lead',
       const allLeads = await storage.getLeads();
       const lead = allLeads.find(l => l.email === email);
       
-      const suppressed = SuppressionManager.isSuppressed(lead);
+      const suppressed = SuppressionManager.isSuppressed(lead ? { 
+        tags: lead.tags || undefined, 
+        status: lead.status || undefined 
+      } : { status: 'not_found' });
       
       res.json({
         email,

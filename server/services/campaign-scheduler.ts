@@ -133,7 +133,7 @@ export class CampaignScheduler {
             scheduleType: 'recurring',
             recurringPattern: campaign.recurringPattern as any,
             recurringDays: campaign.recurringDays as number[],
-            recurringTime: campaign.recurringTime
+            recurringTime: campaign.recurringTime || undefined
           });
 
           await db.update(campaigns)

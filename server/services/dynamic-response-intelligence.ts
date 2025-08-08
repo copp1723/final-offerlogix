@@ -94,7 +94,7 @@ export class DynamicResponseIntelligenceService {
       throw new Error('Conversation not found');
     }
 
-    const messages = conversation.messages || [];
+    const messages = await storage.getConversationMessages(conversationId);
     const leadMessages = messages.filter(m => !m.isFromAI);
     
     if (leadMessages.length === 0) {

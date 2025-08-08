@@ -59,7 +59,7 @@ export async function sendBulkSMS(smsMessages: SMSData[]): Promise<any[]> {
       const result = await sendSMS(sms);
       results.push({ success: true, result });
     } catch (error) {
-      results.push({ success: false, error: error.message });
+      results.push({ success: false, error: error instanceof Error ? error.message : 'Unknown error' });
     }
   }
   
