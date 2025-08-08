@@ -592,8 +592,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple webhook endpoints
   app.post("/api/webhooks/mailgun/inbound", async (req, res) => {
     try {
-      console.log('Received Mailgun inbound webhook:', req.body);
-      res.status(200).send('OK');
+      const { InboundEmailService } = await import('./services/inbound-email');
+      await InboundEmailService.handleInboundEmail(req, res);
     } catch (error) {
       console.error('Mailgun inbound webhook error:', error);
       res.status(500).json({ error: 'Failed to process inbound email' });

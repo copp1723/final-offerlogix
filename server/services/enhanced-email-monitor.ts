@@ -88,7 +88,7 @@ export class EnhancedEmailMonitor {
         authTimeout: 3000,
         connTimeout: 10000,
         tlsOptions: {
-          rejectUnauthorized: process.env.NODE_ENV === 'production'
+          rejectUnauthorized: process.env.EMAIL_ALLOW_SELF_SIGNED_IMAP === 'true' ? false : process.env.NODE_ENV === 'production'
         }
       },
     };
