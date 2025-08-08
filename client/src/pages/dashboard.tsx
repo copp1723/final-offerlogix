@@ -2,7 +2,7 @@ import AIChatInterface from "@/components/ai-chat/AIChatInterface";
 import RecentCampaigns from "@/components/dashboard/RecentCampaigns";
 import QuickStats from "@/components/dashboard/QuickStats";
 import QuickActions from "@/components/dashboard/QuickActions";
-import SystemHealth from "@/components/dashboard/SystemHealth";
+
 import { useBranding } from "@/contexts/ClientContext";
 
 export default function Dashboard() {
@@ -28,7 +28,6 @@ export default function Dashboard() {
         </div>
         <div className="space-y-8">
           <QuickStats />
-          <SystemHealth />
         </div>
       </div>
     </div>
