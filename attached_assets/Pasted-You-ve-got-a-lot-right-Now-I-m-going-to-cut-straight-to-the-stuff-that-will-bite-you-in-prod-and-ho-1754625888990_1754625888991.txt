@@ -1,0 +1,191 @@
+You’ve got a lot right. Now I’m going to cut straight to the stuff that will bite you in prod and how to fix it fast.
+
+Critical bugs (fix these now)
+	1.	Wrong params in /api/conversations/:id/evaluate-handover
+
+	•	You call HandoverService.evaluateHandover(conversation, message, customCriteria).
+	•	Signature is (conversationId, conversation, newMessage, customCriteria).
+
+Fix
+
+// before
+const evaluation = await HandoverService.evaluateHandover(conversation, message, customCriteria);
+
+// after
+const evaluation = await HandoverService.evaluateHandover(
+  id,
+  conversation,
+  message,          // { role: 'agent' | 'lead', content: string }
+  customCriteria
+);
+
+	2.	You call HandoverService.getDefaultCriteria() but it doesn’t exist
+Add it.
+
+// in HandoverService
+static getDefaultCriteria(): HandoverCriteria {
+  return { ...this.defaultCriteria };
+}
+
+	3.	Route collision: you define /api/campaigns/:id/execute twice
+One uses CampaignOrchestrator, one uses campaignScheduler. The later definition wins and silently hides the first.
+
+Fix: rename the scheduler one.
+
+// change path
+app.post("/api/campaigns/:id/execute-now", async (req, res) => { ... });
+
+	4.	getFilteredRecipients() can never match ‘manager’
+Your default recipients have roles sales|service|finance, no manager. Either add a manager recipient, or filter against sales as the default.
+
+Fix
+
+static getFilteredRecipients(recommendedAgent: string, criteria: HandoverCriteria) {
+  return criteria.handoverRecipients.filter(r =>
+    r.role === recommendedAgent || r.role === 'sales' // default fan-out
+  );
+}
+
+	5.	Mutation of input conversation in analysis
+You do:
+
+const messages = conversation.messages || [];
+if (newMessage) messages.push(newMessage);
+
+If conversation.messages is the same array by reference, you’re mutating shared state.
+
+Fix
+
+const messages = [...(conversation.messages || [])];
+if (newMessage) messages.push(newMessage);
+
+	6.	calculateEngagementLevel “recent” check can always pass
+If createdAt isn’t set, you fallback to Date.now() which makes every message “recent”.
+
+Fix
+
+const recentMessages = messages.filter(msg => {
+  const ts = msg.createdAt ? new Date(msg.createdAt) : null;
+  if (!ts) return false;
+  return (Date.now() - ts.getTime()) < 10 * 60 * 1000;
+});
+
+	7.	SalesBriefGenerator.retryWithStrictMode calls generateContent() which doesn’t force JSON
+If first pass fails JSON, your retry still isn’t guaranteed to be JSON and uses temperature: 0.7.
+
+Fix: add a JSON-only retry using the same OpenRouter endpoint with response_format: json_object and temperature: 0.2. Or change generateContent() to accept a jsonOnly flag.
+
+⸻
+
+Reliability / guardrails (quick wins)
+	1.	Unify LLM calls behind one client
+You’re mixing raw fetch (OpenRouter) and the OpenAI SDK with baseURL pointed at OpenRouter. That’s fine if you’re deliberate, but brittle.
+
+Do this
+	•	Create services/llm-client.ts with one generate() that accepts {model, system, user, json: boolean, temperature, maxTokens, seed} and implements:
+	•	timeout, retry with backoff,
+	•	response_format: { type: 'json_object' } when json is true,
+	•	token and latency metrics.
+
+	2.	Schema enforcement for every JSON response
+You already validate the sales brief. Do the same for:
+
+	•	generateAutomotiveContent (templates|subjects|goals)
+	•	suggestCampaignGoals, enhanceEmailTemplates, suggestCampaignNames, generateEmailTemplates, generateSubjectLines
+
+Use Zod/AJV; on fail → one JSON-only retry → then throw.
+	3.	Webhook endpoints are “hello world”
+You log and return 200. Add signature checks and idempotency before you forget.
+
+	•	Mailgun: verify timestamp+token signature.
+	•	Compute a dedupeKey (hash of provider message-id) and drop duplicates.
+
+⸻
+
+Tactical code improvements (tight, high ROI)
+
+A) generateAutomotiveContent – enforce JSON and lower temp
+	•	You already set response_format: json_object. Good.
+	•	Set temperature: 0.2 for structure-heavy outputs.
+	•	Add a 2nd-pass sanitizer on failure.
+
+// add temperature, max_tokens, and a simple retry
+const payload = {
+  model: 'openai/gpt-5-mini',
+  messages: [
+    { role: 'system', content: 'You are an expert automotive marketing AI assistant. Always respond with valid JSON.' },
+    { role: 'user', content: prompt }
+  ],
+  response_format: { type: 'json_object' },
+  temperature: 0.2,
+  max_tokens: 1200
+};
+
+B) generateContent – optional JSON mode
+
+You will need this elsewhere.
+
+export async function generateContent(prompt: string, opts?: { json?: boolean; temperature?: number; maxTokens?: number }) {
+  const json = opts?.json ?? false;
+  const body: any = {
+    model: 'openai/gpt-5-mini',
+    messages: [
+      { role: 'system', content: 'You are an automotive campaign specialist helping create high-quality marketing campaigns and handover prompts.' },
+      { role: 'user', content: prompt }
+    ],
+    temperature: opts?.temperature ?? (json ? 0.2 : 0.7),
+    max_tokens: opts?.maxTokens ?? (json ? 1200 : 2000),
+  };
+  if (json) body.response_format = { type: 'json_object' };
+  // fetch…
+}
+
+C) registerRoutes – analytics placeholders
+
+You expose emailsSent and lastExecuted but note they don’t exist. Don’t lie to your future self.
+
+Fix
+	•	Remove or compute from actual events.
+	•	Or leave null but don’t comment it as “doesn’t exist”; add a TODO with an issue link.
+
+D) Sales brief generation – deterministic readiness
+
+You derive sales_readiness in the prompt template. Do that in code and pass the value into the prompt instead of letting the model decide.
+
+const readiness =
+  analysis.qualificationScore >= 80 ? 'high' :
+  analysis.qualificationScore >= 60 ? 'medium' : 'low';
+
+// in createSalesBriefPrompt()
+"sales_readiness": "${readiness}",
+
+E) Priority routing in processHandover
+
+Actually act on priority (immediate vs standard) if the brief exists.
+
+const priority = evaluation.salesBrief?.priority ?? (evaluation.urgencyLevel === 'high' ? 'immediate' : 'standard');
+
+if (priority === 'immediate') {
+  const { sendCampaignAlert } = await import('./twilio');
+  const { userNotificationService } = await import('./user-notification');
+  // fire SMS/Slack pings here
+}
+
+
+⸻
+
+Security / ergonomics nits
+	•	Phone/Email regex: your phone regex is US-only and brittle; accept +country codes or just treat presence of digits length ≥ 10 as partial signal.
+	•	Time math: guard against missing timestamps; you already fixed the recent check above.
+	•	Circular imports: SalesBriefGenerator imports ConversationAnalysis from ./handover-service. Keep the interface in @shared to avoid surprises.
+
+⸻
+
+If you want a single PR to land this
+	•	Create services/llm-client.ts and migrate both OpenRouter code paths and OpenAI SDK calls.
+	•	Patch the evaluate-handover route, add getDefaultCriteria(), and fix getFilteredRecipients().
+	•	Add JSON schema validators (Zod) for every “return JSON” function, with retry logic.
+	•	Rename duplicate execute route.
+	•	Add webhook signature verification and dedupe.
+
+That’s the fastest path to a system that’s stable under load, cheap to run, and doesn’t make your reps or your on-call hate you.
