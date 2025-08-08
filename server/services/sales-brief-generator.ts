@@ -32,7 +32,7 @@ export class SalesBriefGenerator {
   }
 
   /**
-   * Create context-aware prompt using existing conversation analysis
+   * Create streamlined bullet-action prompt using existing conversation analysis
    */
   private static createSalesBriefPrompt(context: ConversationContext): string {
     const { leadName, vehicleInterest, latestMessage, conversationHistory, analysis } = context;
@@ -43,7 +43,7 @@ export class SalesBriefGenerator {
       .map(msg => `${msg.role}: ${msg.content}`)
       .join('\n');
 
-    return `# AUTOMOTIVE SALES BRIEF GENERATOR
+    return `# AUTOMOTIVE HANDOVER - BULLET-ACTION FORMAT
 
 ## ANALYSIS DATA (PRE-COMPUTED):
 - Qualification Score: ${analysis.qualificationScore}/100
@@ -51,8 +51,6 @@ export class SalesBriefGenerator {
 - Urgency Level: ${analysis.urgencyLevel || 'medium'}
 - Detected Intents: ${analysis.detectedIntents.join(', ')}
 - Automotive Context: ${analysis.automotiveContext.join(', ')}
-- Message Count: ${analysis.messageCount}
-- Engagement Level: ${analysis.engagementLevel}/100
 
 ## CUSTOMER CONTEXT:
 - Name: ${leadName}
@@ -63,39 +61,39 @@ export class SalesBriefGenerator {
 ${recentMessages}
 
 ## TASK:
-Generate a conversion-ready sales brief in EXACT JSON format. Use the pre-computed analysis data above - DO NOT guess or recalculate these values.
+Generate a streamlined handover brief that a sales rep can scan in 5 seconds and know exactly what to do.
 
-## REQUIRED JSON OUTPUT:
+## REQUIRED JSON OUTPUT (EXACT FORMAT):
 {
   "name": "${leadName}",
-  "modified_name": "Preferred/shortened name for personal touch",
+  "modified_name": "Preferred/shortened name",
   "user_query": "${latestMessage}",
-  "Analysis": "Brief analytical summary focusing on buying readiness and next steps",
-  "type": "email",
   "quick_insights": [
-    "Key vehicle interest point",
-    "Primary buying motivator", 
-    "Timeline indicator",
-    "Any identified blockers",
-    "Qualification level",
-    "Recommended approach"
+    "Vehicle: make/model/trim",
+    "Motivator: price/features/trade/financing",
+    "Timeline: now/30 days/later",
+    "Any blockers or constraints"
   ],
-  "empathetic_response": "One-line bridge statement acknowledging their specific need",
-  "engagement_check": "Short tactic for maintaining momentum without being pushy",
+  "actions": [
+    "Confirm inventory match",
+    "Offer similar options if OOS", 
+    "Schedule test drive or call",
+    "Send trade-in link if relevant",
+    "Direct to finance if requested"
+  ],
   "sales_readiness": "${analysis.qualificationScore >= 80 ? 'high' : analysis.qualificationScore >= 60 ? 'medium' : 'low'}",
-  "Answer": "Rep-ready response that directly addresses their query with automotive expertise",
-  "retrieve_inventory_data": ${vehicleInterest ? 'true' : 'false'},
-  "research_queries": ["Specific search terms for inventory/pricing lookup"],
-  "reply_required": true,
-  "priority": "${analysis.urgencyLevel === 'high' ? 'immediate' : 'standard'}"
+  "priority": "${analysis.urgencyLevel === 'high' ? 'immediate' : 'standard'}",
+  "rep_message": "Short, copy-paste ready follow-up message to send now",
+  "research_queries": ["Exact inventory or offer lookups"],
+  "reply_required": true
 }
 
-CRITICAL: 
-- Use EXACT field names as shown
-- Keep quick_insights to 6 items maximum
-- Make Answer specific and actionable for the sales rep
-- Base sales_readiness and priority on the provided analysis scores
-- Return ONLY valid JSON - no explanations or markdown`;
+CRITICAL REQUIREMENTS:
+- quick_insights: ≤4 bullets maximum for 5-second scan
+- actions: Clear checklist items the rep can check off
+- rep_message: One line, natural, no editing needed
+- Use pre-computed scores - don't recalculate
+- Return ONLY valid JSON - no explanations`;
   }
 
   /**
@@ -189,14 +187,25 @@ Start with { and end with } - nothing else.`;
   }
 
   /**
-   * Fix common schema validation issues
+   * Fix common schema validation issues for streamlined format
    */
   private static fixCommonSchemaIssues(response: any): any {
     const fixed = { ...response };
     
-    // Ensure quick_insights is an array
+    // Ensure quick_insights is an array (max 4 items)
     if (typeof fixed.quick_insights === 'string') {
       fixed.quick_insights = fixed.quick_insights.split('\n').filter(item => item.trim());
+    }
+    if (Array.isArray(fixed.quick_insights) && fixed.quick_insights.length > 4) {
+      fixed.quick_insights = fixed.quick_insights.slice(0, 4);
+    }
+    
+    // Ensure actions is an array (max 6 items)
+    if (typeof fixed.actions === 'string') {
+      fixed.actions = fixed.actions.split('\n').filter(item => item.trim());
+    }
+    if (Array.isArray(fixed.actions) && fixed.actions.length > 6) {
+      fixed.actions = fixed.actions.slice(0, 6);
     }
     
     // Ensure research_queries is an array  
@@ -204,17 +213,11 @@ Start with { and end with } - nothing else.`;
       fixed.research_queries = [fixed.research_queries];
     }
     
-    // Truncate quick_insights to 6 items
-    if (Array.isArray(fixed.quick_insights) && fixed.quick_insights.length > 6) {
-      fixed.quick_insights = fixed.quick_insights.slice(0, 6);
-    }
-    
     // Set default values for missing fields
-    fixed.type = fixed.type || 'email';
-    fixed.retrieve_inventory_data = fixed.retrieve_inventory_data ?? true;
     fixed.reply_required = fixed.reply_required ?? true;
     fixed.priority = fixed.priority || 'standard';
     fixed.sales_readiness = fixed.sales_readiness || 'medium';
+    fixed.rep_message = fixed.rep_message || 'I can help you with that. Let me check our current options.';
     
     return fixed;
   }

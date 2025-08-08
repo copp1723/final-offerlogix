@@ -1,21 +1,17 @@
 import { z } from 'zod';
 
-// Sales Brief Schema for conversion-ready handover
+// Streamlined Sales Brief Schema - Bullet-Action Format
 export const SalesBriefSchema = z.object({
   name: z.string(),
   modified_name: z.string(),
   user_query: z.string(),
-  Analysis: z.string(),
-  type: z.enum(['email', 'text']),
-  quick_insights: z.array(z.string()).max(6), // Keep ≤ 6 items for better readability
-  empathetic_response: z.string(),
-  engagement_check: z.string(),
+  quick_insights: z.array(z.string()).max(4), // Keep ≤ 4 bullets for 5-second scan
+  actions: z.array(z.string()).max(6), // Clear action checklist for rep
   sales_readiness: z.enum(['low', 'medium', 'high']),
-  Answer: z.string(),
-  retrieve_inventory_data: z.boolean(),
+  priority: z.enum(['standard', 'immediate']),
+  rep_message: z.string(), // Copy-paste ready response
   research_queries: z.array(z.string()),
-  reply_required: z.boolean(),
-  priority: z.enum(['standard', 'immediate'])
+  reply_required: z.boolean()
 });
 
 export type SalesBrief = z.infer<typeof SalesBriefSchema>;
