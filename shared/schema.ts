@@ -38,6 +38,7 @@ export const users = pgTable("users", {
 export const conversations = pgTable("conversations", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
+  leadId: varchar("lead_id").references(() => leads.id),
   userId: varchar("user_id").references(() => users.id),
   subject: text("subject").notNull(),
   status: text("status").notNull().default("active"), // active, closed, archived

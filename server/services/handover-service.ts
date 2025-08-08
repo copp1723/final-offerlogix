@@ -20,7 +20,7 @@ interface HandoverEvaluation {
   score: number;
   triggeredCriteria: string[];
   nextActions: string[];
-  recommendedAgent?: string;
+  recommendedAgent: string;
   urgencyLevel: 'low' | 'medium' | 'high';
   salesBrief?: any; // Will hold the conversion-ready sales brief
 }
@@ -60,6 +60,13 @@ export class HandoverService {
       'breakdown', 'accident', 'towing', 'repair needed'
     ]
   };
+
+  /**
+   * Get default handover criteria
+   */
+  static getDefaultCriteria(): HandoverCriteria {
+    return { ...this.defaultCriteria };
+  }
 
   /**
    * Evaluate if a conversation should trigger handover based on campaign criteria
@@ -146,7 +153,7 @@ export class HandoverService {
         'Assign to appropriate agent',
         'Send summary to sales team'
       ] : ['Continue automated conversation'],
-      recommendedAgent: this.selectRecommendedAgent(analysis, criteria),
+      recommendedAgent: this.selectRecommendedAgent(analysis, criteria) || 'sales',
       urgencyLevel,
       salesBrief
     };
@@ -159,7 +166,7 @@ export class HandoverService {
     conversation: any,
     newMessage?: { role: 'agent' | 'lead'; content: string }
   ): Promise<ConversationAnalysis> {
-    const messages = conversation.messages || [];
+    const messages = [...(conversation.messages || [])];
     if (newMessage) messages.push(newMessage);
 
     const messageCount = messages.length;
@@ -263,9 +270,9 @@ export class HandoverService {
     
     // Recent activity
     const recentMessages = messages.filter(msg => {
-      const msgTime = new Date(msg.createdAt || Date.now());
-      const now = new Date();
-      return (now.getTime() - msgTime.getTime()) < 10 * 60 * 1000; // 10 minutes
+      const ts = msg.createdAt ? new Date(msg.createdAt) : null;
+      if (!ts) return false;
+      return (Date.now() - ts.getTime()) < 10 * 60 * 1000;
     });
     
     if (recentMessages.length > 0) score += 20;
@@ -422,8 +429,8 @@ export class HandoverService {
     recommendedAgent: string,
     criteria: HandoverCriteria
   ): Array<{ name: string; email: string; role: string }> {
-    return criteria.handoverRecipients.filter(recipient => 
-      recipient.role === recommendedAgent || recipient.role === 'manager'
+    return criteria.handoverRecipients.filter(r =>
+      r.role === recommendedAgent || r.role === 'sales' // default fan-out
     );
   }
 

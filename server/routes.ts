@@ -327,13 +327,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { HandoverService } = await import('./services/handover-service');
-      const evaluation = await HandoverService.evaluateHandover(conversation, message, customCriteria);
+      const evaluation = await HandoverService.evaluateHandover(
+        id,
+        conversation,
+        message,          // { role: 'agent' | 'lead', content: string }
+        customCriteria
+      );
       
       // If handover is triggered and email is requested, process the handover
       if (evaluation.shouldHandover && sendEmail) {
         // Get additional data for handover email
         const allLeads = await storage.getLeads();
-        const lead = allLeads.find(l => l.id === conversation.leadId);
+        const lead = conversation.leadId ? allLeads.find(l => l.id === conversation.leadId) : null;
         
         const allCampaigns = await storage.getCampaigns();
         const campaign = conversation.campaignId ? 
@@ -777,7 +782,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json({
         message: "Follow-up emails sent successfully",
-        successful: successful.length,
+        successful: Array.isArray(successful) ? successful.length : 0,
         failed: Array.isArray(results.failed) ? results.failed.length : (typeof results.failed === 'number' ? results.failed : 0),
         templateUsed: templateIndex + 1
       });
@@ -1334,7 +1339,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/campaigns/:id/execute", async (req, res) => {
+  app.post("/api/campaigns/:id/execute-now", async (req, res) => {
     try {
       const result = await campaignScheduler.executeCampaign(req.params.id);
       res.json(result);

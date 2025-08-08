@@ -150,13 +150,18 @@ CRITICAL REQUIREMENTS:
    * Retry with strict JSON-only system prompt injection
    */
   private static async retryWithStrictMode(prompt: string): Promise<any> {
+    const { LLMClient } = await import('./llm-client');
+    
     const strictPrompt = `${prompt}
 
 CRITICAL RETRY: The previous response was not valid JSON. 
 You MUST respond with ONLY the JSON object - no explanations, no markdown, no additional text.
 Start with { and end with } - nothing else.`;
 
-    const response = await generateContent(strictPrompt);
+    const response = await LLMClient.generateContent(strictPrompt, { 
+      json: true, 
+      temperature: 0.2 
+    });
     
     // Clean any potential markdown or extra text
     const cleanResponse = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
@@ -194,7 +199,7 @@ Start with { and end with } - nothing else.`;
     
     // Ensure quick_insights is an array (max 4 items)
     if (typeof fixed.quick_insights === 'string') {
-      fixed.quick_insights = fixed.quick_insights.split('\n').filter(item => item.trim());
+      fixed.quick_insights = fixed.quick_insights.split('\n').filter((item: string) => item.trim());
     }
     if (Array.isArray(fixed.quick_insights) && fixed.quick_insights.length > 4) {
       fixed.quick_insights = fixed.quick_insights.slice(0, 4);
@@ -202,7 +207,7 @@ Start with { and end with } - nothing else.`;
     
     // Ensure actions is an array (max 6 items)
     if (typeof fixed.actions === 'string') {
-      fixed.actions = fixed.actions.split('\n').filter(item => item.trim());
+      fixed.actions = fixed.actions.split('\n').filter((item: string) => item.trim());
     }
     if (Array.isArray(fixed.actions) && fixed.actions.length > 6) {
       fixed.actions = fixed.actions.slice(0, 6);

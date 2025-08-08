@@ -11,12 +11,8 @@ export async function generateAutomotiveContent(
   context: string,
   campaignName?: string
 ): Promise<any> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  const { LLMClient } = await import('./llm-client');
   
-  if (!apiKey) {
-    throw new Error("OpenRouter API key not found");
-  }
-
   let prompt = '';
   
   switch (type) {
@@ -41,44 +37,21 @@ export async function generateAutomotiveContent(
   }
 
   try {
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-        'X-Title': 'OneKeel Swarm',
-      },
-      body: JSON.stringify({
-        model: 'openai/gpt-5-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an expert automotive marketing AI assistant. Always respond with valid JSON.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        response_format: { type: 'json_object' }
-      })
-    });
-
-    if (!response.ok) {
-      throw new Error(`OpenRouter API error: ${response.statusText}`);
-    }
-
-    const data: OpenRouterResponse = await response.json();
-    const content = data.choices[0]?.message?.content;
-    
-    if (!content) {
-      throw new Error('No content received from OpenRouter API');
-    }
-
-    return JSON.parse(content);
+    const response = await LLMClient.generateAutomotiveContent(prompt);
+    return JSON.parse(response.content);
   } catch (error) {
-    console.error('OpenRouter API error:', error);
-    throw new Error('Failed to generate automotive content');
+    console.error('Automotive content generation error:', error);
+    // Retry with strict mode if initial attempt fails
+    try {
+      const retryResponse = await LLMClient.generateContent(prompt, { 
+        json: true, 
+        temperature: 0.2 
+      });
+      return JSON.parse(retryResponse);
+    } catch (retryError) {
+      console.error('Automotive content retry failed:', retryError);
+      throw new Error('Failed to generate automotive content after retry');
+    }
   }
 }
 

@@ -1,0 +1,616 @@
+Here’s a single unified patch you can git apply to drop in all fixes/wiring:
+
+*** Begin Patch
+*** Update File: services/lead-scoring.ts
+@@
+ import { storage } from '../storage';
+ import type { Lead, Conversation } from '@shared/schema';
+ 
+@@
+ export class LeadScoringService {
+   private defaultAutomotiveProfile: ScoringProfile = {
+@@
+   };
+ 
+   private subPrimeAutomotiveProfile: ScoringProfile = {
+@@
+   };
+ 
+   async calculateLeadScore(leadId: string, profileId?: string): Promise<LeadScore> {
+     const lead = await storage.getLead(leadId);
+     if (!lead) {
+       throw new Error('Lead not found');
+     }
+ 
+     const profile = profileId ? 
+       await this.getScoringProfile(profileId) : 
+       this.defaultAutomotiveProfile;
+ 
+-    const conversations = await storage.getConversationsByLead(leadId);
++    // Fallback if storage.getConversationsByLead is not implemented
++    const conversations = (storage as any).getConversationsByLead
++      ? await (storage as any).getConversationsByLead(leadId)
++      : (await storage.getConversations()).filter((c: Conversation) => c.leadId === leadId);
+     const score = await this.computeScore(lead, conversations, profile);
+     
+     return score;
+   }
+ 
+   private async computeScore(lead: Lead, conversations: Conversation[], profile: ScoringProfile): Promise<LeadScore> {
+     const breakdown: Record<string, number> = {};
+     const factors: string[] = [];
+     let totalScore = 0;
+ 
+     for (const criteria of profile.criteria) {
+-      const score = await this.evaluateCriteria(criteria, lead, conversations);
+-      const weightedScore = (score / 100) * criteria.weight * 10; // Scale to 0-100
+-      breakdown[criteria.id] = weightedScore;
+-      totalScore += weightedScore;
+-
+-      if (score > 70) {
++      const raw = await this.evaluateCriteria(criteria, lead, conversations);
++      const weighted = (raw / 100) * criteria.weight * 10; // Scale to 0-100
++      breakdown[criteria.id] = Math.round(weighted);
++      totalScore += weighted;
++
++      if (raw > 70) {
+         factors.push(`Strong ${criteria.name.toLowerCase()}`);
+       }
+     }
+ 
+     // Normalize to 0-100 scale
+     const maxPossibleScore = profile.criteria.reduce((sum, c) => sum + (c.weight * 10), 0);
+     totalScore = (totalScore / maxPossibleScore) * 100;
+ 
+     const priority = this.determinePriority(totalScore, profile.thresholds);
+ 
+     return {
+       leadId: lead.id,
+-      totalScore: Math.round(totalScore),
++      totalScore: Math.round(totalScore),
+       priority,
+       breakdown,
+       lastCalculated: new Date(),
+       factors
+     };
+   }
+ 
+   private async evaluateCriteria(criteria: ScoringCriteria, lead: Lead, conversations: Conversation[]): Promise<number> {
+     switch (criteria.id) {
+-      case 'response_speed':
+-        return this.evaluateResponseSpeed(conversations);
++      case 'response_speed':
++        return this.evaluateResponseSpeed(conversations);
+       case 'message_quality':
+         return this.evaluateMessageQuality(conversations);
+       case 'vehicle_specificity':
+-        return this.evaluateVehicleSpecificity(lead, conversations);
++        return this.evaluateVehicleSpecificity(lead, conversations);
+       case 'urgency_indicators':
+         return this.evaluateUrgencyIndicators(conversations);
+       case 'financial_readiness':
+         return this.evaluateFinancialReadiness(conversations);
+       case 'engagement_frequency':
+-        return this.evaluateEngagementFrequency(conversations);
++        return this.evaluateEngagementFrequency(conversations);
+       case 'contact_completeness':
+         return this.evaluateContactCompleteness(lead);
+       case 'timing_patterns':
+-        return this.evaluateTimingPatterns(conversations);
++        return this.evaluateTimingPatterns(conversations);
+       default:
+         return 50; // Default neutral score
+     }
+   }
+ 
+-  private evaluateResponseSpeed(conversations: Conversation[]): number {
+-    if (conversations.length === 0) return 0;
+-    
+-    // Calculate average response time
+-    let totalResponseTime = 0;
+-    let responseCount = 0;
+-    
+-    for (let i = 1; i < conversations.length; i++) {
+-      const prevTime = new Date(conversations[i-1].createdAt).getTime();
+-      const currTime = new Date(conversations[i].createdAt).getTime();
+-      const responseTime = currTime - prevTime;
+-      
+-      if (responseTime < 24 * 60 * 60 * 1000) { // Within 24 hours
+-        totalResponseTime += responseTime;
+-        responseCount++;
+-      }
+-    }
+-    
+-    if (responseCount === 0) return 30;
+-    
+-    const avgResponseHours = (totalResponseTime / responseCount) / (1000 * 60 * 60);
+-    
+-    if (avgResponseHours < 1) return 100;
+-    if (avgResponseHours < 4) return 85;
+-    if (avgResponseHours < 12) return 70;
+-    if (avgResponseHours < 24) return 50;
+-    return 25;
+-  }
++  // ---- Helpers & improved metrics ----
++  private getAllMessages(conversations: Conversation[]) {
++    return conversations.flatMap(c => c.messages || []);
++  }
++
++  private getLeadMessages(conversations: Conversation[]) {
++    return this.getAllMessages(conversations).filter((m: any) => !m.isFromAI);
++  }
++
++  private getAgentMessages(conversations: Conversation[]) {
++    return this.getAllMessages(conversations).filter((m: any) => m.isFromAI);
++  }
++
++  private toLowerBlob(conversations: Conversation[]) {
++    return this.getAllMessages(conversations)
++      .map((m: any) => (m.content || '').toLowerCase())
++      .join(' ');
++  }
++
++  // True reply latency: avg time from lead message -> next agent reply
++  private evaluateResponseSpeed(conversations: Conversation[]): number {
++    const msgs = this.getAllMessages(conversations).slice().sort(
++      (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
++    );
++    if (msgs.length < 2) return 0;
++
++    let totalMs = 0, count = 0;
++    for (let i = 0; i < msgs.length; i++) {
++      const m: any = msgs[i];
++      if (!m.isFromAI) { // lead spoke
++        const reply = msgs.slice(i + 1).find((n: any) => n.isFromAI);
++        if (reply) {
++          totalMs += new Date(reply.createdAt).getTime() - new Date(m.createdAt).getTime();
++          count++;
++        }
++      }
++    }
++    if (!count) return 30;
++
++    const hrs = (totalMs / count) / 36e5;
++    if (hrs < 1) return 100;
++    if (hrs < 4) return 85;
++    if (hrs < 12) return 70;
++    if (hrs < 24) return 50;
++    return 25;
++  }
+ 
+   private evaluateMessageQuality(conversations: Conversation[]): Promise<number> {
+     // Analyze message content for quality indicators
+-    const messages = conversations.flatMap(c => c.messages || []);
+-    const leadMessages = messages.filter(m => !m.isFromAI);
++    const messages = this.getAllMessages(conversations);
++    const leadMessages = messages.filter((m: any) => !m.isFromAI);
+@@
+-  private evaluateVehicleSpecificity(lead: Lead, conversations: Conversation[]): number {
+-    let specificityScore = 0;
+-    
+-    // Check lead vehicle interest
+-    if (lead.vehicleInterest) {
+-      if (lead.vehicleInterest.match(/\b(model|trim|color|year)\b/i)) specificityScore += 40;
+-      if (lead.vehicleInterest.length > 20) specificityScore += 20;
+-    }
+-    
+-    // Check conversation content
+-    const allContent = conversations.flatMap(c => c.messages || [])
+-      .map(m => m.content.toLowerCase())
+-      .join(' ');
+-    
+-    const specificTerms = ['model', 'trim', 'color', 'year', 'features', 'options', 'package'];
+-    const mentionedTerms = specificTerms.filter(term => allContent.includes(term));
+-    specificityScore += mentionedTerms.length * 8;
+-    
+-    return Math.min(100, specificityScore);
+-  }
++  private evaluateVehicleSpecificity(lead: Lead, conversations: Conversation[]): number {
++    const blob = ((lead.vehicleInterest || '') + ' ' + this.toLowerBlob(conversations)).toLowerCase();
++    let score = 0;
++    if (/\b(20[12]\d)\b/.test(blob)) score += 20;                               // model year
++    if (/\b(lx|ex|se|le|xle|sport|limited|trd|platinum|ltz|sv)\b/.test(blob)) score += 20; // trims
++    if (/\b(awd|4wd|rwd|fwd|hybrid|turbo|v6|v8)\b/.test(blob)) score += 15;     // config
++    if (/\b(color|black|white|blue|red|silver|gray)\b/.test(blob)) score += 10; // color
++    if (/\b(model|trim|features|options|package)\b/.test(blob)) score += 10;    // detail words
++    if ((lead.vehicleInterest || '').length > 20) score += 15;                  // descriptive field
++    return Math.min(100, score);
++  }
+@@
+-  private evaluateEngagementFrequency(conversations: Conversation[]): number {
+-    const totalInteractions = conversations.length;
+-    const leadInitiatedConversations = conversations.filter(c => 
+-      c.messages && c.messages[0] && !c.messages[0].isFromAI
+-    ).length;
+-    
+-    let engagementScore = Math.min(50, totalInteractions * 10);
+-    engagementScore += Math.min(50, leadInitiatedConversations * 15);
+-    
+-    return Math.min(100, engagementScore);
+-  }
++  private evaluateEngagementFrequency(conversations: Conversation[]): number {
++    const msgs = this.getAllMessages(conversations);
++    const leadMsgs = msgs.filter((m: any) => !m.isFromAI).length;
++    if (!msgs.length) return 0;
++    const threadStartsByLead = (conversations || []).filter(c => {
++      const first = (c.messages || [])[0] as any;
++      return first && !first.isFromAI;
++    }).length;
++    let score = 0;
++    score += Math.min(60, leadMsgs * 8);            // lead message volume
++    score += Math.min(40, threadStartsByLead * 20); // initiative
++    return Math.min(100, score);
++  }
+@@
+-  private evaluateTimingPatterns(conversations: Conversation[]): number {
+-    const businessHours = conversations.filter(c => {
+-      const hour = new Date(c.createdAt).getHours();
+-      return hour >= 9 && hour <= 17;
+-    }).length;
+-    
+-    const totalConversations = conversations.length;
+-    if (totalConversations === 0) return 50;
+-    
+-    const businessHourRatio = businessHours / totalConversations;
+-    return Math.round(businessHourRatio * 100);
+-  }
++  private evaluateTimingPatterns(conversations: Conversation[]): number {
++    const leadMsgs = this.getLeadMessages(conversations);
++    if (!leadMsgs.length) return 50;
++    const inBiz = leadMsgs.filter((m: any) => {
++      const d = new Date(m.createdAt);
++      const h = d.getHours();
++      return h >= 9 && h <= 17;
++    }).length;
++    return Math.round((inBiz / leadMsgs.length) * 100);
++  }
+*** End Patch
+*** Begin Patch
+*** Update File: services/predictive-optimization.ts
+@@
+ export class PredictiveOptimizationService {
+-  private performanceData: CampaignPerformanceData[] = [];
++  private performanceData: CampaignPerformanceData[] = [];
++
++  // Minimal comms event store (in-memory)
++  private comms: {
++    deliveries: Map<string, { ts: Date; campaignId: string; email: string }>;
++    opens: Map<string, { ts: Date; campaignId: string; email: string }[]>;
++    clicks: Map<string, { ts: Date; campaignId: string; email: string; url?: string }[]>;
++    sends: Array<{ campaignId: string; ts: Date }>;
++  } = {
++    deliveries: new Map(),
++    opens: new Map(),
++    clicks: new Map(),
++    sends: []
++  };
++
++  ingestSend(campaignId: string, ts = new Date()) {
++    this.comms.sends.push({ campaignId, ts });
++  }
++  ingestOpen(_messageId: string, campaignId: string, email: string, ts = new Date()) {
++    const arr = this.comms.opens.get(campaignId) || [];
++    arr.push({ ts, campaignId, email });
++    this.comms.opens.set(campaignId, arr);
++  }
++  ingestClick(_messageId: string, campaignId: string, email: string, url?: string, ts = new Date()) {
++    const arr = this.comms.clicks.get(campaignId) || [];
++    arr.push({ ts, campaignId, email, url });
++    this.comms.clicks.set(campaignId, arr);
++  }
+ 
+   async analyzeHistoricalPerformance(): Promise<CampaignPerformanceData[]> {
+     const campaigns = await storage.getCampaigns();
+     const leads = await storage.getLeads();
+     const conversations = await storage.getConversations();
+     
+-    const performanceData: CampaignPerformanceData[] = [];
+-    
+-    for (const campaign of campaigns) {
+-      const campaignLeads = leads.filter(l => l.campaignId === campaign.id);
+-      const campaignConversations = conversations.filter(c => c.campaignId === campaign.id);
+-      
+-      if (campaignLeads.length > 0) {
+-        const data: CampaignPerformanceData = {
+-          campaignId: campaign.id,
+-          sendTime: campaign.createdAt,
+-          openRate: campaign.openRate || 0,
+-          responseRate: (campaignConversations.length / campaignLeads.length) * 100,
+-          conversionRate: (campaignLeads.filter(l => l.status === 'converted').length / campaignLeads.length) * 100,
+-          leadSegment: this.determineLeadSegment(campaignLeads),
+-          vehicleType: this.determineVehicleType(campaignLeads),
+-          seasonality: this.determineSeason(campaign.createdAt)
+-        };
+-        performanceData.push(data);
+-      }
+-    }
++    const performanceData: CampaignPerformanceData[] = [];
++
++    // pick actual send timestamps if orchestrator recorded any
++    const sendsByCampaign = new Map<string, Date>();
++    for (const s of this.comms.sends) sendsByCampaign.set(s.campaignId, s.ts);
++    
++    for (const campaign of campaigns) {
++      const campaignLeads = leads.filter(l => l.campaignId === campaign.id);
++      if (!campaignLeads.length) continue;
++
++      const campaignConversations = conversations.filter(c => c.campaignId === campaign.id);
++      const respondedLeadIds = new Set(
++        campaignConversations
++          .filter(c => (c.messages || []).some(m => !m.isFromAI))
++          .map(c => c.leadId)
++      );
++
++      const opens = (this.comms.opens.get(campaign.id) || []).length;
++      const openRate = campaignLeads.length ? (opens / campaignLeads.length) * 100 : 0;
++
++      const sendTime = sendsByCampaign.get(campaign.id) || campaign.createdAt;
++
++      const data: CampaignPerformanceData = {
++        campaignId: campaign.id,
++        sendTime,
++        openRate,
++        responseRate: (respondedLeadIds.size / campaignLeads.length) * 100,
++        conversionRate: (campaignLeads.filter(l => l.status === 'converted').length / campaignLeads.length) * 100,
++        leadSegment: this.determineLeadSegment(campaignLeads),
++        vehicleType: this.determineVehicleType(campaignLeads),
++        seasonality: this.determineSeason(sendTime)
++      };
++      performanceData.push(data);
++    }
+     
+     this.performanceData = performanceData;
+     return performanceData;
+   }
+ 
+   async generateOptimizationRecommendations(campaignId?: string): Promise<OptimizationRecommendation[]> {
+     await this.analyzeHistoricalPerformance();
+     
+     const recommendations: OptimizationRecommendation[] = [];
+     
+-    // Timing optimization
+-    recommendations.push(...await this.generateTimingRecommendations());
++    // Timing optimization (gated)
++    recommendations.push(...await this.generateTimingRecommendations());
+     
+     // Sequence optimization
+     recommendations.push(...await this.generateSequenceRecommendations());
+     
+     // Targeting optimization
+     recommendations.push(...await this.generateTargetingRecommendations());
+     
+     // Content optimization
+     recommendations.push(...await this.generateContentRecommendations());
+     
+     return recommendations.sort((a, b) => b.confidence - a.confidence);
+   }
+ 
+   async getPredictiveInsights(): Promise<PredictiveInsights> {
+     await this.analyzeHistoricalPerformance();
+     
+     return {
+       optimalSendTimes: this.calculateOptimalSendTimes(),
+       recommendedSequence: this.generateRecommendedSequence(),
+       targetingRecommendations: this.generateTargetingInsights(),
+       seasonalAdjustments: this.generateSeasonalAdjustments()
+     };
+   }
+ 
+-  private async generateTimingRecommendations(): Promise<OptimizationRecommendation[]> {
+-    const recommendations: OptimizationRecommendation[] = [];
+-    
+-    if (this.performanceData.length < 5) {
+-      recommendations.push({
+-        type: 'timing',
+-        confidence: 60,
+-        recommendation: 'Insufficient data for timing optimization',
+-        reasoning: 'Need at least 5 campaigns for meaningful timing analysis',
+-        expectedImprovement: 0,
+-        implementation: 'Continue running campaigns to gather timing data'
+-      });
+-      return recommendations;
+-    }
++  private hasEnoughData(min = 5) { return this.performanceData.length >= min; }
++
++  private async generateTimingRecommendations(): Promise<OptimizationRecommendation[]> {
++    const recommendations: OptimizationRecommendation[] = [];
++    
++    if (!this.hasEnoughData(5)) {
++      recommendations.push({
++        type: 'timing',
++        confidence: 55,
++        recommendation: 'Default to Tue 10:00 or Wed 14:00 (industry norm)',
++        reasoning: 'Insufficient historical data (<5 campaigns). Using best practices until data accrues.',
++        expectedImprovement: 5,
++        implementation: 'Schedule future sends Tue 10:00 or Wed 14:00'
++      });
++      return recommendations;
++    }
+ 
+     // Analyze send time patterns
+     const timePerformance = this.performanceData.reduce((acc, data) => {
+       const hour = data.sendTime.getHours();
+       const dayOfWeek = data.sendTime.getDay();
+       const key = `${dayOfWeek}-${hour}`;
+@@
+       .sort((a, b) => (b.avgOpenRate + b.avgResponseRate) - (a.avgOpenRate + a.avgResponseRate));
+ 
+     if (bestTimes.length > 0) {
+       const [dayOfWeek, hour] = bestTimes[0].time.split('-').map(Number);
+       const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+       
+       recommendations.push({
+         type: 'timing',
+-        confidence: Math.min(95, 60 + (bestTimes[0].count * 10)),
++        confidence: Math.min(95, 60 + (bestTimes[0].count * 10)),
+         recommendation: `Send campaigns on ${dayNames[dayOfWeek]} at ${hour}:00`,
+         reasoning: `Historical data shows ${bestTimes[0].avgOpenRate.toFixed(1)}% open rate and ${bestTimes[0].avgResponseRate.toFixed(1)}% response rate at this time`,
+         expectedImprovement: Math.max(5, Math.round(bestTimes[0].avgOpenRate - 15)),
+         implementation: 'Schedule future campaigns for this optimal time window'
+       });
+     }
+ 
+     return recommendations;
+   }
+ 
+   private async generateSequenceRecommendations(): Promise<OptimizationRecommendation[]> {
+     const recommendations: OptimizationRecommendation[] = [];
+     
+     // Analyze successful campaign sequences
+     const sequencePatterns = this.analyzeSuccessfulSequences();
+     
+     recommendations.push({
+       type: 'sequence',
+-      confidence: 75,
++      confidence: this.hasEnoughData(5) ? 75 : 60,
+       recommendation: 'Use 3-email sequence: Introduction → Value Proposition → Limited Offer',
+       reasoning: 'Analysis shows this sequence achieves 15% higher conversion rates than single emails',
+       expectedImprovement: 15,
+       implementation: 'Create template sequence with 3-day intervals between emails'
+     });
+ 
+     recommendations.push({
+       type: 'sequence',
+-      confidence: 70,
++      confidence: this.hasEnoughData(5) ? 70 : 58,
+       recommendation: 'Include vehicle showcase in second email',
+       reasoning: 'Campaigns with vehicle-specific content in position 2 show 22% better engagement',
+       expectedImprovement: 22,
+       implementation: 'Add vehicle images and specifications to second template'
+     });
+ 
+     return recommendations;
+   }
+ 
+   private async generateTargetingRecommendations(): Promise<OptimizationRecommendation[]> {
+     const recommendations: OptimizationRecommendation[] = [];
+@@
+     recommendations.push({
+       type: 'targeting',
+-      confidence: 80,
++      confidence: this.hasEnoughData(5) ? 80 : 65,
+       recommendation: 'Prioritize leads with financing inquiries',
+       reasoning: 'Leads mentioning financing convert 35% higher than general inquiries',
+       expectedImprovement: 35,
+       implementation: 'Create dedicated financing-focused campaign templates'
+     });
+ 
+     recommendations.push({
+       type: 'targeting',
+-      confidence: 72,
++      confidence: this.hasEnoughData(5) ? 72 : 60,
+       recommendation: 'Target truck/SUV inquiries with service packages',
+       reasoning: 'Commercial vehicle leads show higher lifetime value with service add-ons',
+       expectedImprovement: 18,
+       implementation: 'Include maintenance packages in truck/SUV campaigns'
+     });
+ 
+     return recommendations;
+   }
+ 
+   private async generateContentRecommendations(): Promise<OptimizationRecommendation[]> {
+     const recommendations: OptimizationRecommendation[] = [];
+     
+     recommendations.push({
+       type: 'content',
+-      confidence: 85,
++      confidence: this.hasEnoughData(5) ? 85 : 68,
+       recommendation: 'Include fuel efficiency messaging for sedan campaigns',
+       reasoning: 'Sedan campaigns with MPG focus show 28% higher engagement rates',
+       expectedImprovement: 28,
+       implementation: 'Add fuel economy highlights to sedan email templates'
+     });
+ 
+     recommendations.push({
+       type: 'content',
+-      confidence: 78,
++      confidence: this.hasEnoughData(5) ? 78 : 62,
+       recommendation: 'Use seasonal messaging for current month',
+       reasoning: `${this.getCurrentSeasonalMessage()} campaigns perform 20% better in current season`,
+       expectedImprovement: 20,
+       implementation: 'Update campaign templates with seasonal content'
+     });
+ 
+     return recommendations;
+   }
+*** End Patch
+*** Begin Patch
+*** Update File: services/campaign-execution/CampaignOrchestrator.ts
+@@
+   async executeCampaign(options: CampaignExecutionOptions): Promise<CampaignExecutionResult> {
+@@
+-      // Process email sequence
++      // Process email sequence
+       const processingResult = await executionProcessor.processEmailSequence(
+         campaign,
+         targetLeads,
+         0, // Start with first template
+         {
+           batchSize: maxLeadsPerBatch,
+           testMode,
+           delayBetweenEmails: testMode ? 0 : 1000
+         }
+       );
+ 
++      // Record a send event for predictive insights (once per execution)
++      try {
++        const { predictiveOptimizationService } = await import('../predictive-optimization');
++        predictiveOptimizationService.ingestSend(campaign.id, new Date());
++      } catch (e) {
++        console.warn('Predictive ingestion (send) failed:', e);
++      }
++
+*** End Patch
+*** Begin Patch
+*** Update File: services/webhooks.ts
+@@
+ import { Request, Response } from 'express';
+ import { storage } from '../storage';
+ import { liveConversationService } from './live-conversation';
+ import { InboundEmailService } from './inbound-email';
++import { predictiveOptimizationService } from './predictive-optimization';
+ 
+ export class WebhookHandler {
+@@
+   static async handleMailgunEvents(req: Request, res: Response) {
+     try {
+       const event = req.body;
+       
+       if (!event.event || !event['message-id']) {
+         return res.status(400).json({ error: 'Invalid webhook payload' });
+       }
+ 
++      // Try to extract campaignId from Mailgun metadata/variables if present
++      // Ensure you pass `o:tracking` vars or custom headers when sending emails.
++      const campaignId: string | undefined =
++        event['user-variables']?.campaignId ||
++        event['campaign-id'] ||
++        event.campaignId ||
++        undefined;
++      const recipient: string | undefined = event.recipient;
++      const msgId: string = event['message-id'];
++      const ts = event.timestamp ? new Date(event.timestamp * 1000) : new Date();
++
+       // Process different event types
+       switch (event.event) {
+         case 'delivered':
+           await this.handleEmailDelivered(event);
+           break;
+         case 'opened':
+           await this.handleEmailOpened(event);
++          // Ingest open into predictive service if we have campaign context
++          if (campaignId && recipient) {
++            try { predictiveOptimizationService.ingestOpen(msgId, campaignId, recipient, ts); } catch {}
++          }
+           break;
+         case 'clicked':
+           await this.handleEmailClicked(event);
++          if (campaignId && recipient) {
++            try { predictiveOptimizationService.ingestClick(msgId, campaignId, recipient, event.url, ts); } catch {}
++          }
+           break;
+         case 'bounced':
+         case 'failed':
+           await this.handleEmailFailed(event);
+           break;
+*** End Patch
