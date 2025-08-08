@@ -26,7 +26,9 @@ export class InboundEmailService {
    */
   static async handleInboundEmail(req: Request, res: Response) {
     try {
-      const event: MailgunInboundEvent = req.body;
+      const event: MailgunInboundEvent = (req.headers['content-type'] || '').includes('application/json')
+        ? req.body
+        : (Object.fromEntries(Object.entries(req.body).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])) as any);
       
       // Verify Mailgun webhook signature
       if (!this.verifyMailgunSignature(event)) {
@@ -119,9 +121,28 @@ export class InboundEmailService {
   }
 
   private static verifyMailgunSignature(event: MailgunInboundEvent): boolean {
-    // In production, implement proper Mailgun signature verification
-    // For now, just check if required fields exist
-    return !!(event.sender && event.timestamp && event.token);
+    const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY;
+
+    // Allow explicit test bypass only in non-production if no signing key is set
+    if (!signingKey) {
+      if (process.env.NODE_ENV !== 'production') {
+        console.warn('MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production');
+        return !!(event.sender && event.timestamp && event.token);
+      }
+      console.error('MAILGUN_WEBHOOK_SIGNING_KEY missing in production');
+      return false;
+    }
+
+    try {
+      const { createHmac } = require('crypto');
+      const hmac = createHmac('sha256', signingKey)
+        .update(String(event.timestamp) + String(event.token))
+        .digest('hex');
+      return hmac === event.signature;
+    } catch (err) {
+      console.error('Signature verification error:', err);
+      return false;
+    }
   }
 
   private static async extractLeadFromEmail(event: MailgunInboundEvent) {
