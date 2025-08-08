@@ -175,6 +175,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update only templates/subjects (lightweight editing endpoint)
+  app.put("/api/campaigns/:id/templates", async (req, res) => {
+    try {
+      const { templates, subjectLines, numberOfTemplates, daysBetweenMessages } = req.body;
+      if (!templates || !Array.isArray(templates)) {
+        return res.status(400).json({ message: "templates array required" });
+      }
+      const campaign = await storage.updateCampaign(req.params.id, {
+        templates: templates as any,
+        subjectLines: subjectLines as any,
+        numberOfTemplates,
+        daysBetweenMessages
+      });
+      res.json({ message: 'Templates updated', campaign });
+    } catch (error) {
+      console.error('Update templates error:', error);
+      res.status(500).json({ message: 'Failed to update templates' });
+    }
+  });
+
+  // Launch endpoint (activates campaign & executes immediately unless schedule provided)
+  app.post("/api/campaigns/:id/launch", async (req, res) => {
+    try {
+      const campaignId = req.params.id;
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+      // Basic readiness checks
+      if (!campaign.templates || (Array.isArray(campaign.templates) ? campaign.templates.length === 0 : false)) {
+        // try parse if stored as JSON string
+        try {
+          const parsed = typeof campaign.templates === 'string' ? JSON.parse(campaign.templates as any) : [];
+          if (!parsed || parsed.length === 0) return res.status(400).json({ message: 'No templates available to send' });
+        } catch {
+          return res.status(400).json({ message: 'Invalid templates format' });
+        }
+      }
+
+      // Update status to active
+  await storage.updateCampaign(campaignId, { status: 'active' as any });
+
+      // Execute via orchestrator
+      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      const orchestrator = new CampaignOrchestrator();
+      const result = await orchestrator.executeCampaign({ campaignId, testMode: false });
+      res.json({ message: 'Campaign launched', execution: result });
+    } catch (error) {
+      console.error('Launch campaign error:', error);
+      res.status(500).json({ message: 'Failed to launch campaign' });
+    }
+  });
+
   // AI Enhancement routes
   app.post("/api/ai/enhance-templates", async (req, res) => {
     try {
@@ -1056,6 +1108,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(lead);
     } catch (error) {
       res.status(400).json({ message: "Invalid lead data" });
+    }
+  });
+
+  // Campaign-specific CSV lead upload
+  app.post("/api/campaigns/:id/leads/upload", upload.single('file'), async (req: TenantRequest, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const campaignId = req.params.id;
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) return res.status(404).json({ message: 'Campaign not found' });
+
+      const fileContent = req.file.buffer.toString('utf-8');
+      const records = parse(fileContent, { columns: true, skip_empty_lines: true, trim: true });
+      const required = ['email'];
+      const leadsData: any[] = [];
+      const errors: string[] = [];
+      records.forEach((record: any, idx: number) => {
+        const email = record.email || record.Email;
+        if (!email) { errors.push(`Row ${idx+1}: missing email`); return; }
+        leadsData.push({
+          email,
+          firstName: record.first_name || record.firstName || record['First Name'] || '',
+          lastName: record.last_name || record.lastName || record['Last Name'] || '',
+          phone: record.phone || '',
+          vehicleInterest: record.vehicleInterest || record.vehicle_interest || record.vehicle || '',
+          leadSource: record.leadSource || 'csv_import',
+          status: 'new',
+          campaignId,
+          clientId: req.clientId
+        });
+      });
+      if (leadsData.length === 0) return res.status(400).json({ message: 'No valid leads', errors });
+      const createdLeads = await storage.createLeads(leadsData as any);
+      res.json({ message: 'Leads uploaded', total: createdLeads.length, sample: createdLeads.slice(0,5), errors: errors.length?errors:undefined });
+    } catch (error) {
+      console.error('Campaign lead upload error:', error);
+      res.status(500).json({ message: 'Failed to upload leads' });
     }
   });
 
