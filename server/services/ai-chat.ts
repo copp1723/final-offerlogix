@@ -1,5 +1,15 @@
 import { getOpenAIClient } from "./openai";
 
+function getPersonalityGuidance(personality: string): string {
+  const guidance: Record<string, string> = {
+    'GRUMPY': 'Be direct and slightly impatient but still helpful. Use phrases like "Look," "Listen," "Fine," and push for quick decisions.',
+    'ENTHUSIASTIC': 'Be very excited and energetic! Use exclamation points and show genuine enthusiasm about automotive campaigns.',
+    'LAID_BACK': 'Be relaxed and casual. Use phrases like "No worries," "Take your time," and don\'t push too hard.',
+    'PROFESSIONAL': 'Maintain formal professionalism and demonstrate expertise with clear, structured responses.'
+  };
+  return guidance[personality.toUpperCase()] || guidance['PROFESSIONAL'];
+}
+
 interface CampaignChatResponse {
   message: string;
   nextStep?: string;
@@ -20,8 +30,24 @@ export async function processCampaignChat(
 
   const openai = getOpenAIClient();
 
+  // Get active AI agent configuration to apply personality
+  let personalityContext = "";
+  try {
+    const { storage } = await import('../storage');
+    const activeConfig = await storage.getActiveAiAgentConfig();
+    if (activeConfig?.personality) {
+      personalityContext = `
+
+## PERSONALITY CONTEXT:
+You have a ${activeConfig.personality} personality. Adapt your responses accordingly:
+${getPersonalityGuidance(activeConfig.personality)}`;
+    }
+  } catch (error) {
+    console.warn("Could not load AI agent configuration:", error);
+  }
+
   const conversationContext = `
-You are an AI Campaign Agent specializing in automotive email marketing. Your goal is to have a natural conversation with the user to gather information for creating an automotive email campaign.
+You are an AI Campaign Agent specializing in automotive email marketing. Your goal is to have a natural conversation with the user to gather information for creating an automotive email campaign.${personalityContext}
 
 Current step: ${currentStep}
 Current campaign data: ${JSON.stringify(campaignData)}
