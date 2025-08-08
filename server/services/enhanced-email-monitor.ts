@@ -382,10 +382,7 @@ export class EnhancedEmailMonitor {
       console.log(`Created new lead from email: ${newLead.id}`);
 
       // Broadcast new lead via WebSocket
-      webSocketService.broadcast({
-        type: 'new_lead',
-        lead: newLead
-      });
+      webSocketService.broadcast('new_lead', { lead: newLead });
 
       return newLead;
 

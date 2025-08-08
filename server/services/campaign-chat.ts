@@ -65,6 +65,58 @@ export class CampaignChatService {
     email_templates: ["3", "5", "7"],
   };
 
+  // NEW: Generic acknowledgement / non-substantive responses that should NOT advance the wizard
+  private static genericAcks = [
+    'ok','okay','k','kk','great','thanks','thank you','cool','yes','yep','sure','awesome','now what','what now','what next','next','continue','go on','fine','good','roger','understood','got it','sounds good','alright'
+  ];
+
+  // Heuristic + lightweight semantic guard to decide if we should advance
+  private static async isSubstantiveAnswer(step: CampaignStep, userMessage: string): Promise<boolean> {
+    if (!userMessage) return false;
+    const msg = userMessage.trim().toLowerCase();
+    // Very short or generic acknowledgement
+    if (msg.length < 8 && /^(ok|k|kk|yes|yep|sure|fine)$/i.test(msg)) return false;
+    if (this.genericAcks.includes(msg)) return false;
+    // Contains a question asking what to do next
+    if (/what\s+(now|next)/i.test(msg)) return false;
+
+    // For numeric template count step allow digits 1-30
+    if (step.id === 'email_templates') {
+      const n = parseInt(msg, 10);
+      return !isNaN(n) && n >= 1 && n <= 30;
+    }
+
+    // Lightweight keyword expectation per step
+    const expectations: Record<string,string[]> = {
+      context: ['launch','service','test','drive','reminder','promotion','sale','campaign','event'],
+      goals: ['lead','drive','book','test','appointment','trade','sale','traffic','engagement','nurture','convert'],
+      target_audience: ['customer','prospect','buyer','owner','audience','demographic','shopper','segment'],
+      name: ['campaign','drive','event','sale','offer'],
+      handover_criteria: ['when','if','after','criteria','trigger','signal','ask','schedule','pricing','price','finance','test'],
+    };
+
+    const expected = expectations[step.id];
+    if (expected) {
+      const hit = expected.some(k => msg.includes(k));
+      if (hit) return true;
+    }
+
+    // As a last resort, (guarded) mini LLM classification for richness when message is short
+    if (msg.split(/\s+/).length < 4) return false; // still too short
+
+    try {
+      const cls = await LLMClient.generate({
+        model: 'openai/gpt-4o-mini',
+        system: 'You classify if a user answer provides meaningful, campaign-specific information for a step. Reply with ONLY yes or no.',
+        user: `Step: ${step.id} (expects ${step.dataField}). User answer: "${userMessage}". Is this a substantive, campaign-informative answer (not just acknowledgement)?`,
+        temperature: 0
+      });
+      return /^yes/i.test(cls.content || '');
+    } catch {
+      return msg.length > 12; // simple fallback
+    }
+  }
+
   /**
    * Process campaign creation chat conversation
    */
@@ -100,7 +152,33 @@ export class CampaignChatService {
         };
       }
 
-      // Process user's response for current step
+      // BEFORE accepting the answer, validate substantiveness
+      const substantive = await this.isSubstantiveAnswer(currentStepData, userMessage);
+      if (!substantive) {
+        const retryQuestion = currentStepData.question;
+        const coaching: Record<string,string> = {
+          context: 'Please give a descriptive automotive campaign type with purpose or scenario (e.g., "Labor Day weekend clearance focused on trade-ins and same‑day financing").',
+          goals: 'List 1-3 concrete business outcomes (e.g., "book 40 test drives", "increase trade-in appraisals", "revive inactive SUV leads").',
+          target_audience: 'Describe who you want to reach (segments, demographics, intent signals, ownership stage, etc.).',
+          name: 'Provide a short, branded campaign name you would present internally or to leadership.',
+          handover_criteria: 'Describe the exact conversational signals that mean a sales rep should take over (pricing pressure, scheduling requests, urgency, financing readiness, trade-in specifics, etc.).',
+          email_templates: 'Enter a number 1–30 indicating how many emails you want in the sequence.'
+        };
+        return {
+          message: `I need a bit more detail before we move on. ${coaching[currentStepData.id] || ''}\n\n${retryQuestion}`.trim(),
+          nextStep: currentStepData.id,
+          data: existingData, // do NOT update yet
+          actions: ['retry'],
+          suggestions: this.suggestionsByStep[currentStepData.id] || [],
+          progress: {
+            stepIndex: stepIndex, // unchanged
+            total: this.campaignSteps.length,
+            percent: Math.round((stepIndex / this.campaignSteps.length) * 100)
+          }
+        };
+      }
+
+      // Process user's substantive response for current step
       const updatedData = { ...existingData };
       updatedData[currentStepData.dataField] = userMessage;
 
@@ -181,6 +259,11 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
 
       if (!responseMessage) {
         responseMessage = currentStepData.followUp || `Got it! ${nextStep.question}`;
+      }
+
+      // Ensure responseMessage ends with the next step question
+      if (!responseMessage.toLowerCase().trim().endsWith(nextStep.question.toLowerCase().trim())) {
+        responseMessage += ` ${nextStep.question}`;
       }
 
       // Calculate progress
