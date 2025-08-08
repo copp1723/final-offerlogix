@@ -42,7 +42,7 @@ async function applyLegacyPatches() {
       console.log('[DB Patch] campaigns.context added');
     }
 
-    // Additional new campaign scheduling columns (safe idempotent adds)
+    // Idempotent add if missing
     const addColumn = async (col: string, ddl: string) => {
       const { rowCount } = await client.query(
         `SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name=$1`, [col]
@@ -52,6 +52,11 @@ async function applyLegacyPatches() {
         await client.query(ddl);
       }
     };
+
+    // Functional columns required by runtime
+    await addColumn('handover_goals', `ALTER TABLE campaigns ADD COLUMN handover_goals text`);
+
+    // Scheduling/communication columns
     await addColumn('communication_type', `ALTER TABLE campaigns ADD COLUMN communication_type varchar(20) DEFAULT 'email'`);
     await addColumn('sms_opt_in_required', `ALTER TABLE campaigns ADD COLUMN sms_opt_in_required boolean DEFAULT true`);
     await addColumn('sms_opt_in_message', `ALTER TABLE campaigns ADD COLUMN sms_opt_in_message text DEFAULT 'Would you like to continue this conversation via text? Reply YES to receive SMS updates.'`);
