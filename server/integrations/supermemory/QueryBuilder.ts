@@ -29,7 +29,7 @@ export async function searchMemories(input: SearchInput) {
       limit: payload.limit,
       threshold: payload.documentThreshold,
       tags: payload.containerTags.filter(Boolean),
-      userId: payload.containerTags.find(tag => tag.startsWith('client:'))?.split(':')[1] || 'default'
+      userId: payload.containerTags.find(tag => tag && tag.startsWith('client:'))?.split(':')[1] || 'default'
     });
     clearTimeout(t);
     return res;
@@ -45,7 +45,18 @@ export function buildSearchPayload({
   limit = 8, documentThreshold = 0.6, chunkThreshold = 0.6,
   onlyMatchingChunks = true, extraTags = [],
   rewriteQuery = true,
-}: Omit<SearchInput, 'categoriesFilter'>) {
+}: {
+  q: string;
+  clientId: string;
+  campaignId?: string;
+  leadEmailHash?: string;
+  limit?: number;
+  documentThreshold?: number;
+  chunkThreshold?: number;
+  onlyMatchingChunks?: boolean;
+  extraTags?: string[];
+  rewriteQuery?: boolean;
+}) {
   const containerTags = [
     `client:${clientId}`,
     campaignId ? `campaign:${campaignId}` : null,
