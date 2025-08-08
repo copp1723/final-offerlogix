@@ -191,7 +191,10 @@ export class LeadScoringService {
       await this.getScoringProfile(profileId) : 
       this.defaultAutomotiveProfile;
 
-    const conversations = await storage.getConversationsByLead(leadId);
+    // Fallback if storage.getConversationsByLead is not implemented
+    const conversations = (storage as any).getConversationsByLead
+      ? await (storage as any).getConversationsByLead(leadId)
+      : (await storage.getConversations()).filter((c: Conversation) => c.leadId === leadId);
     const score = await this.computeScore(lead, conversations, profile);
     
     return score;
@@ -203,12 +206,12 @@ export class LeadScoringService {
     let totalScore = 0;
 
     for (const criteria of profile.criteria) {
-      const score = await this.evaluateCriteria(criteria, lead, conversations);
-      const weightedScore = (score / 100) * criteria.weight * 10; // Scale to 0-100
-      breakdown[criteria.id] = weightedScore;
-      totalScore += weightedScore;
+      const raw = await this.evaluateCriteria(criteria, lead, conversations);
+      const weighted = (raw / 100) * criteria.weight * 10; // Scale to 0-100
+      breakdown[criteria.id] = Math.round(weighted);
+      totalScore += weighted;
 
-      if (score > 70) {
+      if (raw > 70) {
         factors.push(`Strong ${criteria.name.toLowerCase()}`);
       }
     }
@@ -252,39 +255,57 @@ export class LeadScoringService {
     }
   }
 
+  // ---- Helpers & improved metrics ----
+  private getAllMessages(conversations: Conversation[]) {
+    return conversations.flatMap(c => c.messages || []);
+  }
+
+  private getLeadMessages(conversations: Conversation[]) {
+    return this.getAllMessages(conversations).filter((m: any) => !m.isFromAI);
+  }
+
+  private getAgentMessages(conversations: Conversation[]) {
+    return this.getAllMessages(conversations).filter((m: any) => m.isFromAI);
+  }
+
+  private toLowerBlob(conversations: Conversation[]) {
+    return this.getAllMessages(conversations)
+      .map((m: any) => (m.content || '').toLowerCase())
+      .join(' ');
+  }
+
+  // True reply latency: avg time from lead message -> next agent reply
   private evaluateResponseSpeed(conversations: Conversation[]): number {
-    if (conversations.length === 0) return 0;
-    
-    // Calculate average response time
-    let totalResponseTime = 0;
-    let responseCount = 0;
-    
-    for (let i = 1; i < conversations.length; i++) {
-      const prevTime = new Date(conversations[i-1].createdAt).getTime();
-      const currTime = new Date(conversations[i].createdAt).getTime();
-      const responseTime = currTime - prevTime;
-      
-      if (responseTime < 24 * 60 * 60 * 1000) { // Within 24 hours
-        totalResponseTime += responseTime;
-        responseCount++;
+    const msgs = this.getAllMessages(conversations).slice().sort(
+      (a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+    );
+    if (msgs.length < 2) return 0;
+
+    let totalMs = 0, count = 0;
+    for (let i = 0; i < msgs.length; i++) {
+      const m: any = msgs[i];
+      if (!m.isFromAI) { // lead spoke
+        const reply = msgs.slice(i + 1).find((n: any) => n.isFromAI);
+        if (reply) {
+          totalMs += new Date(reply.createdAt).getTime() - new Date(m.createdAt).getTime();
+          count++;
+        }
       }
     }
-    
-    if (responseCount === 0) return 30;
-    
-    const avgResponseHours = (totalResponseTime / responseCount) / (1000 * 60 * 60);
-    
-    if (avgResponseHours < 1) return 100;
-    if (avgResponseHours < 4) return 85;
-    if (avgResponseHours < 12) return 70;
-    if (avgResponseHours < 24) return 50;
+    if (!count) return 30;
+
+    const hrs = (totalMs / count) / 36e5;
+    if (hrs < 1) return 100;
+    if (hrs < 4) return 85;
+    if (hrs < 12) return 70;
+    if (hrs < 24) return 50;
     return 25;
   }
 
   private evaluateMessageQuality(conversations: Conversation[]): Promise<number> {
     // Analyze message content for quality indicators
-    const messages = conversations.flatMap(c => c.messages || []);
-    const leadMessages = messages.filter(m => !m.isFromAI);
+    const messages = this.getAllMessages(conversations);
+    const leadMessages = messages.filter((m: any) => !m.isFromAI);
     
     if (leadMessages.length === 0) return Promise.resolve(0);
     
@@ -312,24 +333,15 @@ export class LeadScoringService {
   }
 
   private evaluateVehicleSpecificity(lead: Lead, conversations: Conversation[]): number {
-    let specificityScore = 0;
-    
-    // Check lead vehicle interest
-    if (lead.vehicleInterest) {
-      if (lead.vehicleInterest.match(/\b(model|trim|color|year)\b/i)) specificityScore += 40;
-      if (lead.vehicleInterest.length > 20) specificityScore += 20;
-    }
-    
-    // Check conversation content
-    const allContent = conversations.flatMap(c => c.messages || [])
-      .map(m => m.content.toLowerCase())
-      .join(' ');
-    
-    const specificTerms = ['model', 'trim', 'color', 'year', 'features', 'options', 'package'];
-    const mentionedTerms = specificTerms.filter(term => allContent.includes(term));
-    specificityScore += mentionedTerms.length * 8;
-    
-    return Math.min(100, specificityScore);
+    const blob = ((lead.vehicleInterest || '') + ' ' + this.toLowerBlob(conversations)).toLowerCase();
+    let score = 0;
+    if (/\b(20[12]\d)\b/.test(blob)) score += 20;                               // model year
+    if (/\b(lx|ex|se|le|xle|sport|limited|trd|platinum|ltz|sv)\b/.test(blob)) score += 20; // trims
+    if (/\b(awd|4wd|rwd|fwd|hybrid|turbo|v6|v8)\b/.test(blob)) score += 15;     // config
+    if (/\b(color|black|white|blue|red|silver|gray)\b/.test(blob)) score += 10; // color
+    if (/\b(model|trim|features|options|package)\b/.test(blob)) score += 10;    // detail words
+    if ((lead.vehicleInterest || '').length > 20) score += 15;                  // descriptive field
+    return Math.min(100, score);
   }
 
   private evaluateUrgencyIndicators(conversations: Conversation[]): number {
@@ -373,15 +385,17 @@ export class LeadScoringService {
   }
 
   private evaluateEngagementFrequency(conversations: Conversation[]): number {
-    const totalInteractions = conversations.length;
-    const leadInitiatedConversations = conversations.filter(c => 
-      c.messages && c.messages[0] && !c.messages[0].isFromAI
-    ).length;
-    
-    let engagementScore = Math.min(50, totalInteractions * 10);
-    engagementScore += Math.min(50, leadInitiatedConversations * 15);
-    
-    return Math.min(100, engagementScore);
+    const msgs = this.getAllMessages(conversations);
+    const leadMsgs = msgs.filter((m: any) => !m.isFromAI).length;
+    if (!msgs.length) return 0;
+    const threadStartsByLead = (conversations || []).filter(c => {
+      const first = (c.messages || [])[0] as any;
+      return first && !first.isFromAI;
+    }).length;
+    let score = 0;
+    score += Math.min(60, leadMsgs * 8);            // lead message volume
+    score += Math.min(40, threadStartsByLead * 20); // initiative
+    return Math.min(100, score);
   }
 
   private evaluateContactCompleteness(lead: Lead): number {
@@ -397,16 +411,14 @@ export class LeadScoringService {
   }
 
   private evaluateTimingPatterns(conversations: Conversation[]): number {
-    const businessHours = conversations.filter(c => {
-      const hour = new Date(c.createdAt).getHours();
-      return hour >= 9 && hour <= 17;
+    const leadMsgs = this.getLeadMessages(conversations);
+    if (!leadMsgs.length) return 50;
+    const inBiz = leadMsgs.filter((m: any) => {
+      const d = new Date(m.createdAt);
+      const h = d.getHours();
+      return h >= 9 && h <= 17;
     }).length;
-    
-    const totalConversations = conversations.length;
-    if (totalConversations === 0) return 50;
-    
-    const businessHourRatio = businessHours / totalConversations;
-    return Math.round(businessHourRatio * 100);
+    return Math.round((inBiz / leadMsgs.length) * 100);
   }
 
   private determinePriority(score: number, thresholds: ScoringProfile['thresholds']): 'hot' | 'warm' | 'cold' {

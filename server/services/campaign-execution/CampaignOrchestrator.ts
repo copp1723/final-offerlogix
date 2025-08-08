@@ -112,6 +112,14 @@ export class CampaignOrchestrator {
         }
       );
 
+      // Record a send event for predictive insights (once per execution)
+      try {
+        const { predictiveOptimizationService } = await import('../predictive-optimization-instance');
+        predictiveOptimizationService.ingestSend(campaign.id, new Date());
+      } catch (e) {
+        console.warn('Predictive ingestion (send) failed:', e);
+      }
+
       // Create conversations for successful sends
       if (!testMode && processingResult.emailsSent > 0) {
         for (const lead of targetLeads.slice(0, processingResult.emailsSent)) {

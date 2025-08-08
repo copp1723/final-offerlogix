@@ -49,30 +49,71 @@ export interface PredictiveInsights {
 export class PredictiveOptimizationService {
   private performanceData: CampaignPerformanceData[] = [];
 
+  // Minimal comms event store (in-memory)
+  private comms: {
+    deliveries: Map<string, { ts: Date; campaignId: string; email: string }>;
+    opens: Map<string, { ts: Date; campaignId: string; email: string }[]>;
+    clicks: Map<string, { ts: Date; campaignId: string; email: string; url?: string }[]>;
+    sends: Array<{ campaignId: string; ts: Date }>;
+  } = {
+    deliveries: new Map(),
+    opens: new Map(),
+    clicks: new Map(),
+    sends: []
+  };
+
+  ingestSend(campaignId: string, ts = new Date()) {
+    this.comms.sends.push({ campaignId, ts });
+  }
+  ingestOpen(_messageId: string, campaignId: string, email: string, ts = new Date()) {
+    const arr = this.comms.opens.get(campaignId) || [];
+    arr.push({ ts, campaignId, email });
+    this.comms.opens.set(campaignId, arr);
+  }
+  ingestClick(_messageId: string, campaignId: string, email: string, url?: string, ts = new Date()) {
+    const arr = this.comms.clicks.get(campaignId) || [];
+    arr.push({ ts, campaignId, email, url });
+    this.comms.clicks.set(campaignId, arr);
+  }
+
   async analyzeHistoricalPerformance(): Promise<CampaignPerformanceData[]> {
     const campaigns = await storage.getCampaigns();
     const leads = await storage.getLeads();
     const conversations = await storage.getConversations();
     
     const performanceData: CampaignPerformanceData[] = [];
+
+    // pick actual send timestamps if orchestrator recorded any
+    const sendsByCampaign = new Map<string, Date>();
+    for (const s of this.comms.sends) sendsByCampaign.set(s.campaignId, s.ts);
     
     for (const campaign of campaigns) {
       const campaignLeads = leads.filter(l => l.campaignId === campaign.id);
+      if (!campaignLeads.length) continue;
+
       const campaignConversations = conversations.filter(c => c.campaignId === campaign.id);
-      
-      if (campaignLeads.length > 0) {
-        const data: CampaignPerformanceData = {
-          campaignId: campaign.id,
-          sendTime: campaign.createdAt,
-          openRate: campaign.openRate || 0,
-          responseRate: (campaignConversations.length / campaignLeads.length) * 100,
-          conversionRate: (campaignLeads.filter(l => l.status === 'converted').length / campaignLeads.length) * 100,
-          leadSegment: this.determineLeadSegment(campaignLeads),
-          vehicleType: this.determineVehicleType(campaignLeads),
-          seasonality: this.determineSeason(campaign.createdAt)
-        };
-        performanceData.push(data);
-      }
+      const respondedLeadIds = new Set(
+        campaignConversations
+          .filter((c: any) => ((c as any).messages || []).some((m: any) => !m.isFromAI))
+          .map(c => c.leadId)
+      );
+
+      const opens = (this.comms.opens.get(campaign.id) || []).length;
+      const openRate = campaignLeads.length ? (opens / campaignLeads.length) * 100 : 0;
+
+      const sendTime = sendsByCampaign.get(campaign.id) || campaign.createdAt;
+
+      const data: CampaignPerformanceData = {
+        campaignId: campaign.id,
+        sendTime,
+        openRate,
+        responseRate: (respondedLeadIds.size / campaignLeads.length) * 100,
+        conversionRate: (campaignLeads.filter(l => l.status === 'converted').length / campaignLeads.length) * 100,
+        leadSegment: this.determineLeadSegment(campaignLeads),
+        vehicleType: this.determineVehicleType(campaignLeads),
+        seasonality: this.determineSeason(sendTime)
+      };
+      performanceData.push(data);
     }
     
     this.performanceData = performanceData;
@@ -84,7 +125,7 @@ export class PredictiveOptimizationService {
     
     const recommendations: OptimizationRecommendation[] = [];
     
-    // Timing optimization
+    // Timing optimization (gated)
     recommendations.push(...await this.generateTimingRecommendations());
     
     // Sequence optimization
@@ -110,17 +151,19 @@ export class PredictiveOptimizationService {
     };
   }
 
+  private hasEnoughData(min = 5) { return this.performanceData.length >= min; }
+
   private async generateTimingRecommendations(): Promise<OptimizationRecommendation[]> {
     const recommendations: OptimizationRecommendation[] = [];
     
-    if (this.performanceData.length < 5) {
+    if (!this.hasEnoughData(5)) {
       recommendations.push({
         type: 'timing',
-        confidence: 60,
-        recommendation: 'Insufficient data for timing optimization',
-        reasoning: 'Need at least 5 campaigns for meaningful timing analysis',
-        expectedImprovement: 0,
-        implementation: 'Continue running campaigns to gather timing data'
+        confidence: 55,
+        recommendation: 'Default to Tue 10:00 or Wed 14:00 (industry norm)',
+        reasoning: 'Insufficient historical data (<5 campaigns). Using best practices until data accrues.',
+        expectedImprovement: 5,
+        implementation: 'Schedule future sends Tue 10:00 or Wed 14:00'
       });
       return recommendations;
     }
@@ -178,7 +221,7 @@ export class PredictiveOptimizationService {
     
     recommendations.push({
       type: 'sequence',
-      confidence: 75,
+      confidence: this.hasEnoughData(5) ? 75 : 60,
       recommendation: 'Use 3-email sequence: Introduction → Value Proposition → Limited Offer',
       reasoning: 'Analysis shows this sequence achieves 15% higher conversion rates than single emails',
       expectedImprovement: 15,
@@ -187,7 +230,7 @@ export class PredictiveOptimizationService {
 
     recommendations.push({
       type: 'sequence',
-      confidence: 70,
+      confidence: this.hasEnoughData(5) ? 70 : 58,
       recommendation: 'Include vehicle showcase in second email',
       reasoning: 'Campaigns with vehicle-specific content in position 2 show 22% better engagement',
       expectedImprovement: 22,
@@ -205,7 +248,7 @@ export class PredictiveOptimizationService {
     
     recommendations.push({
       type: 'targeting',
-      confidence: 80,
+      confidence: this.hasEnoughData(5) ? 80 : 65,
       recommendation: 'Prioritize leads with financing inquiries',
       reasoning: 'Leads mentioning financing convert 35% higher than general inquiries',
       expectedImprovement: 35,
@@ -214,7 +257,7 @@ export class PredictiveOptimizationService {
 
     recommendations.push({
       type: 'targeting',
-      confidence: 72,
+      confidence: this.hasEnoughData(5) ? 72 : 60,
       recommendation: 'Target truck/SUV inquiries with service packages',
       reasoning: 'Commercial vehicle leads show higher lifetime value with service add-ons',
       expectedImprovement: 18,
@@ -229,7 +272,7 @@ export class PredictiveOptimizationService {
     
     recommendations.push({
       type: 'content',
-      confidence: 85,
+      confidence: this.hasEnoughData(5) ? 85 : 68,
       recommendation: 'Include fuel efficiency messaging for sedan campaigns',
       reasoning: 'Sedan campaigns with MPG focus show 28% higher engagement rates',
       expectedImprovement: 28,
@@ -238,7 +281,7 @@ export class PredictiveOptimizationService {
 
     recommendations.push({
       type: 'content',
-      confidence: 78,
+      confidence: this.hasEnoughData(5) ? 78 : 62,
       recommendation: 'Use seasonal messaging for current month',
       reasoning: `${this.getCurrentSeasonalMessage()} campaigns perform 20% better in current season`,
       expectedImprovement: 20,
