@@ -67,6 +67,37 @@ async function applyLegacyPatches() {
     await addColumn('recurring_time', `ALTER TABLE campaigns ADD COLUMN recurring_time varchar(8)`);
     await addColumn('is_active', `ALTER TABLE campaigns ADD COLUMN is_active boolean DEFAULT true`);
     await addColumn('next_execution', `ALTER TABLE campaigns ADD COLUMN next_execution timestamp`);
+
+    // Additional campaign fields used by app
+    await addColumn('target_audience', `ALTER TABLE campaigns ADD COLUMN target_audience text`);
+    await addColumn('handover_prompt', `ALTER TABLE campaigns ADD COLUMN handover_prompt text`);
+    await addColumn('templates', `ALTER TABLE campaigns ADD COLUMN templates jsonb`);
+    await addColumn('subject_lines', `ALTER TABLE campaigns ADD COLUMN subject_lines jsonb`);
+    await addColumn('number_of_templates', `ALTER TABLE campaigns ADD COLUMN number_of_templates integer DEFAULT 5`);
+    await addColumn('days_between_messages', `ALTER TABLE campaigns ADD COLUMN days_between_messages integer DEFAULT 3`);
+    await addColumn('open_rate', `ALTER TABLE campaigns ADD COLUMN open_rate integer`);
+    await addColumn('is_template', `ALTER TABLE campaigns ADD COLUMN is_template boolean DEFAULT false`);
+    await addColumn('original_campaign_id', `ALTER TABLE campaigns ADD COLUMN original_campaign_id varchar`);
+
+    // Leads fields that may be missing on older DBs
+    const addColumnTo = async (table: string, col: string, ddl: string) => {
+      const { rowCount } = await client.query(
+        `SELECT 1 FROM information_schema.columns WHERE table_name=$1 AND column_name=$2`, [table, col]
+      );
+      if (!rowCount) {
+        console.log(`[DB Patch] Adding ${table}.${col}`);
+        await client.query(ddl);
+      }
+    };
+    await addColumnTo('leads', 'vehicle_interest', `ALTER TABLE leads ADD COLUMN vehicle_interest varchar`);
+    await addColumnTo('leads', 'lead_source', `ALTER TABLE leads ADD COLUMN lead_source varchar`);
+    await addColumnTo('leads', 'status', `ALTER TABLE leads ADD COLUMN status varchar DEFAULT 'new'`);
+    await addColumnTo('leads', 'tags', `ALTER TABLE leads ADD COLUMN tags varchar[]`);
+    await addColumnTo('leads', 'notes', `ALTER TABLE leads ADD COLUMN notes text`);
+    await addColumnTo('leads', 'campaign_id', `ALTER TABLE leads ADD COLUMN campaign_id varchar`);
+    await addColumnTo('leads', 'client_id', `ALTER TABLE leads ADD COLUMN client_id uuid`);
+    await addColumnTo('leads', 'created_at', `ALTER TABLE leads ADD COLUMN created_at timestamp DEFAULT now()`);
+    await addColumnTo('leads', 'updated_at', `ALTER TABLE leads ADD COLUMN updated_at timestamp DEFAULT now()`);
   } catch (err) {
     console.warn('[DB Patch] Warning while applying legacy patches:', (err as Error)?.message || err);
   } finally {
