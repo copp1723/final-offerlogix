@@ -269,7 +269,7 @@ export class EmailMonitorService {
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'X-Title': 'AutoCampaigns AI - Email Response'
+          'X-Title': 'OneKeel Swarm - Email Response'
         },
         body: JSON.stringify({
           model: 'anthropic/claude-3.5-sonnet',

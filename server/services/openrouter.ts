@@ -46,7 +46,7 @@ export async function generateAutomotiveContent(
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'X-Title': 'AutoCampaigns AI',
+        'X-Title': 'OneKeel Swarm',
       },
       body: JSON.stringify({
         model: 'openai/gpt-4o',

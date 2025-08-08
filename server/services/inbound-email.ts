@@ -256,7 +256,7 @@ export class InboundEmailService {
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'X-Title': 'AutoCampaigns AI - Email Auto Response'
+          'X-Title': 'OneKeel Swarm - Email Auto Response'
         },
         body: JSON.stringify({
           model: 'anthropic/claude-3.5-sonnet',

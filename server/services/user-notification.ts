@@ -58,7 +58,7 @@ const notificationTemplates: Record<NotificationType, (data: any) => Notificatio
         </div>
         
         <p style="color: #6b7280; font-size: 14px;">
-          AutoCampaigns AI - Automotive Email Marketing Platform
+          OneKeel Swarm - Automotive Email Marketing Platform
         </p>
       </div>
     `,

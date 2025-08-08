@@ -100,7 +100,7 @@ export class WebhookHandler {
         {
           leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Customer',
           vehicleInterest: lead.vehicleInterest,
-          dealershipName: 'AutoCampaigns AI Demo'
+          dealershipName: 'OneKeel Swarm Demo'
         },
 {}
       );

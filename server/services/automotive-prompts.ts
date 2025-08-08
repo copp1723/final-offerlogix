@@ -299,7 +299,7 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
 
   static getDefaultDealershipConfig(): AutomotivePromptConfig {
     return {
-      dealershipName: "AutoCampaigns AI Demo Dealership",
+      dealershipName: "OneKeel Swarm Demo Dealership",
       dealershipAddress: "123 Main Street, Automotive City, AC 12345",
       dealershipWebsite: "https://democars.com",
       dealershipPhone: "(555) 123-CARS",

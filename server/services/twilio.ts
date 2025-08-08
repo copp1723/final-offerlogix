@@ -43,7 +43,7 @@ export async function sendSMS(smsData: SMSData): Promise<any> {
 }
 
 export async function sendCampaignAlert(phoneNumber: string, campaignName: string, metric: string, value: string): Promise<any> {
-  const message = `AutoCampaigns Alert: "${campaignName}" campaign ${metric}: ${value}. Check your dashboard for details.`;
+  const message = `OneKeel Swarm Alert: "${campaignName}" campaign ${metric}: ${value}. Check your dashboard for details.`;
   
   return sendSMS({
     to: phoneNumber,

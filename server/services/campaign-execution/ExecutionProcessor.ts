@@ -154,7 +154,7 @@ export class ExecutionProcessor {
         to: lead.email,
         subject: testMode ? `[TEST] ${personalizedSubject}` : personalizedSubject,
         html: personalizedContent,
-        from: `AutoCampaigns AI <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
+        from: `OneKeel Swarm <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
       };
 
       const result = await mailgunService.sendEmail(emailData);

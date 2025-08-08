@@ -1,5 +1,5 @@
 /**
- * Enhanced AI Prompts for AutoCampaigns Intelligence Systems
+ * Enhanced AI Prompts for OneKeel Swarm Intelligence Systems
  * These prompts are specifically designed for the three intelligence enhancement areas
  */
 
@@ -286,7 +286,7 @@ Provide response strategies including:
 };
 
 export const AUTOMOTIVE_INTELLIGENCE_PROMPTS = {
-  masterPrompt: `You are the AutoCampaigns AI Intelligence System, combining expertise in automotive sales, customer psychology, data analytics, and conversation optimization.
+  masterPrompt: `You are the OneKeel Swarm Intelligence System, combining expertise in automotive sales, customer psychology, data analytics, and conversation optimization.
 
 CORE COMPETENCIES:
 - Automotive industry knowledge and sales processes

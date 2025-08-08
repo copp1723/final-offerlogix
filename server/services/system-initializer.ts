@@ -4,7 +4,7 @@ import { campaignOrchestrator } from './campaign-execution/CampaignOrchestrator'
 
 export class SystemInitializer {
   static async initializeServices() {
-    console.log('🚀 Initializing AutoCampaigns AI services...');
+    console.log('🚀 Initializing OneKeel Swarm services...');
     
     try {
       // Seed default AI agent configuration
@@ -31,11 +31,11 @@ export class SystemInitializer {
       console.warn('⚠️ Service initialization warning:', error instanceof Error ? error.message : 'Unknown error');
     }
 
-    console.log('🎉 AutoCampaigns AI services initialized');
+    console.log('🎉 OneKeel Swarm services initialized');
   }
 
   static async shutdownServices() {
-    console.log('🛑 Shutting down AutoCampaigns AI services...');
+    console.log('🛑 Shutting down OneKeel Swarm services...');
     
     try {
       await enhancedEmailMonitor.stop();
@@ -52,6 +52,6 @@ export class SystemInitializer {
       console.error('❌ Error stopping campaign scheduler:', error);
     }
 
-    console.log('👋 AutoCampaigns AI services shutdown complete');
+    console.log('👋 OneKeel Swarm services shutdown complete');
   }
 }

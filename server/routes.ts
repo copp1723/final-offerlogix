@@ -46,7 +46,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Return default branding
         res.json({
           id: 'default',
-          name: 'AutoCampaigns AI',
+          name: 'OneKeel Swarm',
           brandingConfig: {
             primaryColor: '#2563eb',
             secondaryColor: '#1e40af',

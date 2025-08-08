@@ -47,7 +47,7 @@ export class MailgunService {
 
   constructor() {
     this.domain = process.env.MAILGUN_DOMAIN || 'mg.watchdogai.us';
-    this.defaultFrom = `AutoCampaigns AI <swarm@${this.domain}>`;
+    this.defaultFrom = `OneKeel Swarm <swarm@${this.domain}>`;
   }
 
   /**

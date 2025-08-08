@@ -212,7 +212,7 @@ export class LiveConversationService {
         headers: {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
-          'X-Title': 'AutoCampaigns AI - Live Conversations'
+          'X-Title': 'OneKeel Swarm - Live Conversations'
         },
         body: JSON.stringify({
           model: 'anthropic/claude-3.5-sonnet',

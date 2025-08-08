@@ -1,7 +1,7 @@
 import { storage } from '../storage';
 
 export const DEFAULT_AI_AGENT_CONFIG = {
-  name: "AutoCampaigns AI Assistant",
+  name: "OneKeel Swarm Assistant",
   systemPrompt: `You are an automotive AI assistant specializing in email campaign management and customer communication.
 
 Your role:
