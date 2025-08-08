@@ -1024,6 +1024,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Backward-compatible alias used by older client bundles
+  app.get("/api/leads/all", async (req, res) => {
+    try {
+      const leads = await storage.getLeads();
+      res.json(leads);
+    } catch (error) {
+      res.status(500).json({ message: "Failed to fetch leads" });
+    }
+  });
+
   // Get a specific lead
   app.get("/api/leads/:id", async (req, res) => {
     try {
@@ -1410,10 +1420,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // List scoring profiles for UI
+  app.get("/api/intelligence/scoring-profiles", async (_req: TenantRequest, res) => {
+    try {
+      const profiles = leadScoringService.getScoringProfiles();
+      res.json(profiles);
+    } catch (error) {
+      console.error('List scoring profiles error:', error);
+      res.status(500).json({ message: "Failed to list scoring profiles" });
+    }
+  });
+
   app.post("/api/intelligence/scoring-profiles", async (req: TenantRequest, res) => {
     try {
       const profileData = req.body;
-      
+
       const profile = await leadScoringService.createScoringProfile(profileData);
       res.json(profile);
     } catch (error) {

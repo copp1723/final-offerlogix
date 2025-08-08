@@ -439,6 +439,14 @@ export class LeadScoringService {
     }
   }
 
+  // Expose available scoring profiles for UI
+  getScoringProfiles(): ScoringProfile[] {
+    return [
+      { ...this.defaultAutomotiveProfile },
+      { ...this.subPrimeAutomotiveProfile }
+    ];
+  }
+
   async createScoringProfile(profile: Omit<ScoringProfile, 'id' | 'createdAt' | 'updatedAt'>): Promise<ScoringProfile> {
     const newProfile: ScoringProfile = {
       ...profile,
@@ -446,7 +454,7 @@ export class LeadScoringService {
       createdAt: new Date(),
       updatedAt: new Date()
     };
-    
+
     // This would save to database in real implementation
     return newProfile;
   }
@@ -454,7 +462,7 @@ export class LeadScoringService {
   async bulkScoreLeads(profileId?: string): Promise<LeadScore[]> {
     const leads = await storage.getLeads();
     const scores: LeadScore[] = [];
-    
+
     for (const lead of leads) {
       try {
         const score = await this.calculateLeadScore(lead.id, profileId);
@@ -463,7 +471,7 @@ export class LeadScoringService {
         console.error(`Failed to score lead ${lead.id}:`, error);
       }
     }
-    
+
     return scores.sort((a, b) => b.totalScore - a.totalScore);
   }
 }
