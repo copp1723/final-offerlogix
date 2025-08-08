@@ -973,11 +973,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
           targetAudience: response.data.targetAudience,
           handoverPrompt: response.data.handoverPrompt,
           numberOfTemplates: response.data.numberOfTemplates || 5,
+          daysBetweenMessages: response.data.daysBetweenMessages || 3,
           templates: response.data.templates || [],
           subjectLines: response.data.subjectLines || [],
           status: 'draft'
         });
-        
+
         const createdCampaign = await storage.createCampaign(campaignToCreate);
         response.data.id = createdCampaign.id;
       }

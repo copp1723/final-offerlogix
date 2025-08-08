@@ -54,6 +54,30 @@ export class CampaignChatService {
       id: 'email_templates',
       question: "How many email templates would you like in your sequence? (1-30 templates)",
       dataField: 'numberOfTemplates'
+    },
+    {
+      id: 'lead_upload',
+      question: 'Please upload your lead list CSV now. Required columns: email, first_name, last_name (optional: phone, vehicle_interest). Let me know once it\'s uploaded.',
+      dataField: 'leadListConfirmation',
+      followUp: 'Great — I\'ve captured your lead list details.'
+    },
+    {
+      id: 'email_cadence',
+      question: 'How many days would you like between each email send? (Enter a number 1–30)',
+      dataField: 'daysBetweenMessages',
+      followUp: 'Perfect cadence. Shorter intervals keep attention, longer builds anticipation.'
+    },
+    {
+      id: 'content_generation',
+      question: 'I\'m ready to generate your full email sequence. Shall I generate the content now?',
+      dataField: 'contentGenerationConfirmed',
+      followUp: 'Generating high-quality automotive email content now...'
+    },
+    {
+      id: 'review_launch',
+      question: 'Review complete. Would you like to launch this campaign now?',
+      dataField: 'readyToLaunch',
+      followUp: 'Everything is prepared.'
     }
   ];
 
@@ -62,13 +86,64 @@ export class CampaignChatService {
     context: ["New vehicle launch", "Service reminders", "Test drive follow-up"],
     goals: ["Book test drives", "Book service", "Get trade-in leads"],
     target_audience: ["New prospects", "Current owners", "Leads with SUV interest"],
-    email_templates: ["3", "5", "7"],
+  email_templates: ["3", "5", "7"],
+  lead_upload: ["Uploaded", "Lead list ready", "Here it is"],
+  email_cadence: ["3", "5", "7"],
+  content_generation: ["Yes", "Generate now"],
+  review_launch: ["Launch now", "Yes launch", "Activate campaign"],
   };
 
   // NEW: Generic acknowledgement / non-substantive responses that should NOT advance the wizard
   private static genericAcks = [
     'ok','okay','k','kk','great','thanks','thank you','cool','yes','yep','sure','awesome','now what','what now','what next','next','continue','go on','fine','good','roger','understood','got it','sounds good','alright'
   ];
+
+	  // Parse template count from digits or number words (supports 1–30)
+	  private static parseTemplateCount(input: string): number | null {
+	    if (!input) return null;
+	    const str = input.toLowerCase().replace(/[,.!]/g, ' ').trim();
+
+	    // 1) Prefer explicit digits in the text
+	    const digitMatch = str.match(/(^|\s)([0-9]{1,2})(?=\s|$)/);
+	    if (digitMatch) {
+	      const n = parseInt(digitMatch[2], 10);
+	      if (!isNaN(n)) return n;
+	    }
+
+	    // 2) Number words up to 30
+	    const ones: Record<string, number> = {
+	      'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+	      'six': 6, 'seven': 7, 'eight': 8, 'nine': 9
+	    };
+	    const teens: Record<string, number> = {
+	      'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+	      'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+	    };
+	    const tens: Record<string, number> = { 'twenty': 20, 'thirty': 30 };
+
+	    const tokens = str.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+
+	    // Direct single-word matches (ones/teens/tens)
+	    for (const t of tokens) {
+	      if (t in ones) return ones[t];
+	      if (t in teens) return teens[t];
+	      if (t in tens) return tens[t];
+	    }
+
+	    // Hyphenated or spaced composites like "twenty one"
+	    for (let i = 0; i < tokens.length; i++) {
+	      const t = tokens[i];
+	      if (t in tens) {
+	        let total = tens[t];
+	        const next = tokens[i + 1];
+	        if (next && next in ones) total += ones[next];
+	        return total;
+	      }
+	    }
+
+	    return null;
+	  }
+
 
   // Heuristic + lightweight semantic guard to decide if we should advance
   private static async isSubstantiveAnswer(step: CampaignStep, userMessage: string): Promise<boolean> {
@@ -80,10 +155,30 @@ export class CampaignChatService {
     // Contains a question asking what to do next
     if (/what\s+(now|next)/i.test(msg)) return false;
 
-    // For numeric template count step allow digits 1-30
+    // For numeric template count step allow digits or number words (1-30)
     if (step.id === 'email_templates') {
+      const n = this.parseTemplateCount(msg);
+      return n !== null && n >= 1 && n <= 30;
+    }
+
+    if (step.id === 'lead_upload') {
+      // Accept confirmations or mention of leads
+      if (/uploaded|done|finished|complete|here|attached|lead list|csv/i.test(msg)) return true;
+      if (/\b\d+\b/.test(msg) && /lead/i.test(msg)) return true;
+      return false;
+    }
+
+    if (step.id === 'email_cadence') {
       const n = parseInt(msg, 10);
       return !isNaN(n) && n >= 1 && n <= 30;
+    }
+
+    if (step.id === 'content_generation') {
+      return /(yes|generate|go|start|do it|create)/i.test(msg);
+    }
+
+    if (step.id === 'review_launch') {
+      return /(launch|yes|activate|start|go live)/i.test(msg);
     }
 
     // Lightweight keyword expectation per step
@@ -130,7 +225,7 @@ export class CampaignChatService {
       let ragResults: any = null;
       try {
         const clientId = existingData.clientId || 'default';
-        
+
         ragResults = await searchForCampaignChat({
           clientId,
           campaignId: existingData.id,
@@ -143,7 +238,7 @@ export class CampaignChatService {
       }
       const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
       const currentStepData = this.campaignSteps[stepIndex];
-      
+
       if (!currentStepData) {
         return {
           message: "I'm not sure what step we're on. Let's start over. What type of automotive campaign would you like to create?",
@@ -185,7 +280,7 @@ export class CampaignChatService {
       // Special processing for handover criteria - uses campaign context and goals
       if (currentStep === 'handover_criteria') {
         const handoverPrompt = await this.convertHandoverCriteriaToPrompt(
-          userMessage, 
+          userMessage,
           updatedData.context,
           updatedData.handoverGoals,
           updatedData.targetAudience
@@ -195,18 +290,52 @@ export class CampaignChatService {
 
       // Special processing for template count
       if (currentStep === 'email_templates') {
-        const count = parseInt(userMessage) || 5;
+        const parsed = this.parseTemplateCount(userMessage);
+        const count = parsed !== null ? parsed : 5;
         updatedData.numberOfTemplates = Math.min(Math.max(count, 1), 30);
       }
 
+      if (currentStep === 'lead_upload') {
+        // Expect client to have populated updatedData.leadList previously via separate upload API
+        // Provide a minimal summary if none exists
+        if (!updatedData.leadList && existingData.leadList) {
+          updatedData.leadList = existingData.leadList;
+        }
+      }
+
+      if (currentStep === 'email_cadence') {
+        const n = parseInt(userMessage, 10);
+        if (!isNaN(n) && n >= 1 && n <= 30) {
+          updatedData.daysBetweenMessages = n;
+        }
+      }
+
+      if (currentStep === 'content_generation') {
+        try {
+          const generation = await this.generateFinalCampaign({ ...updatedData });
+          updatedData.templates = generation.templates;
+          updatedData.subjectLines = generation.subjectLines;
+          updatedData.numberOfTemplates = generation.numberOfTemplates;
+          if (!updatedData.name) updatedData.name = generation.name;
+        } catch (e) {
+          console.warn('Failed mid content_generation', e);
+        }
+      }
+
+      const isLaunchCommand = currentStep === 'review_launch';
+
       // Determine next step
       const nextStepIndex = stepIndex + 1;
-      const isCompleted = nextStepIndex >= this.campaignSteps.length;
-      
+      const nextStep = this.campaignSteps[nextStepIndex];
+      const isCompleted = isLaunchCommand || nextStepIndex >= this.campaignSteps.length;
+
       if (isCompleted) {
-        // Generate final campaign data
-        const finalCampaign = await this.generateFinalCampaign(updatedData);
-        
+        // Ensure final campaign has templates/content
+        let finalCampaign = { ...updatedData } as any;
+        if (!finalCampaign.templates || finalCampaign.templates.length === 0) {
+          finalCampaign = await this.generateFinalCampaign(finalCampaign);
+        }
+
         // Calculate final progress
         const progress = {
           stepIndex: this.campaignSteps.length,
@@ -217,16 +346,17 @@ export class CampaignChatService {
         // Broadcast completion via WebSocket
         this.broadcastProgress(null, this.campaignSteps.length, this.campaignSteps.length, 100);
 
+        const leadCount = finalCampaign.leadList?.total || finalCampaign.leadList?.length || 0;
         return {
-          message: `Excellent! I've created your "${finalCampaign.name}" campaign with smart handover rules and ${finalCampaign.numberOfTemplates || finalCampaign.templateCount || 5} email templates. Your campaign is ready to launch!`,
+          message: `Review complete! "${finalCampaign.name}" has ${finalCampaign.numberOfTemplates || finalCampaign.templateCount || 5} templates${leadCount ? ` and ${leadCount} leads` : ''}. Type "Launch" to activate or edit any step before launching.`,
           completed: true,
           data: finalCampaign,
-          actions: ['create_campaign', 'generate_templates'],
-          progress
+            actions: ['create_campaign', 'ready_to_launch'],
+          progress,
+          suggestions: this.suggestionsByStep['review_launch'] || []
         };
       }
-
-      const nextStep = this.campaignSteps[nextStepIndex];
+      // nextStep already defined
 
       // NEW: attempt dynamic LLM-generated conversational response instead of always using static followUp
       let responseMessage: string | null = null;
@@ -332,7 +462,7 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
    * Convert user's natural language handover criteria into structured AI prompt
    */
   private static async convertHandoverCriteriaToPrompt(
-    userInput: string, 
+    userInput: string,
     campaignContext?: string,
     campaignGoals?: string,
     targetAudience?: string
@@ -366,7 +496,7 @@ You are a world-class automotive sales intelligence expert who specializes in co
 
 ## CAMPAIGN INTELLIGENCE:
 **Campaign Context:** "${campaignContext || 'General automotive campaign'}"
-**Campaign Goals:** "${campaignGoals || 'Generate automotive leads'}"  
+**Campaign Goals:** "${campaignGoals || 'Generate automotive leads'}"
 **Target Audience:** "${targetAudience || 'General automotive prospects'}"
 **User's Natural Language Criteria:** "${userInput}"
 
@@ -420,9 +550,9 @@ CRITICAL: The handover prompt must be laser-focused on the specific campaign con
 
       const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt);
       const parsed = this.coerceJson(content, { handoverPrompt: this.getDefaultHandoverPrompt() });
-      
+
       return parsed.handoverPrompt || this.getDefaultHandoverPrompt();
-      
+
     } catch (error) {
       console.error('Failed to convert handover criteria:', error);
       return this.getDefaultHandoverPrompt();
@@ -521,7 +651,7 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
 ### STRONG QUALIFICATION SIGNALS (Score: 75-89)
 **Serious Consideration Indicators:**
 - Financial readiness: "financing options", "down payment", "monthly payment", "lease terms"
-- Vehicle specificity: mentions specific models, years, trim levels, colors, features  
+- Vehicle specificity: mentions specific models, years, trim levels, colors, features
 - Comparison shopping: "versus", "compared to", "better than", competitor mentions
 - Trade-in discussions: "trade my current car", "trade value", "what's it worth"
 - Timeline establishment: "when available", "delivery time", "how long"
@@ -542,7 +672,7 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
 
 ### HANDOVER DECISION MATRIX:
 - **Score 90-100**: Immediate handover (within 5 minutes)
-- **Score 80-89**: Priority handover (within 15 minutes)  
+- **Score 80-89**: Priority handover (within 15 minutes)
 - **Score 75-79**: Standard handover (within 30 minutes)
 - **Score 50-74**: Continue nurturing, reassess in 24 hours
 - **Below 50**: Standard marketing sequence
@@ -562,7 +692,7 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
   static getCampaignProgress(currentStep: string): any {
     const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
     const totalSteps = this.campaignSteps.length;
-    
+
     return {
       currentStep: stepIndex + 1,
       totalSteps,
@@ -578,17 +708,17 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
     const vehicleTypes = ['truck', 'suv', 'sedan', 'coupe', 'convertible', 'wagon', 'hatchback', 'minivan', 'crossover'];
     const brands = ['ford', 'toyota', 'honda', 'chevrolet', 'nissan', 'hyundai', 'kia', 'subaru', 'mazda', 'volkswagen'];
     const keywords: string[] = [];
-    
+
     const lowerText = text.toLowerCase();
-    
+
     vehicleTypes.forEach(type => {
       if (lowerText.includes(type)) keywords.push(type);
     });
-    
+
     brands.forEach(brand => {
       if (lowerText.includes(brand)) keywords.push(brand);
     });
-    
+
     return keywords;
   }
 }
