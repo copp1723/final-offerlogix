@@ -109,7 +109,7 @@ export default function IntelligencePage() {
         conversationIntelligence: { totalConversations: 0, escalationCount: 0, highUrgency: 0, readyToBuy: 0, averageConfidence: 0 }
       };
     }
-    return dashboard;
+    return dashboard as IntelligenceDashboard;
   };
 
   const dashboardData = getDashboard();
@@ -372,8 +372,42 @@ export default function IntelligencePage() {
             <p className="text-gray-600">{dashboardData.predictiveOptimization.recommendationCount} recommendations generated</p>
           </div>
 
+          {/* AI Optimization Recommendations */}
+          <Card>
+            <CardHeader>
+              <CardTitle>AI Optimization Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {Array.isArray(recommendations) && recommendations.map((rec: OptimizationRecommendation, index: number) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline" className="capitalize">{rec.type}</Badge>
+                        <span className="font-medium">{rec.confidence}% Confidence</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800">+{rec.expectedImprovement}% Expected</Badge>
+                    </div>
+                    <h4 className="font-medium mb-1">{rec.recommendation}</h4>
+                    <p className="text-sm text-gray-600 mb-2">{rec.reasoning}</p>
+                    <div className="bg-blue-50 p-3 rounded text-sm">
+                      <strong>Implementation:</strong> {rec.implementation}
+                    </div>
+                  </div>
+                ))}
+                {(!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) && (
+                  <div className="text-center py-8 text-gray-500">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-2" />
+                    <p>Analyzing campaign data...</p>
+                    <p className="text-sm">Recommendations will appear as more data is collected</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Optimization Insights */}
-          {dashboard?.predictiveOptimization?.insights && (
+          {dashboardData?.predictiveOptimization?.insights && (
             <>
               {/* Optimal Send Times */}
               <Card>
@@ -382,7 +416,7 @@ export default function IntelligencePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {dashboard.predictiveOptimization.insights.optimalSendTimes?.slice(0, 4).map((time: any, index: number) => (
+                    {dashboardData.predictiveOptimization.insights.optimalSendTimes?.slice(0, 4).map((time: any, index: number) => (
                       <div key={index} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="font-medium">
@@ -405,7 +439,7 @@ export default function IntelligencePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {dashboard.predictiveOptimization.insights.recommendedSequence?.map((step: any, index: number) => (
+                    {dashboardData.predictiveOptimization.insights.recommendedSequence?.map((step: any, index: number) => (
                       <div key={index} className="flex items-center space-x-4 p-3 border rounded-lg">
                         <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600">
                           {index + 1}
@@ -428,7 +462,7 @@ export default function IntelligencePage() {
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
-                    {dashboard.predictiveOptimization.insights.targetingRecommendations?.map((target: any, index: number) => (
+                    {dashboardData.predictiveOptimization.insights.targetingRecommendations?.map((target: any, index: number) => (
                       <div key={index} className="border rounded-lg p-4">
                         <div className="flex items-center justify-between mb-2">
                           <div className="font-medium">{target.segment.replace('_', ' ').toUpperCase()}</div>
@@ -444,15 +478,6 @@ export default function IntelligencePage() {
                 </CardContent>
               </Card>
             </>
-          )}
-
-          {/* Fallback for missing data */}
-          {(!dashboard?.predictiveOptimization?.insights) && (
-            <div className="text-center py-8 text-gray-500">
-              <TrendingUp className="h-12 w-12 mx-auto mb-2" />
-              <p>Analyzing campaign data...</p>
-              <p className="text-sm">Recommendations will appear as more data is collected</p>
-            </div>
           )}
         </TabsContent>
 
