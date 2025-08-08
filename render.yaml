@@ -3,7 +3,7 @@ services:
     name: onekeel-swarm
     env: node
     plan: starter
-    buildCommand: npm ci && npm run build:render
+    buildCommand: npm ci && vite build --config vite.config.render.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
     startCommand: npm start
     region: oregon
     envVars:
