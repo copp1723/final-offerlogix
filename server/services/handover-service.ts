@@ -22,9 +22,10 @@ interface HandoverEvaluation {
   nextActions: string[];
   recommendedAgent?: string;
   urgencyLevel: 'low' | 'medium' | 'high';
+  salesBrief?: any; // Will hold the conversion-ready sales brief
 }
 
-interface ConversationAnalysis {
+export interface ConversationAnalysis {
   qualificationScore: number;
   intentScore: number;
   engagementLevel: number;
@@ -33,6 +34,7 @@ interface ConversationAnalysis {
   detectedIntents: string[];
   automotiveContext: string[];
   urgencyIndicators: string[];
+  urgencyLevel?: 'low' | 'medium' | 'high';
 }
 
 export class HandoverService {
@@ -113,6 +115,27 @@ export class HandoverService {
       triggeredCriteria.push('urgent_keywords');
     }
     
+    // Generate conversion-ready sales brief if handover triggered
+    let salesBrief = null;
+    if (shouldHandover) {
+      try {
+        const { SalesBriefGenerator } = await import('./sales-brief-generator');
+        
+        // Create context from conversation data
+        const context = SalesBriefGenerator.createConversationContext(
+          conversation.lead?.name || 'Customer',
+          conversation.lead?.vehicleInterest,
+          newMessage?.content || '',
+          conversation.messages || [],
+          { ...analysis, urgencyLevel }
+        );
+        
+        salesBrief = await SalesBriefGenerator.generateSalesBrief(context);
+      } catch (error) {
+        console.error('Sales brief generation failed:', error);
+      }
+    }
+
     return {
       shouldHandover,
       reason: reason.trim(),
@@ -124,7 +147,8 @@ export class HandoverService {
         'Send summary to sales team'
       ] : ['Continue automated conversation'],
       recommendedAgent: this.selectRecommendedAgent(analysis, criteria),
-      urgencyLevel
+      urgencyLevel,
+      salesBrief
     };
   }
 
@@ -389,6 +413,18 @@ export class HandoverService {
       console.error('Failed to process handover:', error);
       return false;
     }
+  }
+
+  /**
+   * Get filtered recipients based on recommended agent for dynamic routing
+   */
+  static getFilteredRecipients(
+    recommendedAgent: string,
+    criteria: HandoverCriteria
+  ): Array<{ name: string; email: string; role: string }> {
+    return criteria.handoverRecipients.filter(recipient => 
+      recipient.role === recommendedAgent || recipient.role === 'manager'
+    );
   }
 
   /**
