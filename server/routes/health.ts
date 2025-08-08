@@ -121,7 +121,7 @@ router.get('/ai', async (_req, res) => {
         
         // Test AI with simple query
         const testResponse = await LLMClient.generate({
-          model: 'openai/gpt-4o-mini',
+          model: 'openai/gpt-5-mini',
           system: 'Respond with exactly: "OK"',
           user: 'Test',
           maxTokens: 10
@@ -132,7 +132,7 @@ router.get('/ai', async (_req, res) => {
           details: {
             status: 'healthy',
             provider: 'OpenRouter',
-            model: 'gpt-4o-mini',
+            model: 'gpt-5-mini',
             responseTime: 'normal'
           }
         };
@@ -179,14 +179,14 @@ router.get('/database', async (_req, res) => {
     
     // Simple database connectivity test
     const result = await db.execute(sql`SELECT 1 as test`);
-    
+    const rows = result as unknown as any[];
     res.json({
       ok: true,
       details: {
         status: 'healthy',
         type: 'PostgreSQL',
         connectivity: 'active',
-        response: result.length > 0
+        response: rows.length > 0
       }
     });
   } catch (error) {

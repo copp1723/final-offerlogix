@@ -1,12 +1,12 @@
-// Test GPT-4o Mini integration through OpenRouter
+// Test GPT-5 Mini integration through OpenRouter
 const API_BASE = 'http://localhost:5000/api';
 
-async function testGPT4oMini() {
-  console.log('🧪 TESTING GPT-4O MINI INTEGRATION VIA OPENROUTER\n');
+async function testGPT5Mini() {
+  console.log('🧪 TESTING GPT-5 MINI INTEGRATION VIA OPENROUTER\n');
 
   try {
     // Test campaign creation with AI enhancement
-    console.log('📝 Testing Campaign Chat with GPT-4o Mini...');
+    console.log('📝 Testing Campaign Chat with GPT-5 Mini...');
     
     const chatResponse = await fetch(`${API_BASE}/ai/chat-campaign`, {
       method: 'POST',
@@ -95,17 +95,17 @@ async function testGPT4oMini() {
       console.log('❌ Template generation failed:', await templateResponse.text());
     }
 
-    console.log('\n🏆 GPT-4O MINI INTEGRATION TEST COMPLETE');
+    console.log('\n🏆 GPT-5 MINI INTEGRATION TEST COMPLETE');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ Model: openai/gpt-4o-mini via OpenRouter');
+    console.log('✅ Model: openai/gpt-5-mini via OpenRouter');
     console.log('✅ Cost-effective AI processing');
     console.log('✅ Enhanced handover intelligence generation');
     console.log('✅ Campaign-specific content creation');
     console.log('✅ Professional automotive prompts processing');
 
   } catch (error) {
-    console.error('❌ GPT-4o Mini test error:', error.message);
+    console.error('❌ GPT-5 Mini test error:', error.message);
   }
 }
 
-testGPT4oMini();
+testGPT5Mini();

@@ -40,7 +40,7 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS notification_preferences jsonb DEFAUL
 
 -- AI Agent Config: new columns & FK
 ALTER TABLE ai_agent_config
-  ADD COLUMN IF NOT EXISTS model text DEFAULT 'openai/gpt-4o-mini',
+  ADD COLUMN IF NOT EXISTS model text DEFAULT 'openai/gpt-5-mini',
   ADD COLUMN IF NOT EXISTS system_prompt text,
   ADD COLUMN IF NOT EXISTS client_id uuid,
   ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false;

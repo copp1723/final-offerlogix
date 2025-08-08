@@ -23,6 +23,9 @@ export class LLMClient {
   private static readonly BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
   private static readonly DEFAULT_TIMEOUT = 30000;
   private static readonly MAX_RETRIES = 3;
+  private static resolveModel(preferred?: string) {
+    return preferred || process.env.AI_MODEL || 'openai/gpt-5-mini';
+  }
   
   /**
    * Generate content using the unified LLM client
@@ -31,7 +34,7 @@ export class LLMClient {
     const startTime = Date.now();
     
     const payload: any = {
-      model: options.model,
+      model: this.resolveModel(options.model),
       messages: [
         { role: 'system', content: options.system },
         { role: 'user', content: options.user }
@@ -124,7 +127,7 @@ export class LLMClient {
    */
   static async generateAutomotiveContent(prompt: string): Promise<LLMResponse> {
     return this.generate({
-      model: 'openai/gpt-4o-mini',
+      model: this.resolveModel('openai/gpt-5-mini'),
       system: 'You are an expert automotive marketing AI assistant. Always respond with valid JSON.',
       user: prompt,
       json: true,
@@ -141,7 +144,7 @@ export class LLMClient {
     opts?: { json?: boolean; temperature?: number; maxTokens?: number }
   ): Promise<string> {
     const response = await this.generate({
-      model: 'openai/gpt-4o-mini',
+      model: this.resolveModel('openai/gpt-5-mini'),
       system: 'You are an automotive campaign specialist helping create high-quality marketing campaigns and handover prompts.',
       user: prompt,
       json: opts?.json ?? false,

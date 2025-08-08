@@ -149,8 +149,39 @@ export class CampaignChatService {
       }
 
       const nextStep = this.campaignSteps[nextStepIndex];
-      const responseMessage = currentStepData.followUp || 
-        `Got it! ${nextStep.question}`;
+
+      // NEW: attempt dynamic LLM-generated conversational response instead of always using static followUp
+      let responseMessage: string | null = null;
+      try {
+        const llmUserPrompt = `You are an automotive campaign creation assistant.
+Collected data so far (JSON): ${JSON.stringify(updatedData)}
+User just answered the step "${currentStepData.id}" with: "${userMessage}".
+Next step id: ${nextStep.id}
+Next step question: ${nextStep.question}
+Return ONLY a short (<=60 words) natural conversational reply that:
+1) Acknowledges their last answer in automotive-specific terms
+2) (If applicable) briefly adds one helpful insight or suggestion
+3) Ends by asking exactly the next step question verbatim: ${nextStep.question}
+Do NOT wrap in quotes. No JSON. No markdown.`;
+        const llm = await LLMClient.generate({
+          model: 'openai/gpt-5-mini',
+          system: 'You are a concise, helpful automotive campaign strategist. Keep replies friendly, professional, and specific to automotive marketing. Never hallucinate data not provided.',
+          user: llmUserPrompt,
+          temperature: 0.6,
+          maxTokens: 220
+        });
+        responseMessage = llm.content?.trim();
+        // Basic guard: ensure it includes the next step question; else fallback
+        if (!responseMessage || !responseMessage.toLowerCase().includes(nextStep.question.substring(0, 8).toLowerCase())) {
+          responseMessage = null;
+        }
+      } catch (e) {
+        console.warn('Dynamic step LLM response failed, falling back to template:', e);
+      }
+
+      if (!responseMessage) {
+        responseMessage = currentStepData.followUp || `Got it! ${nextStep.question}`;
+      }
 
       // Calculate progress
       const progress = {
@@ -224,18 +255,26 @@ export class CampaignChatService {
     targetAudience?: string
   ): Promise<string> {
     try {
+      // obtain ragResults locally here to avoid undefined reference
+      let ragResults: any = null;
+      try {
+        ragResults = await searchForCampaignChat({
+          clientId: 'default',
+          campaignId: undefined,
+          userTurn: userInput,
+          detectedType: campaignContext,
+          vehicleKeywords: this.extractVehicleKeywords(userInput + ' ' + (campaignContext || ''))
+        });
+      } catch (e) {
+        // silent fallback
+      }
       let contextSection = '';
       if (ragResults && ragResults.results && ragResults.results.length > 0) {
         const snippets = ragResults.results.map((r: any) => ({
           title: r.metadata?.name || r.metadata?.title,
           content: r.content
         }));
-        
-        contextSection = `
-## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:
-${snippets.map((s: any) => `${s.title ? `${s.title}: ` : ''}${s.content}`).join('\n---\n')}
-Use this historical data to inform your handover criteria generation.
-`;
+        contextSection = `\n## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:\n${snippets.map((s: any) => `${s.title ? `${s.title}: ` : ''}${s.content}`).join('\n---\n')}\nUse this historical data to inform your handover criteria generation.\n`;
       }
 
       const conversionPrompt = `
@@ -296,7 +335,7 @@ Return ONLY this JSON structure:
 
 CRITICAL: The handover prompt must be laser-focused on the specific campaign context and goals provided.`;
 
-      const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt, { json: true });
+      const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt);
       const parsed = this.coerceJson(content, { handoverPrompt: this.getDefaultHandoverPrompt() });
       
       return parsed.handoverPrompt || this.getDefaultHandoverPrompt();
@@ -335,10 +374,9 @@ Each template should:
 
 Return JSON array of template objects with "subject" and "content" fields.`;
 
-      const { content: templatesResult } = await LLMClient.generateAutomotiveContent(templatePrompt, { json: true });
-      let templates = this.coerceJson(templatesResult, []);
-      if (Array.isArray(templates) && templates.length === 0) {
-        // Fallback templates
+      const { content: templatesResult } = await LLMClient.generateAutomotiveContent(templatePrompt);
+      let templates: any[] = this.coerceJson<any[]>(templatesResult, [] as any[]);
+      if ((!Array.isArray(templates)) || templates.length === 0) {
         templates = [
           { subject: `Welcome to ${data.name}`, content: `Hi [Name], welcome to our ${data.context} campaign!` }
         ];
@@ -346,7 +384,7 @@ Return JSON array of template objects with "subject" and "content" fields.`;
 
       // Generate subject lines
       const subjectPrompt = `Generate ${data.numberOfTemplates || 5} compelling email subject lines for automotive campaign: ${data.context}. Return as JSON array of strings.`;
-      const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt, { json: true });
+      const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt);
       let subjects = this.coerceJson(subjectsResult, [`${data.name} - Special Offer`, `${data.name} - Update`, `${data.name} - Reminder`]);
 
       return {
