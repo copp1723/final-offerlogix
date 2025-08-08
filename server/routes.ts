@@ -1294,6 +1294,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const imapHealthRoutes = await import('./routes/health-imap');
   app.use('/api/health', imapHealthRoutes.default);
 
+  // Agent runtime routes
+  const agentRoutes = await import('./routes/agent');
+  app.use('/api/agent', agentRoutes.default);
+
   // SMS Integration Routes
   app.post("/api/sms/opt-in", async (req, res) => {
     try {

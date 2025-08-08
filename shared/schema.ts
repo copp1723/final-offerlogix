@@ -98,11 +98,14 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   name: varchar("name").notNull(), // Configuration name/profile
   tonality: text("tonality").notNull().default("professional"), // professional, friendly, casual, enthusiastic
   personality: text("personality"), // Description of agent personality
-  dosList: jsonb("dos_list").default([]), // Array of do's
-  dontsList: jsonb("donts_list").default([]), // Array of don'ts  
+  dosList: jsonb("dos_list").default([]).notNull(), // Array of do's
+  dontsList: jsonb("donts_list").default([]).notNull(), // Array of don'ts  
   industry: varchar("industry").default("automotive"), // Industry specialization
   responseStyle: text("response_style").default("helpful"), // helpful, consultative, direct
-  isActive: boolean("is_active").default(true), // Whether this config is currently active
+  model: text("model").default("openai/gpt-4o-mini"), // Default model for this agent
+  systemPrompt: text("system_prompt"), // Custom system prompt override
+  isActive: boolean("is_active").default(false).notNull(), // Whether this config is currently active
+  clientId: uuid("client_id").references(() => clients.id), // Multi-tenant scoping
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

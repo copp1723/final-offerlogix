@@ -1,0 +1,244 @@
+Got it—you’ve got inbound email routes sorted. For agents, here’s a clean, drop-in setup so replies and chats are handled by the right AI profile with memory, fallbacks, and zero ceremony.
+
+1) Environment
+
+# LLM + memory
+OPENROUTER_API_KEY=...
+SUPERMEMORY_API_KEY=...
+
+# Default model for agents (can override per agent)
+AGENT_MODEL=openai/gpt-4o-mini
+
+2) Minimal schema (you already have something similar)
+
+If you don’t already, ensure a table that marks one active agent per client:
+
+// server/db/schema.ts (excerpt)
+export const aiAgentConfig = pgTable("ai_agent_config", {
+  id: varchar("id").primaryKey(),
+  clientId: uuid("client_id"),
+  name: text("name").notNull(),
+  personality: text("personality").default("professional"),
+  tonality: text("tonality").default("helpful"),
+  systemPrompt: text("system_prompt").notNull(),
+  model: text("model").default("openai/gpt-4o-mini"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+3) Seed one good default agent (per tenant)
+
+// server/seeds/seedAgent.ts
+import { db } from "../db";
+import { aiAgentConfig } from "../db/schema";
+import { nanoid } from "nanoid";
+
+export async function seedDefaultAgent(clientId: string) {
+  const id = `agent_${nanoid(8)}`;
+  await db.insert(aiAgentConfig).values({
+    id,
+    clientId,
+    name: "Swarm Automotive Agent",
+    personality: "professional",
+    tonality: "helpful",
+    model: process.env.AGENT_MODEL ?? "openai/gpt-4o-mini",
+    systemPrompt: `You are an automotive sales assistant. Be concise, honest, and specific. 
+Use the conversation history, lead profile, and recent campaign context. 
+Offer one clear next step (CTA). Avoid over-promising.`,
+    isActive: true,
+  }).onConflictDoNothing();
+  return id;
+}
+
+4) AgentResolver (cached, per request)
+
+// server/services/AgentResolver.ts
+import LRU from "lru-cache";
+import { db } from "../db";
+import { aiAgentConfig } from "../db/schema";
+
+type Agent = {
+  id: string; clientId: string; name: string; personality: string;
+  tonality: string; model: string; systemPrompt: string;
+};
+
+const cache = new LRU<string, Agent>({ max: 500, ttl: 60_000 });
+
+export async function getActiveAgent(clientId: string): Promise<Agent> {
+  const key = `agent:${clientId}`;
+  const cached = cache.get(key);
+  if (cached) return cached;
+
+  const [row] = await db
+    .select()
+    .from(aiAgentConfig)
+    .where(aiAgentConfig.clientId.eq(clientId).and(aiAgentConfig.isActive.eq(true)))
+    .limit(1);
+
+  if (!row) throw new Error("No active agent configured");
+  cache.set(key, row as Agent);
+  return row as Agent;
+}
+
+5) Agent runtime: reply planning (uses your LLM client + Supermemory)
+
+// server/services/agents/ReplyPlanner.ts
+import { LLMClient } from "../llm/LLMClient";
+import { getActiveAgent } from "../AgentResolver";
+import { supermemorySearch } from "../memory/supermemory"; // thin helper
+import { storage } from "../storage";
+
+export async function planReply(opts: {
+  clientId: string;
+  conversationId: string;
+  leadId: string;
+  incomingText: string;
+}) {
+  const agent = await getActiveAgent(opts.clientId);
+
+  // Pull light context
+  const [lead, convo] = await Promise.all([
+    storage.getLead(opts.leadId),
+    storage.getConversation(opts.conversationId),
+  ]);
+
+  // Memory recall: pull top 5 relevant memories scoped by client + lead/email tag
+  const memory = await supermemorySearch({
+    q: `${lead?.vehicleInterest ?? ""} ${opts.incomingText}`,
+    containerTags: [String(opts.clientId), `lead:${lead?.emailHash ?? lead?.email ?? ""}`],
+    limit: 5,
+    timeoutMs: 1200,
+  });
+
+  const prompt = JSON.stringify({
+    instruction: "Draft a concise, helpful reply. One CTA. No fluff.",
+    lead: {
+      firstName: lead?.firstName, vehicleInterest: lead?.vehicleInterest,
+    },
+    lastAgentMessage: convo?.messages?.findLast(m => m.isFromAI)?.content ?? "",
+    incomingText: opts.incomingText,
+    memorySnippets: memory.results?.map(r => r.content).slice(0, 5) ?? [],
+  });
+
+  const res = await LLMClient.generate({
+    model: agent.model,
+    system: agent.systemPrompt,
+    user: prompt,
+    json: true,        // stricter + your client already has retries/fallback
+    temperature: 0.4,
+    maxTokens: 800,
+  });
+
+  // Expecting: { reply: "...", suggestedCtas: ["..."], confidence: 0-1 }
+  let draft: { reply: string; suggestedCtas?: string[]; confidence?: number };
+  try { draft = JSON.parse(res.content); }
+  catch { draft = { reply: res.content }; }
+
+  // Minimal guardrails
+  const reply = harden(draft.reply);
+
+  return { reply, suggestedCtas: draft.suggestedCtas ?? [], confidence: draft.confidence ?? 0.65 };
+}
+
+function harden(s: string) {
+  return (s ?? "").trim().slice(0, 2500);
+}
+
+6) Hook the agent into inbound email and chat
+
+// server/services/inbound-email.ts (excerpt)
+import { planReply } from "./agents/ReplyPlanner";
+import { mailgunSend } from "./email/mailgun";
+
+export async function handleInboundEmail(req, res) {
+  // …verify signature, parse payload…
+  const { clientId, conversationId, leadId, text } = await mapMailgunPayload(req.body);
+
+  // 1) save incoming message
+  await storage.createConversationMessage({
+    conversationId,
+    content: text,
+    senderId: "lead",
+    isFromAI: 0,
+  });
+
+  // 2) plan reply
+  const { reply } = await planReply({ clientId, conversationId, leadId, incomingText: text });
+
+  // 3) optionally auto-reply (or keep behind a toggle)
+  if (shouldAutoReply(clientId)) {
+    await mailgunSend({ to: await lookupLeadEmail(leadId), subject: "Re:", html: reply });
+  }
+
+  // 4) push to WS + memory
+  broadcastToConversation(conversationId, { type: "ai_draft", draft: reply });
+  await supermemoryIngestMessage({ clientId, leadId, role: "lead", content: text });
+  await supermemoryIngestMessage({ clientId, leadId, role: "agent", content: reply });
+
+  res.status(200).json({ ok: true });
+}
+
+And for live chat (same idea):
+
+// server/websocket/handlers/onUserMessage.ts (excerpt)
+import { planReply } from "../../services/agents/ReplyPlanner";
+export async function onUserMessage({ clientId, conversationId, leadId, content }) {
+  // persist user msg…
+  const { reply } = await planReply({ clientId, conversationId, leadId, incomingText: content });
+  // send AI draft to UI
+  wsService.broadcastToConversation(conversationId, { type: "ai_draft", draft: reply });
+}
+
+7) Tiny admin endpoints
+
+// server/routes/agents.ts
+import { Router } from "express";
+import { db } from "../db";
+import { aiAgentConfig } from "../db/schema";
+import { getActiveAgent } from "../services/AgentResolver";
+
+export const agentsRouter = Router();
+
+agentsRouter.get("/active", async (req, res) => {
+  const agent = await getActiveAgent(req.clientId);
+  res.json(agent);
+});
+
+agentsRouter.put("/active", async (req, res) => {
+  const { id } = req.body; // or full config
+  await db.update(aiAgentConfig)
+    .set({ isActive: false })
+    .where(aiAgentConfig.clientId.eq(req.clientId));
+  await db.update(aiAgentConfig)
+    .set({ isActive: true })
+    .where(aiAgentConfig.id.eq(id).and(aiAgentConfig.clientId.eq(req.clientId)));
+  res.json({ ok: true });
+});
+
+8) Health checks
+
+// server/routes/health.ts (additions)
+router.get("/health/agent", async (req, res) => {
+  try {
+    const agent = await getActiveAgent(req.clientId);
+    res.json({ ok: true, model: agent.model });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: String(e) });
+  }
+});
+
+9) Minimal UI hint (optional)
+
+Expose the AI draft in your ConversationView via WebSocket event ai_draft, showing an “Insert” button. That keeps humans in control while still fast.
+
+⸻
+
+What this gives you
+	•	One active agent per tenant with cached resolution.
+	•	Deterministic reply planner using your LLM client and Supermemory recall.
+	•	Simple inbound wiring: email and chat both flow through the same planner.
+	•	Guardrails and fallbacks baked in; no over-engineering.
+	•	Admin endpoints to switch agents without redeploy.
+
+If you want, I can tailor the systemPrompt to your exact brand voice and add a one-file guardrail policy (do/don’t list) that the planner always prepends.
