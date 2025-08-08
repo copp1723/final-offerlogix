@@ -1,6 +1,8 @@
 import AIChatInterface from "@/components/ai-chat/AIChatInterface";
 import RecentCampaigns from "@/components/dashboard/RecentCampaigns";
 import QuickStats from "@/components/dashboard/QuickStats";
+import QuickActions from "@/components/dashboard/QuickActions";
+import SystemHealth from "@/components/dashboard/SystemHealth";
 import { useBranding } from "@/contexts/ClientContext";
 
 export default function Dashboard() {
@@ -18,13 +20,15 @@ export default function Dashboard() {
         <AIChatInterface />
       </div>
 
-      {/* Supporting Information */}
+      {/* Supporting Information - Improved Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 space-y-8">
           <RecentCampaigns />
+          <QuickActions />
         </div>
-        <div>
+        <div className="space-y-8">
           <QuickStats />
+          <SystemHealth />
         </div>
       </div>
     </div>
