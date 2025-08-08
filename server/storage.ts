@@ -113,20 +113,19 @@ export class DatabaseStorage implements IStorage {
     
     // Store campaign in Supermemory for AI recall
     try {
-      const { ingestMemory } = await import('./services/supermemory');
-      await ingestMemory('campaign', {
-        name: newCampaign.name,
-        context: newCampaign.context,
-        handoverGoals: newCampaign.handoverGoals,
-        targetAudience: newCampaign.targetAudience,
-        numberOfTemplates: newCampaign.numberOfTemplates,
-        daysBetweenMessages: newCampaign.daysBetweenMessages,
-        subjectLines: newCampaign.subjectLines,
-        status: newCampaign.status
-      }, {
-        clientId: newCampaign.clientId || undefined,
-        campaignId: newCampaign.id
-      });
+      const supermemoryModule = await import('./services/supermemory');
+      if (supermemoryModule.memoryMapper && typeof supermemoryModule.memoryMapper.addMemory === 'function') {
+        await supermemoryModule.memoryMapper.addMemory({
+          content: `Campaign: ${newCampaign.name}\nContext: ${newCampaign.context}\nGoals: ${newCampaign.handoverGoals}`,
+          tags: ['campaign', `campaign:${newCampaign.id}`],
+          metadata: {
+            type: 'campaign',
+            name: newCampaign.name,
+            status: newCampaign.status,
+            clientId: newCampaign.clientId || undefined
+          }
+        });
+      }
     } catch (error) {
       console.warn('Failed to store campaign in Supermemory:', error);
     }
@@ -255,13 +254,19 @@ export class DatabaseStorage implements IStorage {
     // Store human messages in Supermemory for AI recall
     if (!message.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
       try {
-        const conversation = await this.getConversation(message.conversationId);
-        const { ingestMemory } = await import('./services/supermemory');
-        await ingestMemory('lead_message', newMessage.content, {
-          clientId: conversation?.userId || undefined,
-          campaignId: conversation?.campaignId || undefined,
-          leadId: conversation?.leadId || undefined
-        });
+        const conversation = await this.getConversation(message.conversationId || '');
+        const supermemoryModule = await import('./services/supermemory');
+        if (supermemoryModule.memoryMapper && typeof supermemoryModule.memoryMapper.addMemory === 'function') {
+          await supermemoryModule.memoryMapper.addMemory({
+            content: newMessage.content,
+            tags: ['conversation', `conversation:${message.conversationId}`],
+            metadata: {
+              type: 'lead_message',
+              conversationId: message.conversationId,
+              senderId: message.senderId
+            }
+          });
+        }
       } catch (error) {
         console.warn('Failed to store lead message in Supermemory:', error);
       }
