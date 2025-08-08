@@ -81,3 +81,47 @@ export async function generateAutomotiveContent(
     throw new Error('Failed to generate automotive content');
   }
 }
+
+export async function generateContent(prompt: string): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error("OpenRouter API key not found");
+  }
+
+  try {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+        'X-Title': 'OneKeel Swarm',
+      },
+      body: JSON.stringify({
+        model: 'openai/gpt-4o',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an expert automotive campaign specialist helping create high-quality marketing campaigns and handover prompts.'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 2000,
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`OpenRouter API error: ${response.status}`);
+    }
+
+    const data: OpenRouterResponse = await response.json();
+    return data.choices[0].message.content.trim();
+  } catch (error) {
+    console.error('OpenRouter generateContent error:', error);
+    return "Unable to generate content at this time.";
+  }
+}

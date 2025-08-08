@@ -946,8 +946,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message, currentStep, campaignData } = req.body;
       
-      // AI chat logic for campaign creation
-      const response = await processCampaignChat(message, currentStep, campaignData);
+      const { CampaignChatService } = await import('./services/campaign-chat');
+      const response = await CampaignChatService.processCampaignChat(message, currentStep, campaignData);
+      
+      // If campaign is completed, create it in storage
+      if (response.completed && response.data) {
+        const campaignToCreate = insertCampaignSchema.parse({
+          name: response.data.name,
+          context: response.data.context,
+          handoverGoals: response.data.handoverGoals,
+          handoverPrompt: response.data.handoverPrompt,
+          templates: response.data.templates || [],
+          subjectLines: response.data.subjectLines || [],
+          status: 'draft'
+        });
+        
+        const createdCampaign = await storage.createCampaign(campaignToCreate);
+        response.data.id = createdCampaign.id;
+      }
       
       res.json(response);
     } catch (error) {
