@@ -98,8 +98,8 @@ app.use((req, res, next) => {
     
     // Initialize services after server starts
     try {
-      const { SystemInitializer } = await import('./services/system-initializer');
-      await SystemInitializer.initializeServices();
+      const { initializeSystem } = await import('./services/system-initializer');
+      await initializeSystem(server);
     } catch (error) {
       console.error('Failed to initialize services:', error);
     }
@@ -108,13 +108,9 @@ app.use((req, res, next) => {
   // Graceful shutdown
   const shutdown = async (signal: string) => {
     console.log(`\n🛑 Received ${signal}, shutting down gracefully...`);
-    try {
-      const { SystemInitializer } = await import('./services/system-initializer');
-      await SystemInitializer.shutdownServices();
-    } catch (error) {
-      console.error('Error during shutdown:', error);
-    }
-    process.exit(0);
+    server.close(() => {
+      process.exit(0);
+    });
   };
 
   process.on('SIGINT', () => shutdown('SIGINT'));
