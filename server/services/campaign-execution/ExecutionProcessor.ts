@@ -1,5 +1,5 @@
 import { storage } from '../../storage';
-import { mailgunService } from '../email/mailgun-service';
+// Removed mailgunService import - using dynamic import instead
 import type { Campaign, Lead } from '@shared/schema';
 
 export interface ProcessingOptions {
@@ -36,15 +36,23 @@ export class ExecutionProcessor {
     let emailsFailed = 0;
 
     try {
-      // Parse campaign templates
+      // Get campaign templates (they're already parsed objects, not JSON strings)
       let templates: any[] = [];
-      try {
-        templates = JSON.parse(campaign.templates as string || '[]');
-        if (!Array.isArray(templates) || templates.length === 0) {
-          throw new Error('Campaign has no email templates');
+      
+      if (Array.isArray(campaign.templates)) {
+        templates = campaign.templates;
+      } else if (typeof campaign.templates === 'string') {
+        try {
+          templates = JSON.parse(campaign.templates);
+        } catch (error) {
+          throw new Error('Invalid email templates JSON in campaign');
         }
-      } catch (error) {
-        throw new Error('Invalid email templates in campaign');
+      } else {
+        templates = [];
+      }
+      
+      if (!Array.isArray(templates) || templates.length === 0) {
+        throw new Error('Campaign has no email templates');
       }
 
       if (templateIndex >= templates.length) {
@@ -59,7 +67,7 @@ export class ExecutionProcessor {
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
         
-        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads)`);
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads) - Template: ${template.title || 'Untitled'}`);
         
         const batchResults = await Promise.allSettled(
           batch.map(lead => this.sendEmailToLead(campaign, lead, template, testMode))
@@ -157,7 +165,15 @@ export class ExecutionProcessor {
         from: `OneKeel Swarm <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
       };
 
-      const result = await mailgunService.sendEmail(emailData);
+      // Import the mailgun service dynamically
+      const { sendCampaignEmail } = await import('../mailgun');
+      const success = await sendCampaignEmail(
+        emailData.to,
+        emailData.subject,
+        emailData.html
+      );
+      
+      const result = { success, error: success ? null : 'Failed to send email' };
       
       if (!result.success) {
         return { success: false, error: result.error };

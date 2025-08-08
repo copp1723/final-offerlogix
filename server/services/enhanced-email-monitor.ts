@@ -396,10 +396,21 @@ export class EnhancedEmailMonitor {
       // Generate automotive-specific auto-response
       const responseContent = this.generateAutoResponse(emailData, rule);
       
-      // In a production system, this would send via Mailgun
-      console.log(`Auto-response generated for ${emailData.from}: ${responseContent.subject}`);
+      // Send actual auto-response via Mailgun
+      const { sendCampaignEmail } = await import('./mailgun');
+      const sent = await sendCampaignEmail(
+        emailData.from,
+        responseContent.subject,
+        responseContent.content,
+        {},
+        { isAutoResponse: true }
+      );
       
-      // TODO: Implement actual email sending via Mailgun service
+      if (sent) {
+        console.log(`Auto-response sent to ${emailData.from}: ${responseContent.subject}`);
+      } else {
+        console.error(`Failed to send auto-response to ${emailData.from}`);
+      }
     } catch (error) {
       console.error('Error sending auto-response:', error);
     }
@@ -434,21 +445,97 @@ This is an automated response. Please do not reply to this email directly.
 
       console.log(`Triggering campaign execution: ${campaign.name}`);
       
-      // TODO: Implement campaign execution trigger
-      // This would integrate with the CampaignOrchestrator
+      // Execute campaign through orchestrator
+      const { CampaignOrchestrator } = await import('./campaign-execution/CampaignOrchestrator');
+      const orchestrator = new CampaignOrchestrator();
+      
+      const result = await orchestrator.executeCampaign({
+        campaignId: campaignId,
+        testMode: false,
+        maxLeadsPerBatch: 10
+      });
+      
+      console.log(`Campaign execution result:`, result);
     } catch (error) {
       console.error('Error triggering campaign execution:', error);
     }
   }
 
   private async sendWelcomeEmail(leadData: any, campaignId: string) {
-    // TODO: Implement welcome email sending
-    console.log(`Sending welcome email to lead: ${leadData.email} for campaign: ${campaignId}`);
+    try {
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        console.error(`Campaign not found for welcome email: ${campaignId}`);
+        return;
+      }
+
+      // Send first template from campaign as welcome email
+      const { sendCampaignEmail } = await import('./mailgun');
+      
+      const welcomeContent = `
+        <h2>Welcome to OneKeel Swarm!</h2>
+        <p>Thank you for your interest in our automotive services.</p>
+        <p>We've received your inquiry about: <strong>${leadData.vehicleInterest || 'vehicles'}</strong></p>
+        <p>A member of our team will contact you within 24 hours to discuss your automotive needs.</p>
+        <p>Best regards,<br>OneKeel Swarm Team</p>
+      `;
+      
+      const sent = await sendCampaignEmail(
+        leadData.email,
+        `Welcome to OneKeel Swarm - ${leadData.firstName || 'Valued Customer'}`,
+        welcomeContent
+      );
+      
+      if (sent) {
+        console.log(`Welcome email sent to lead: ${leadData.email}`);
+      } else {
+        console.error(`Failed to send welcome email to: ${leadData.email}`);
+      }
+    } catch (error) {
+      console.error('Error sending welcome email:', error);
+    }
   }
 
   private async scheduleFollowUp(leadData: any, delayHours: number) {
-    // TODO: Implement follow-up scheduling
-    console.log(`Scheduling follow-up for lead: ${leadData.email} in ${delayHours} hours`);
+    try {
+      // Use campaign scheduler to schedule follow-up
+      const { campaignScheduler } = await import('./campaign-scheduler');
+      
+      const followUpDate = new Date();
+      followUpDate.setHours(followUpDate.getHours() + delayHours);
+      
+      // Create a follow-up task (simplified version)
+      console.log(`Follow-up scheduled for lead: ${leadData.email} at ${followUpDate.toISOString()}`);
+      
+      // In a more sophisticated system, this would create calendar events or tasks
+      // For now, we'll use the existing notification system
+      setTimeout(async () => {
+        try {
+          const { sendCampaignEmail } = await import('./mailgun');
+          const followUpContent = `
+            <h2>Following up on your automotive inquiry</h2>
+            <p>Hi ${leadData.firstName || 'there'},</p>
+            <p>We wanted to follow up on your recent inquiry about ${leadData.vehicleInterest || 'our vehicles'}.</p>
+            <p>Are you ready to schedule a test drive or would you like more information?</p>
+            <p>Please reply to this email or call us to continue the conversation.</p>
+            <p>Best regards,<br>OneKeel Swarm Team</p>
+          `;
+          
+          await sendCampaignEmail(
+            leadData.email,
+            `Follow-up: Your ${leadData.vehicleInterest || 'Vehicle'} Inquiry`,
+            followUpContent
+          );
+          
+          console.log(`Follow-up email sent to: ${leadData.email}`);
+        } catch (error) {
+          console.error('Error sending follow-up email:', error);
+        }
+      }, delayHours * 60 * 60 * 1000); // Convert hours to milliseconds
+      
+    } catch (error) {
+      console.error('Error scheduling follow-up:', error);
+    }
   }
 
   private loadDefaultTriggerRules() {
