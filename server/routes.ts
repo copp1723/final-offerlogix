@@ -951,8 +951,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message, currentStep, campaignData } = req.body;
       
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+      
       const { CampaignChatService } = await import('./services/campaign-chat');
-      const response = await CampaignChatService.processCampaignChat(message, currentStep, campaignData);
+      const response = await CampaignChatService.processCampaignChat(
+        message, 
+        currentStep || 'context', 
+        campaignData || {}
+      );
       
       // If campaign is completed, create it in storage
       if (response.completed && response.data) {
@@ -962,6 +970,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           handoverGoals: response.data.handoverGoals,
           targetAudience: response.data.targetAudience,
           handoverPrompt: response.data.handoverPrompt,
+          numberOfTemplates: response.data.numberOfTemplates || 5,
           templates: response.data.templates || [],
           subjectLines: response.data.subjectLines || [],
           status: 'draft'
@@ -971,7 +980,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         response.data.id = createdCampaign.id;
       }
       
-      res.json(response);
+      res.json({
+        message: response.message,
+        nextStep: response.nextStep,
+        campaignData: response.data,
+        isComplete: response.completed,
+        actions: response.actions,
+        suggestions: response.suggestions,
+        progress: response.progress
+      });
     } catch (error) {
       console.error('AI chat campaign error:', error);
       res.status(500).json({ message: "Failed to process chat message" });

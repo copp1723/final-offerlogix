@@ -136,10 +136,12 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   name: true,
   context: true,
   handoverGoals: true,
+  targetAudience: true,      // Added
+  handoverPrompt: true,      // Added  
   status: true,
   templates: true,
   subjectLines: true,
-  numberOfTemplates: true,
+  numberOfTemplates: true,   // Standardized on this field
   daysBetweenMessages: true,
   openRate: true,
   isTemplate: true,

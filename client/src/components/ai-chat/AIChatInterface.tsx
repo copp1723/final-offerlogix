@@ -36,8 +36,9 @@ export default function AIChatInterface() {
   
   const [currentMessage, setCurrentMessage] = useState("");
   const [campaignData, setCampaignData] = useState<Partial<CampaignData>>({});
-  const [currentStep, setCurrentStep] = useState("campaign_type");
+  const [currentStep, setCurrentStep] = useState("context");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -87,6 +88,16 @@ export default function AIChatInterface() {
         setCurrentStep(response.nextStep);
       }
       
+      // Update suggestions from server
+      if (response.suggestions) {
+        setSuggestions(response.suggestions);
+      }
+      
+      // Update progress from server if provided
+      if (response.progress) {
+        // Use server-provided progress for accuracy
+      }
+      
       if (response.isComplete) {
         // Campaign is ready to be created
         toast({
@@ -122,8 +133,22 @@ export default function AIChatInterface() {
     setCurrentMessage("");
   };
 
+  const handleSuggestionClick = (suggestion: string) => {
+    setCurrentMessage(suggestion);
+    // Auto-send the suggestion
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: suggestion,
+      isFromAI: false,
+      timestamp: new Date(),
+    };
+
+    setMessages(prev => [...prev, userMessage]);
+    chatMutation.mutate(suggestion);
+  };
+
   const getStepIndicator = () => {
-    const steps = ["campaign_type", "target_audience", "goals", "details", "complete"];
+    const steps = ["context", "goals", "target_audience", "name", "handover_criteria", "email_templates"];
     const currentIndex = steps.indexOf(currentStep);
     const progress = ((currentIndex + 1) / steps.length) * 100;
     
@@ -239,6 +264,25 @@ export default function AIChatInterface() {
             <div ref={messagesEndRef} />
           </div>
 
+          {/* Quick Suggestions */}
+          {suggestions.length > 0 && (
+            <div className="border-t px-4 py-3">
+              <div className="text-xs text-gray-500 mb-2">Quick responses:</div>
+              <div className="flex flex-wrap gap-2">
+                {suggestions.map((suggestion, index) => (
+                  <button
+                    key={index}
+                    onClick={() => handleSuggestionClick(suggestion)}
+                    className="px-3 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded-full border transition-colors"
+                    disabled={chatMutation.isPending}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Input */}
           <div className="border-t p-4">
             <form onSubmit={handleSendMessage} className="flex space-x-2">
@@ -281,10 +325,22 @@ export default function AIChatInterface() {
                   <p className="text-gray-900">{campaignData.context}</p>
                 </div>
               )}
-              {campaignData.numberOfTemplates && (
+              {(campaignData.numberOfTemplates || (campaignData as any).templateCount) && (
                 <div>
                   <span className="font-medium text-gray-600">Number of Templates:</span>
-                  <p className="text-gray-900">{campaignData.numberOfTemplates}</p>
+                  <p className="text-gray-900">{campaignData.numberOfTemplates || (campaignData as any).templateCount}</p>
+                </div>
+              )}
+              {(campaignData as any).targetAudience && (
+                <div>
+                  <span className="font-medium text-gray-600">Target Audience:</span>
+                  <p className="text-gray-900">{(campaignData as any).targetAudience}</p>
+                </div>
+              )}
+              {(campaignData as any).handoverGoals && (
+                <div>
+                  <span className="font-medium text-gray-600">Handover Goals:</span>
+                  <p className="text-gray-900">{(campaignData as any).handoverGoals}</p>
                 </div>
               )}
               {campaignData.daysBetweenMessages && (

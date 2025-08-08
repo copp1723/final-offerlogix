@@ -1,4 +1,4 @@
-import { generateContent } from './openrouter';
+import { LLMClient } from './llm-client';
 
 interface CampaignChatResponse {
   message: string;
@@ -6,6 +6,8 @@ interface CampaignChatResponse {
   data?: any;
   completed?: boolean;
   actions?: string[];
+  suggestions?: string[];
+  progress?: { stepIndex: number; total: number; percent: number };
 }
 
 interface CampaignStep {
@@ -50,9 +52,17 @@ export class CampaignChatService {
     {
       id: 'email_templates',
       question: "How many email templates would you like in your sequence? (1-30 templates)",
-      dataField: 'templateCount'
+      dataField: 'numberOfTemplates'
     }
   ];
+
+  // Quick reply suggestions by step
+  private static suggestionsByStep: Record<string, string[]> = {
+    context: ["New vehicle launch", "Service reminders", "Test drive follow-up"],
+    goals: ["Book test drives", "Book service", "Get trade-in leads"],
+    target_audience: ["New prospects", "Current owners", "Leads with SUV interest"],
+    email_templates: ["3", "5", "7"],
+  };
 
   /**
    * Process campaign creation chat conversation
@@ -69,7 +79,8 @@ export class CampaignChatService {
       if (!currentStepData) {
         return {
           message: "I'm not sure what step we're on. Let's start over. What type of automotive campaign would you like to create?",
-          nextStep: 'context'
+          nextStep: 'context',
+          suggestions: this.suggestionsByStep['context'] || []
         };
       }
 
@@ -91,7 +102,7 @@ export class CampaignChatService {
       // Special processing for template count
       if (currentStep === 'email_templates') {
         const count = parseInt(userMessage) || 5;
-        updatedData.templateCount = Math.min(Math.max(count, 1), 30);
+        updatedData.numberOfTemplates = Math.min(Math.max(count, 1), 30);
       }
 
       // Determine next step
@@ -102,11 +113,22 @@ export class CampaignChatService {
         // Generate final campaign data
         const finalCampaign = await this.generateFinalCampaign(updatedData);
         
+        // Calculate final progress
+        const progress = {
+          stepIndex: this.campaignSteps.length,
+          total: this.campaignSteps.length,
+          percent: 100
+        };
+
+        // Broadcast completion via WebSocket
+        this.broadcastProgress(null, this.campaignSteps.length, this.campaignSteps.length, 100);
+
         return {
-          message: `Excellent! I've created your "${finalCampaign.name}" campaign with smart handover rules and ${finalCampaign.templateCount} email templates. Your campaign is ready to launch!`,
+          message: `Excellent! I've created your "${finalCampaign.name}" campaign with smart handover rules and ${finalCampaign.numberOfTemplates || finalCampaign.templateCount || 5} email templates. Your campaign is ready to launch!`,
           completed: true,
           data: finalCampaign,
-          actions: ['create_campaign', 'generate_templates']
+          actions: ['create_campaign', 'generate_templates'],
+          progress
         };
       }
 
@@ -114,10 +136,23 @@ export class CampaignChatService {
       const responseMessage = currentStepData.followUp || 
         `Got it! ${nextStep.question}`;
 
+      // Calculate progress
+      const progress = {
+        stepIndex: nextStepIndex,
+        total: this.campaignSteps.length,
+        percent: Math.round((nextStepIndex / this.campaignSteps.length) * 100)
+      };
+
+      // Broadcast progress via WebSocket
+      this.broadcastProgress(null, nextStepIndex, this.campaignSteps.length, progress.percent);
+
       return {
         message: responseMessage,
         nextStep: nextStep.id,
-        data: updatedData
+        data: updatedData,
+        actions: ["continue"],
+        suggestions: this.suggestionsByStep[nextStep.id] || [],
+        progress
       };
 
     } catch (error) {
@@ -126,6 +161,40 @@ export class CampaignChatService {
         message: "I encountered an issue. Let me help you create your campaign. What type of automotive campaign are you looking for?",
         nextStep: 'context'
       };
+    }
+  }
+
+  /**
+   * Broadcast progress updates via WebSocket
+   */
+  private static broadcastProgress(campaignId: string | null, stepIndex: number, total: number, percent: number) {
+    try {
+      // Import WebSocket service dynamically to avoid circular imports
+      const broadcast = require('./websocket')?.broadcastMessage;
+      if (broadcast) {
+        broadcast('campaignChat:progress', { campaignId, stepIndex, total, percent });
+      }
+    } catch (error) {
+      console.warn('Failed to broadcast campaign progress:', error);
+    }
+  }
+
+  /**
+   * Helper to safely parse JSON with fallbacks
+   */
+  private static coerceJson<T>(content: string, fallback: T): T {
+    try {
+      const parsed = JSON.parse(content);
+      // Ensure arrays are actually arrays and strings aren't too long
+      if (Array.isArray(fallback) && !Array.isArray(parsed)) {
+        return fallback;
+      }
+      if (typeof fallback === 'string' && typeof parsed === 'string' && parsed.length > 1000) {
+        return (parsed.substring(0, 1000) + '...') as T;
+      }
+      return parsed;
+    } catch {
+      return fallback;
     }
   }
 
@@ -195,8 +264,8 @@ Return ONLY this JSON structure:
 
 CRITICAL: The handover prompt must be laser-focused on the specific campaign context and goals provided.`;
 
-      const result = await generateContent(conversionPrompt);
-      const parsed = JSON.parse(result);
+      const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt, { json: true });
+      const parsed = this.coerceJson(content, { handoverPrompt: this.getDefaultHandoverPrompt() });
       
       return parsed.handoverPrompt || this.getDefaultHandoverPrompt();
       
@@ -214,12 +283,13 @@ CRITICAL: The handover prompt must be laser-focused on the specific campaign con
       // Generate campaign name if not provided
       if (!data.name || data.name.length < 3) {
         const namePrompt = `Generate a catchy, professional name for an automotive campaign. Context: ${data.context}. Goals: ${data.handoverGoals}. Return only the campaign name, no quotes or extra text.`;
-        data.name = await generateContent(namePrompt);
+        const { content } = await LLMClient.generateAutomotiveContent(namePrompt);
+        data.name = content.trim().replace(/^"|"$/g, ''); // Remove quotes if present
       }
 
       // Generate email templates based on context and goals
       const templatePrompt = `
-Create ${data.templateCount || 5} automotive email templates for this campaign:
+Create ${data.numberOfTemplates || 5} automotive email templates for this campaign:
 Context: ${data.context}
 Goals: ${data.handoverGoals}
 Handover Criteria: ${data.handoverCriteria}
@@ -233,32 +303,28 @@ Each template should:
 
 Return JSON array of template objects with "subject" and "content" fields.`;
 
-      const templatesResult = await generateContent(templatePrompt);
-      let templates;
-      try {
-        const parsed = JSON.parse(templatesResult);
-        templates = parsed.templates || parsed || [];
-      } catch {
-        templates = [];
+      const { content: templatesResult } = await LLMClient.generateAutomotiveContent(templatePrompt, { json: true });
+      let templates = this.coerceJson(templatesResult, []);
+      if (Array.isArray(templates) && templates.length === 0) {
+        // Fallback templates
+        templates = [
+          { subject: `Welcome to ${data.name}`, content: `Hi [Name], welcome to our ${data.context} campaign!` }
+        ];
       }
 
       // Generate subject lines
-      const subjectPrompt = `Generate ${data.templateCount || 5} compelling email subject lines for automotive campaign: ${data.context}. Return as JSON array of strings.`;
-      const subjectsResult = await generateContent(subjectPrompt);
-      let subjects;
-      try {
-        subjects = JSON.parse(subjectsResult);
-      } catch {
-        subjects = [`${data.name} - Special Offer`, `${data.name} - Update`, `${data.name} - Reminder`];
-      }
+      const subjectPrompt = `Generate ${data.numberOfTemplates || 5} compelling email subject lines for automotive campaign: ${data.context}. Return as JSON array of strings.`;
+      const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt, { json: true });
+      let subjects = this.coerceJson(subjectsResult, [`${data.name} - Special Offer`, `${data.name} - Update`, `${data.name} - Reminder`]);
 
       return {
         name: data.name,
         context: data.context,
         handoverGoals: data.handoverGoals,
+        targetAudience: data.targetAudience,
         handoverPrompt: data.handoverPrompt,
         handoverCriteria: data.handoverCriteria,
-        templateCount: data.templateCount || 5,
+        numberOfTemplates: data.numberOfTemplates || 5,
         templates: templates,
         subjectLines: subjects,
         status: 'draft',
@@ -271,8 +337,9 @@ Return JSON array of template objects with "subject" and "content" fields.`;
         name: data.name || 'New Automotive Campaign',
         context: data.context || 'General automotive campaign',
         handoverGoals: data.handoverGoals || 'Generate leads and drive sales',
+        targetAudience: data.targetAudience || 'General automotive prospects',
         handoverPrompt: data.handoverPrompt || this.getDefaultHandoverPrompt(),
-        templateCount: data.templateCount || 5,
+        numberOfTemplates: data.numberOfTemplates || 5,
         templates: [],
         subjectLines: [],
         status: 'draft'
