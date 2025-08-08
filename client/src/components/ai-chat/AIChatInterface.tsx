@@ -21,6 +21,14 @@ interface CampaignData {
   handoverGoals: string;
   numberOfTemplates: number;
   daysBetweenMessages: number;
+  leadList?: {
+    total: number;
+    sample: any[];
+    columns: string[];
+    fileName?: string;
+  };
+  templates?: { subject: string; content: string }[];
+  subjectLines?: string[];
 }
 
 export default function AIChatInterface() {
@@ -148,7 +156,18 @@ export default function AIChatInterface() {
   };
 
   const getStepIndicator = () => {
-    const steps = ["context", "goals", "target_audience", "name", "handover_criteria", "email_templates"];
+    const steps = [
+      "context",
+      "goals",
+      "target_audience",
+      "name",
+      "handover_criteria",
+      "email_templates",
+      "lead_upload",
+      "email_cadence",
+      "content_generation",
+      "review_launch"
+    ];
     const currentIndex = steps.indexOf(currentStep);
     const progress = ((currentIndex + 1) / steps.length) * 100;
     
@@ -283,25 +302,155 @@ export default function AIChatInterface() {
             </div>
           )}
 
-          {/* Input */}
-          <div className="border-t p-4">
-            <form onSubmit={handleSendMessage} className="flex space-x-2">
-              <Input
-                value={currentMessage}
-                onChange={(e) => setCurrentMessage(e.target.value)}
-                placeholder="Type your message..."
-                className="flex-1"
-                disabled={chatMutation.isPending}
-              />
-              <Button 
-                type="submit" 
-                disabled={chatMutation.isPending || !currentMessage.trim()}
-                className="flex items-center"
-              >
-                <Send className="w-4 h-4" />
-              </Button>
-            </form>
-          </div>
+          {/* Step-specific UI augmentations */}
+          {currentStep === 'lead_upload' && (
+            <div className="border-t p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium mb-2">Upload Lead List (CSV)</p>
+                <input
+                  type="file"
+                  accept=".csv,text/csv"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    try {
+                      const text = await file.text();
+                      // Simple CSV parse (first 5 rows)
+                      const lines = text.split(/\r?\n/).filter(l => l.trim()).slice(0, 6);
+                      const [header, ...rows] = lines;
+                      const columns = header.split(',').map(h => h.trim());
+                      const sample = rows.map(r => {
+                        const vals = r.split(',');
+                        const obj: any = {};
+                        columns.forEach((c, i) => obj[c] = vals[i]);
+                        return obj;
+                      });
+                      const total = text.split(/\r?\n/).filter(l => l.trim()).length - 1;
+                      setCampaignData(prev => ({
+                        ...prev,
+                        leadList: { total: total < 0 ? 0 : total, sample, columns, fileName: file.name }
+                      }));
+                      setMessages(prev => ([...prev, {
+                        id: Date.now().toString(),
+                        content: `Lead list parsed: ${total} leads. Columns: ${columns.join(', ')}. Sample preview captured. Type 'Uploaded' to continue.`,
+                        isFromAI: true,
+                        timestamp: new Date()
+                      }]));
+                    } catch (err) {
+                      setMessages(prev => ([...prev, {
+                        id: Date.now().toString(),
+                        content: 'Failed to parse CSV. Please ensure it is a valid CSV file.',
+                        isFromAI: true,
+                        timestamp: new Date()
+                      }]));
+                    }
+                  }}
+                  className="block w-full text-sm"
+                />
+                {campaignData.leadList && (
+                  <div className="mt-3 bg-gray-50 border rounded p-2 text-xs">
+                    <div className="font-medium">Preview ({campaignData.leadList.sample.length} rows)</div>
+                    <pre className="overflow-auto max-h-32 whitespace-pre-wrap">{JSON.stringify(campaignData.leadList.sample, null, 2)}</pre>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 'email_cadence' && (
+            <div className="border-t p-4">
+              <div className="flex items-center space-x-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={30}
+                  placeholder="Days between emails (1-30)"
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  className="w-60"
+                />
+                <Button
+                  disabled={chatMutation.isPending || !currentMessage.trim()}
+                  onClick={handleSendMessage as any}
+                >Save Cadence</Button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 'content_generation' && (
+            <div className="border-t p-4 space-y-2">
+              <p className="text-sm text-gray-600">Ready to generate full email content now.</p>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => {
+                    setCurrentMessage('Yes');
+                    handleSendMessage({ preventDefault: () => {} } as any);
+                  }}
+                  disabled={chatMutation.isPending}
+                  className="flex items-center"
+                >
+                  <Sparkles className="w-4 h-4 mr-1"/> Generate Content
+                </Button>
+              </div>
+              {campaignData.templates && campaignData.templates.length > 0 && (
+                <div className="mt-3 max-h-60 overflow-auto border rounded p-2 text-xs bg-gray-50">
+                  <div className="font-medium mb-1">Generated Templates</div>
+                  {campaignData.templates.map((t, i) => (
+                    <div key={i} className="mb-3">
+                      <div className="font-semibold">{i+1}. {t.subject}</div>
+                      <div className="whitespace-pre-wrap text-gray-700 text-xs">{t.content.slice(0,400)}{t.content.length>400?'...':''}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {currentStep === 'review_launch' && (
+            <div className="border-t p-4 space-y-3 text-sm">
+              <div className="font-medium">Review & Launch</div>
+              <ul className="list-disc ml-5 space-y-1 text-gray-700">
+                <li>Name: {campaignData.name || '—'}</li>
+                <li>Context: {campaignData.context || '—'}</li>
+                <li>Goals: {campaignData.handoverGoals || '—'}</li>
+                <li>Audience: {(campaignData as any).targetAudience || '—'}</li>
+                <li>Templates: {campaignData.numberOfTemplates || (campaignData as any).templateCount}</li>
+                <li>Cadence (days): {campaignData.daysBetweenMessages || '—'}</li>
+                <li>Leads: {campaignData.leadList?.total || 0}</li>
+              </ul>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={() => {
+                    setCurrentMessage('Launch');
+                    handleSendMessage({ preventDefault: () => {} } as any);
+                  }}
+                  disabled={chatMutation.isPending}
+                >Launch Campaign</Button>
+              </div>
+            </div>
+          )}
+
+          {/* Default input (if not a special step) */}
+          {!['lead_upload','email_cadence','content_generation','review_launch'].includes(currentStep) && (
+            <div className="border-t p-4">
+              <form onSubmit={handleSendMessage} className="flex space-x-2">
+                <Input
+                  value={currentMessage}
+                  onChange={(e) => setCurrentMessage(e.target.value)}
+                  placeholder="Type your message..."
+                  className="flex-1"
+                  disabled={chatMutation.isPending}
+                />
+                <Button
+                  type="submit"
+                  disabled={chatMutation.isPending || !currentMessage.trim()}
+                  className="flex items-center"
+                >
+                  <Send className="w-4 h-4" />
+                </Button>
+              </form>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -347,6 +496,12 @@ export default function AIChatInterface() {
                 <div>
                   <span className="font-medium text-gray-600">Days Between Messages:</span>
                   <p className="text-gray-900">{campaignData.daysBetweenMessages}</p>
+                </div>
+              )}
+              {campaignData.leadList && (
+                <div>
+                  <span className="font-medium text-gray-600">Leads Uploaded:</span>
+                  <p className="text-gray-900">{campaignData.leadList.total} (sample shown above)</p>
                 </div>
               )}
             </div>
