@@ -271,87 +271,189 @@ export default function IntelligencePage() {
         </TabsContent>
 
         <TabsContent value="lead-scoring" className="space-y-6">
+          {/* Lead Scoring Analytics Header */}
+          <div className="text-center py-8">
+            <Target className="h-16 w-16 mx-auto mb-4 text-blue-500" />
+            <h2 className="text-2xl font-bold mb-2">Lead Scoring System Active</h2>
+            <p className="text-gray-600">Analyzing {dashboardData.leadScoring.totalLeads} leads with automotive-specific criteria</p>
+          </div>
+
+          {/* Lead Distribution */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-red-600">Hot Leads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{dashboardData.leadScoring.hotLeads}</div>
+                <p className="text-sm text-gray-600">Score: 80-100%</p>
+                <p className="text-xs text-gray-500 mt-2">Ready for immediate contact</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-orange-600">Warm Leads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{dashboardData.leadScoring.warmLeads}</div>
+                <p className="text-sm text-gray-600">Score: 50-79%</p>
+                <p className="text-xs text-gray-500 mt-2">Nurture with targeted campaigns</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-blue-600">Cold Leads</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-3xl font-bold">{dashboardData.leadScoring.coldLeads}</div>
+                <p className="text-sm text-gray-600">Score: 0-49%</p>
+                <p className="text-xs text-gray-500 mt-2">Long-term nurturing required</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <Card>
             <CardHeader>
-              <CardTitle>Top Scoring Leads</CardTitle>
+              <CardTitle>Lead Scoring Details</CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Lead ID</TableHead>
-                    <TableHead>Score</TableHead>
-                    <TableHead>Priority</TableHead>
-                    <TableHead>Key Factors</TableHead>
-                    <TableHead>Action</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dashboardData.leadScoring.topScores?.map((lead, index) => (
-                    <TableRow key={index}>
-                      <TableCell className="font-medium">{lead.leadId.slice(0, 8)}</TableCell>
-                      <TableCell>
-                        <div className="flex items-center space-x-2">
-                          <span className="font-bold">{lead.totalScore}%</span>
-                          <Progress value={lead.totalScore} className="w-16" />
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge className={getPriorityColor(lead.priority)}>{lead.priority}</Badge>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex flex-wrap gap-1">
-                          {lead.factors?.slice(0, 2).map((factor, i) => (
-                            <Badge key={i} variant="outline" className="text-xs">{factor}</Badge>
-                          ))}
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button size="sm" variant="outline">
-                          <ArrowUpRight className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              {dashboardData.leadScoring.topScores && dashboardData.leadScoring.topScores.length > 0 ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Lead ID</TableHead>
+                      <TableHead>Score</TableHead>
+                      <TableHead>Priority</TableHead>
+                      <TableHead>Key Factors</TableHead>
+                      <TableHead>Last Updated</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {dashboardData.leadScoring.topScores.map((lead, index) => (
+                      <TableRow key={index}>
+                        <TableCell className="font-medium">{lead.leadId.slice(0, 8)}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-bold">{lead.totalScore}%</span>
+                            <Progress value={lead.totalScore} className="w-16" />
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge className={getPriorityColor(lead.priority)}>{lead.priority}</Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex flex-wrap gap-1">
+                            {lead.factors?.slice(0, 2).map((factor, i) => (
+                              <Badge key={i} variant="outline" className="text-xs">{factor}</Badge>
+                            ))}
+                          </div>
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">Just now</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <Target className="h-12 w-12 mx-auto mb-2" />
+                  <p>No lead scoring data available</p>
+                  <p className="text-sm">Lead scores will appear as contacts are processed</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
 
         <TabsContent value="predictive" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Optimization Recommendations</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {Array.isArray(recommendations) && recommendations.map((rec: OptimizationRecommendation, index: number) => (
-                  <div key={index} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center space-x-2">
-                        <Badge variant="outline">{rec.type}</Badge>
-                        <span className="font-medium">{rec.confidence}% Confidence</span>
+          {/* Predictive Optimization Header */}
+          <div className="text-center py-8">
+            <TrendingUp className="h-16 w-16 mx-auto mb-4 text-green-500" />
+            <h2 className="text-2xl font-bold mb-2">Optimization Engine Active</h2>
+            <p className="text-gray-600">{dashboardData.predictiveOptimization.recommendationCount} recommendations generated</p>
+          </div>
+
+          {/* Optimization Insights */}
+          {dashboard?.predictiveOptimization?.insights && (
+            <>
+              {/* Optimal Send Times */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Optimal Send Times</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {dashboard.predictiveOptimization.insights.optimalSendTimes?.slice(0, 4).map((time: any, index: number) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-medium">
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][time.dayOfWeek]} at {time.hour}:00
+                          </div>
+                          <Badge className="bg-green-100 text-green-800">{time.confidence}% confidence</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600">Expected open rate: {time.expectedOpenRate}%</p>
+                        <Progress value={time.expectedOpenRate} className="mt-2" />
                       </div>
-                      <Badge className="bg-green-100 text-green-800">+{rec.expectedImprovement}% Expected</Badge>
-                    </div>
-                    <h4 className="font-medium mb-1">{rec.recommendation}</h4>
-                    <p className="text-sm text-gray-600 mb-2">{rec.reasoning}</p>
-                    <div className="bg-blue-50 p-3 rounded text-sm">
-                      <strong>Implementation:</strong> {rec.implementation}
-                    </div>
+                    ))}
                   </div>
-                ))}
-                {(!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) && (
-                  <div className="text-center py-8 text-gray-500">
-                    <TrendingUp className="h-12 w-12 mx-auto mb-2" />
-                    <p>Analyzing campaign data...</p>
-                    <p className="text-sm">Recommendations will appear as more data is collected</p>
+                </CardContent>
+              </Card>
+
+              {/* Recommended Sequence */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Recommended Email Sequence</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {dashboard.predictiveOptimization.insights.recommendedSequence?.map((step: any, index: number) => (
+                      <div key={index} className="flex items-center space-x-4 p-3 border rounded-lg">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600">
+                          {index + 1}
+                        </div>
+                        <div className="flex-1">
+                          <div className="font-medium">Day {step.dayOffset}: {step.templateType.replace('_', ' ').toUpperCase()}</div>
+                          <div className="text-sm text-gray-600">{step.reasoning}</div>
+                        </div>
+                        <Badge variant="outline">Day {step.dayOffset}</Badge>
+                      </div>
+                    ))}
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
+                </CardContent>
+              </Card>
+
+              {/* Targeting Recommendations */}
+              <Card>
+                <CardHeader>
+                  <CardTitle>Targeting Insights</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    {dashboard.predictiveOptimization.insights.targetingRecommendations?.map((target: any, index: number) => (
+                      <div key={index} className="border rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="font-medium">{target.segment.replace('_', ' ').toUpperCase()}</div>
+                          <Badge className="bg-blue-100 text-blue-800">{target.expectedConversion}% conversion</Badge>
+                        </div>
+                        <p className="text-sm text-gray-600 mb-2">Focus: {target.messagingFocus}</p>
+                        <div className="text-xs text-gray-500">
+                          Vehicle types: {target.vehicleTypes.join(', ')}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {/* Fallback for missing data */}
+          {(!dashboard?.predictiveOptimization?.insights) && (
+            <div className="text-center py-8 text-gray-500">
+              <TrendingUp className="h-12 w-12 mx-auto mb-2" />
+              <p>Analyzing campaign data...</p>
+              <p className="text-sm">Recommendations will appear as more data is collected</p>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="conversations" className="space-y-6">
