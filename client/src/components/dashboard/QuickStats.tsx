@@ -1,6 +1,7 @@
 import { Activity, Users, ArrowRightLeft, Target } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign } from "@shared/schema";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface Lead {
   id: string;
@@ -35,51 +36,52 @@ export default function QuickStats() {
   const totalLeads = leads?.length || 0;
 
   return (
-    <div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
-      <div className="space-y-4">
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Active Campaigns</p>
-              <p className="text-2xl font-bold text-gray-900">{activeCampaigns}</p>
-            </div>
-            <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-              <Activity className="w-6 h-6 text-blue-600" />
-            </div>
-          </div>
-        </div>
+    <>
+      {/* Active Campaigns Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <Activity className="h-4 w-4 mr-2 text-blue-600" />
+            Active Campaigns
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{activeCampaigns}</div>
+          <p className="text-xs text-muted-foreground">Running campaigns</p>
+        </CardContent>
+      </Card>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Engaged Leads</p>
-              <p className="text-2xl font-bold text-gray-900">{engagedLeads}</p>
-            </div>
-            <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Users className="w-6 h-6 text-green-600" />
-            </div>
-          </div>
-          <p className="text-sm text-green-600 mt-2">
+      {/* Engaged Leads Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <Users className="h-4 w-4 mr-2 text-green-600" />
+            Engaged Leads
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{engagedLeads}</div>
+          <p className="text-xs text-muted-foreground">
             {totalLeads > 0 ? `${Math.round((engagedLeads / totalLeads) * 100)}% of total leads` : 'No leads yet'}
           </p>
-        </div>
+        </CardContent>
+      </Card>
 
-        <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Handovers Completed</p>
-              <p className="text-2xl font-bold text-gray-900">{handoverCount}</p>
-            </div>
-            <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-              <ArrowRightLeft className="w-6 h-6 text-orange-600" />
-            </div>
-          </div>
-          <p className="text-sm text-orange-600 mt-2">
-            {conversations?.length ? `${Math.round((handoverCount / conversations.length) * 100)}% handover rate` : 'No conversations yet'}
+      {/* Handovers Card */}
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm font-medium flex items-center">
+            <ArrowRightLeft className="h-4 w-4 mr-2 text-orange-600" />
+            Handovers
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="text-2xl font-bold">{handoverCount}</div>
+          <p className="text-xs text-muted-foreground">
+            {conversations?.length ? `${Math.round((handoverCount / conversations.length) * 100)}% success rate` : 'No conversations yet'}
           </p>
-        </div>
-      </div>
-    </div>
+        </CardContent>
+      </Card>
+    </>
   );
 }
