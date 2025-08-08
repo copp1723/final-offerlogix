@@ -22,6 +22,15 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
   role: text("role").notNull().default("user"), // admin, manager, user
   email: text("email"),
+  notificationPreferences: jsonb("notification_preferences").default(sql`'{
+    "emailNotifications": true,
+    "campaignAlerts": true,
+    "leadAlerts": true,
+    "systemAlerts": true,
+    "monthlyReports": true,
+    "highEngagementAlerts": true,
+    "quotaWarnings": true
+  }'::jsonb`).notNull(),
   clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

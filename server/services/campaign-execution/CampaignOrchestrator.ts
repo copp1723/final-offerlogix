@@ -1,5 +1,6 @@
 import { storage } from '../../storage';
 import { webSocketService } from '../websocket';
+import { userNotificationService } from '../user-notification';
 
 export interface CampaignExecutionOptions {
   campaignId: string;
@@ -124,6 +125,29 @@ export class CampaignOrchestrator {
           } catch (convError) {
             console.error(`Failed to create conversation for lead ${lead.id}:`, convError);
           }
+        }
+      }
+
+      // Send user notification (for non-test executions)
+      if (!testMode && processingResult.emailsSent > 0) {
+        try {
+          // Get the first template for the notification
+          const templates = campaign.templates as any[] || [];
+          const firstTemplate = templates[0];
+          
+          await userNotificationService.notifyCampaignExecuted(
+            "075f86dc-d36e-4ef2-ab61-2919f9468515", // Default user ID - in real app, get from context
+            {
+              campaignName: campaign.name,
+              campaignId: campaignId,
+              emailsSent: processingResult.emailsSent,
+              leadsTargeted: targetLeads.length,
+              templateTitle: firstTemplate?.title || 'Email Template',
+              executedAt: new Date()
+            }
+          );
+        } catch (notificationError) {
+          console.error('Failed to send campaign notification:', notificationError);
         }
       }
 

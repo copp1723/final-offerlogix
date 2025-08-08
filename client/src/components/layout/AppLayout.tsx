@@ -38,6 +38,7 @@ const navigation: NavItem[] = [
     href: "/settings",
     icon: Settings,
     children: [
+      { name: "Notifications", href: "/notifications", icon: Bell },
       { name: "User Management", href: "/users", icon: Users },
       { name: "White Label", href: "/white-label", icon: Car },
     ],

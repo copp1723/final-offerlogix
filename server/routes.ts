@@ -15,6 +15,7 @@ import { webSocketService } from "./services/websocket";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { CSVValidationService } from "./services/csv/csv-validation";
+import notificationRoutes from "./routes/notifications";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1210,6 +1211,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ message: "Failed to cancel execution" });
     }
   });
+
+  // User notification system routes
+  app.use('/api/notifications', notificationRoutes);
 
   const httpServer = createServer(app);
   
