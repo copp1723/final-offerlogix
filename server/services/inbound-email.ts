@@ -98,9 +98,9 @@ export class InboundEmailService {
       // Send SMS reply if AI generated a response
       if (aiResponse) {
         const smsService = await import('./twilio');
-        await smsService.sendSMS(From, aiResponse, {
-          conversationId: conversation.id,
-          leadId: lead.id
+        await smsService.sendSMS({
+          to: From,
+          message: aiResponse
         });
       }
 
