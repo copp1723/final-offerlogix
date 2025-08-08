@@ -39,10 +39,11 @@ IMAP_PASSWORD=your_app_password
 ```
 
 ### Step 4: Deploy
-1. Render automatically creates PostgreSQL database and web service
-2. Build process runs automatically 
-3. Database migrations run during startup
-4. App deploys to: `https://your-app-name.onrender.com`
+1. **IMPORTANT**: The project uses `vite.config.render.ts` to avoid Replit dependencies
+2. Render automatically creates PostgreSQL database and web service
+3. Build process runs with production-safe configuration
+4. Database migrations run during startup
+5. App deploys to: `https://your-app-name.onrender.com`
 
 ### Step 5: Verify Deployment
 Visit: `https://your-app-name.onrender.com/api/health/system`

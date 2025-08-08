@@ -71,10 +71,13 @@ The included `render.yaml` will automatically create a PostgreSQL database.
 
 ### Option A: Blueprint Deployment (Fastest)
 1. Fork this repository to your GitHub
-2. In Render Dashboard, click **"New"** → **"Blueprint"**
-3. Connect your GitHub repository
-4. Render will detect `render.yaml` and create all services automatically
-5. Configure environment variables in the dashboard
+2. **IMPORTANT**: Remove Replit-specific dependencies before deployment:
+   - The project includes `vite.config.render.ts` for production builds
+   - Use `npm run build:render` command instead of `npm run build`
+3. In Render Dashboard, click **"New"** → **"Blueprint"**
+4. Connect your GitHub repository
+5. Render will detect `render.yaml` and create all services automatically
+6. Configure environment variables in the dashboard
 
 ### Option B: Manual Deployment
 1. In Render Dashboard, click **"New"** → **"Web Service"**

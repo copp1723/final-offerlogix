@@ -8,9 +8,9 @@ echo "🚀 Starting OneKeel Swarm build process..."
 echo "📦 Installing dependencies..."
 npm ci --only=production
 
-# Build the application
+# Build the application for Render (without Replit dependencies)
 echo "🔨 Building application..."
-npm run build
+vite build --config vite.config.render.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
 # Run database migrations
 echo "🗄️ Running database migrations..."

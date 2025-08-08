@@ -3,7 +3,7 @@ services:
     name: onekeel-swarm
     env: node
     plan: starter
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci && npm run build:render
     startCommand: npm start
     region: oregon
     envVars:
