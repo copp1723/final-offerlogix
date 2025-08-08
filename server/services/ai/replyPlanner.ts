@@ -71,9 +71,13 @@ Compose a helpful, natural reply (≤ 120 words) with exactly one clear CTA.
 If price asked: offer ballpark, invite to share budget, and suggest test drive.
 `;
 
-    const llmClient = new LLMClient();
-    const response = await llmClient.generateResponse(userPrompt, { model: 'gpt-4o-mini' });
-    return response.trim();
+    const response = await LLMClient.generate({
+      model: 'openai/gpt-4o-mini',
+      system: systemPrompt,
+      user: userPrompt,
+      maxTokens: 350
+    });
+    return response.content.trim();
 
   } catch (error) {
     console.error('Reply planner failed:', error);
@@ -87,8 +91,13 @@ Vehicle interest: ${input.lead.vehicleInterest || 'unknown'}
 Respond helpfully and professionally. Keep to 2-3 sentences with one clear next step.
 `;
 
-    const llmClient = new LLMClient();
-    return await llmClient.generateResponse(fallbackPrompt, { model: 'gpt-4o-mini' });
+    const response = await LLMClient.generate({
+      model: 'openai/gpt-4o-mini',
+      system: 'You are a helpful automotive sales assistant.',
+      user: fallbackPrompt,
+      maxTokens: 200
+    });
+    return response.content;
   }
 }
 
@@ -133,10 +142,15 @@ Focus: ${input.vehicle || 'vehicle selection'}.
 Each ≤ 7 words. No punctuation unless needed.
 Return JSON: {"replies": ["...","...","..."]}`;
 
-    const llmClient = new LLMClient();
-    const response = await llmClient.generateResponse(prompt, { model: 'gpt-4o-mini' });
+    const response = await LLMClient.generate({
+      model: 'openai/gpt-4o-mini',
+      system: 'Return valid JSON only.',
+      user: prompt,
+      json: true,
+      maxTokens: 200
+    });
 
-    const parsed = JSON.parse(response);
+    const parsed = JSON.parse(response.content);
     return parsed.replies as string[];
 
   } catch (error) {

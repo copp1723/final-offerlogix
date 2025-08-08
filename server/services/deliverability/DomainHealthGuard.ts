@@ -7,7 +7,6 @@ export class DomainHealthGuard {
   static async assertAuthReady(): Promise<void> {
     const requiredEnvVars = [
       'MAILGUN_DOMAIN',
-      'MAILGUN_FROM',
       'MAILGUN_API_KEY'
     ];
 
@@ -19,14 +18,9 @@ export class DomainHealthGuard {
 
     // Validate domain format
     const domain = process.env.MAILGUN_DOMAIN!;
-    const fromEmail = process.env.MAILGUN_FROM!;
     
     if (!domain.includes('.')) {
       throw new Error('Invalid MAILGUN_DOMAIN format');
-    }
-
-    if (!fromEmail.includes('@') || !fromEmail.includes('.')) {
-      throw new Error('Invalid MAILGUN_FROM email format');
     }
 
     console.log('✅ Domain authentication validated');

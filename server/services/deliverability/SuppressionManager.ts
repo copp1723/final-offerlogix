@@ -3,8 +3,8 @@
  * Auto-quarantine problematic addresses and integrate with Supermemory
  */
 
-import { db } from '../../storage';
-import { eq, and } from 'drizzle-orm';
+
+
 import { MemoryMapper } from '../../integrations/supermemory';
 import { storage } from '../../storage';
 
