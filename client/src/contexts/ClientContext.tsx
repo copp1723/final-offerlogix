@@ -20,7 +20,7 @@ interface BrandingConfig {
 const DEFAULT_BRANDING: BrandingConfig = {
   primaryColor: '#2563eb',
   secondaryColor: '#1e40af', 
-  logoUrl: '',
+  logoUrl: '/onekeel-logo.svg',
   companyName: 'OneKeel Swarm',
   favicon: '',
   customCss: ''

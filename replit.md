@@ -1,8 +1,8 @@
-# AutoCampaigns AI - Automotive Email Campaign Platform
+# OneKeel Swarm - Automotive Email Campaign Platform
 
 ## Overview
 
-AutoCampaigns AI is a specialized email campaign management platform designed specifically for the automotive industry. The application leverages artificial intelligence to streamline the creation of automotive-focused email campaigns, including vehicle showcases, service reminders, and test drive follow-ups. The platform features an AI Campaign Agent that generates tailored email templates and campaign goals based on minimal user input, making it easy for automotive dealerships and manufacturers to create effective marketing campaigns.
+OneKeel Swarm is a specialized email campaign management platform designed specifically for the automotive industry. The application leverages artificial intelligence to streamline the creation of automotive-focused email campaigns, including vehicle showcases, service reminders, and test drive follow-ups. The platform features an AI Campaign Agent that generates tailored email templates and campaign goals based on minimal user input, making it easy for automotive dealerships and manufacturers to create effective marketing campaigns.
 
 ## User Preferences
 
@@ -39,6 +39,14 @@ Design preferences: Clean, professional design with minimal colors - no purple/p
 - Built intelligent handover service for automotive-specific conversation analysis
 - Enhanced email validation with template placeholder detection, spam prevention, and bulk send limits
 - Integrated real-time email validation API endpoints and monitoring dashboard
+
+### OneKeel Swarm Branding & Email Infrastructure (August 2025)
+- Updated platform branding from AutoCampaigns AI to OneKeel Swarm across all interfaces
+- Implemented OneKeel logo integration with SVG-based branding system
+- Configured dual email infrastructure: Gmail IMAP for monitoring incoming emails, Mailgun for sending campaigns
+- Enhanced Mailgun integration to send emails as "OneKeel Swarm" sender identity
+- Added Gmail credentials (rylieai1234@gmail.com) for automated lead processing from incoming automotive inquiries
+- Maintained production Mailgun domain (mg.watchdogai.us) for all outbound campaign communications
 
 ### Automotive AI System Integration (August 2025)
 - Created dual AI prompt systems: campaign creation agent and customer response agents

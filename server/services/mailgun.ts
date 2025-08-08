@@ -28,8 +28,8 @@ export async function sendCampaignEmail(
     }
 
     const fromEmail = options.isAutoResponse 
-      ? `AutoResponse <noreply@${process.env.MAILGUN_DOMAIN}>`
-      : `AutoCampaigns AI <campaigns@${process.env.MAILGUN_DOMAIN}>`;
+      ? `OneKeel Swarm <noreply@${process.env.MAILGUN_DOMAIN}>`
+      : `OneKeel Swarm <campaigns@${process.env.MAILGUN_DOMAIN}>`;
 
     const response = await fetch(
       `https://api.mailgun.net/v3/${process.env.MAILGUN_DOMAIN}/messages`,
