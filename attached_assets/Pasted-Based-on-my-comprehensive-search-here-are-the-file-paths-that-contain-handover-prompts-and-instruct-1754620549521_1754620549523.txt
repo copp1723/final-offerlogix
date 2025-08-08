@@ -1,0 +1,68 @@
+Based on my comprehensive search, here are the file paths that contain handover prompts and instructions:
+
+📁 FILES WITH HANDOVER PROMPTS/INSTRUCTIONS
+1. Core Handover Service
+ server/services/handover-service.ts - Main handover logic and criteria evaluation
+ server/services/handover-email-service.ts - Email notifications for handovers
+ server/services/lead-dossier-service.ts - Lead analysis for handover decisions
+2. Agent Configuration Files
+ client/src/components/email-agent/AgentConfigurator.tsx (lines 68-82) - Handover rules configuration:
+handoverRules: {
+  buyingSignals: [
+    'ready to purchase',
+    'what is the price', 
+    'can we schedule a demo',
+    'I want to buy',
+    'how much does it cost'
+  ],
+  escalationPhrases: [
+    'speak to a human',
+
+ client/src/components/email-agent/HandoverConfig.tsx - Dedicated handover configuration component
+3. Campaign Wizard Handover Settings
+ client/src/components/campaign-wizard/CampaignWizard.tsx (lines 98-120) - Campaign-level handover rules
+ client/src/components/campaign-wizard/hooks/useCampaignWizard.ts (lines 18-41) - Default handover configuration
+4. Agent Module Configurations
+ client/src/components/shared/agent-modules/ChatAgentModule.tsx (lines 40-51) - Chat agent handover triggers:
+5. Agent Communication Hub
+ server/agents/communication-hub.ts (lines 184-206) - Agent-to-agent handover logic
+6. Test Files with Handover Examples
+ debug/test-handover-simple.js (lines 26-40) - Mock handover rules for testing
+7. Database Schema & Migrations
+ server/db/schema.ts - Handover criteria stored in campaign settings
+ migrations/seed_demo_user.sql - Default agent configurations
+8. Documentation
+ docs/MVP_TECHNICAL_SUMMARY.md (lines 238-245) - Handover criteria configuration examples
+🔍 KEY HANDOVER PROMPT LOCATIONS
+Buying Signals (Found in multiple files):
+buyingSignals: [
+  'ready to purchase',
+  'what is the price',
+  'can we schedule a demo', 
+  'I want to buy',
+  'how much does it cost',
+  'interested',
+  'pricing',
+  'cost',
+  'purchase'
+
+Escalation Phrases (Found in multiple files):
+Handover Criteria Configuration:
+handoverCriteria: {
+  qualificationScore: 80,
+  conversationLength: 10,
+  timeThreshold: 30,
+  keywordTriggers: [],
+  goalCompletionRequired: ['qualified'],
+  handoverRecipients: []
+}
+🎯 SUMMARY
+The handover system is fully implemented with prompts and instructions distributed across:
+
+8 main configuration files for UI components
+3 core service files for backend logic
+Multiple agent modules with specific handover triggers
+Database schema for persistent storage
+Test files with working examples
+The handover prompts are not centralized in a single file but are distributed across the component architecture where they're used, which is actually a good architectural pattern for maintainability.
+

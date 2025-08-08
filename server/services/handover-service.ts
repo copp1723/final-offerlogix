@@ -73,73 +73,59 @@ export class HandoverService {
     // Analyze conversation and apply handover criteria
     const analysis = await this.analyzeConversation(conversation, newMessage);
     
-    const triggeredCriteria: string[] = [];
-    let totalScore = 0;
+    let shouldHandover = false;
+    let reason = '';
+    let triggeredCriteria: string[] = [];
     let urgencyLevel: 'low' | 'medium' | 'high' = 'low';
-
-    // Check qualification threshold
-    if (analysis.qualificationScore >= criteria.qualificationThreshold) {
-      triggeredCriteria.push('qualification_score');
-      totalScore += 30;
-    }
-
-    // Check intent score
-    if (analysis.intentScore >= criteria.intentScore) {
-      triggeredCriteria.push('intent_score');
-      totalScore += 25;
-    }
-
-    // Check engagement threshold
-    if (analysis.engagementLevel >= criteria.engagementThreshold) {
-      triggeredCriteria.push('engagement_level');
-      totalScore += 20;
-    }
-
-    // Check message count
-    if (analysis.messageCount >= criteria.messageCount) {
-      triggeredCriteria.push('message_count');
-      totalScore += 15;
-    }
-
-    // Check time spent
-    if (analysis.timeSpent >= criteria.timeSpentMinutes) {
-      triggeredCriteria.push('time_spent');
-      totalScore += 10;
-    }
-
-    // Check for automotive keywords
-    const hasAutomotiveContext = analysis.automotiveContext.length > 0;
-    if (hasAutomotiveContext) {
-      totalScore += 20;
-      triggeredCriteria.push('automotive_context');
-    }
-
-    // Check urgency
-    if (analysis.urgencyIndicators.length > 0) {
-      urgencyLevel = 'high';
-      totalScore += 40;
-      triggeredCriteria.push('urgency_detected');
-    } else if (totalScore >= 60) {
-      urgencyLevel = 'medium';
-    }
-
-    const shouldHandover = totalScore >= 60 || urgencyLevel === 'high';
     
-    const evaluation: HandoverEvaluation = {
+    // Check qualification score threshold
+    if (analysis.qualificationScore >= criteria.qualificationThreshold) {
+      shouldHandover = true;
+      reason += `High qualification score (${analysis.qualificationScore}/${criteria.qualificationThreshold}). `;
+      triggeredCriteria.push('qualification_score');
+    }
+    
+    // Check message count threshold
+    if (analysis.messageCount >= criteria.messageCount) {
+      shouldHandover = true;
+      reason += `Sufficient conversation depth (${analysis.messageCount} messages). `;
+      triggeredCriteria.push('message_count');
+    }
+    
+    // Check automotive keywords
+    const hasAutomotiveKeywords = analysis.automotiveContext.some(keyword =>
+      criteria.automotiveKeywords.includes(keyword)
+    );
+    if (hasAutomotiveKeywords) {
+      shouldHandover = true;
+      reason += `Automotive intent detected: ${analysis.automotiveContext.join(', ')}. `;
+      triggeredCriteria.push('automotive_keywords');
+    }
+    
+    // Check urgent keywords for priority escalation
+    const hasUrgentKeywords = analysis.urgencyIndicators.some(keyword =>
+      criteria.urgentKeywords.includes(keyword)
+    );
+    if (hasUrgentKeywords) {
+      shouldHandover = true;
+      urgencyLevel = 'high';
+      reason += `Urgent keywords detected: ${analysis.urgencyIndicators.join(', ')}. `;
+      triggeredCriteria.push('urgent_keywords');
+    }
+    
+    return {
       shouldHandover,
-      reason: shouldHandover 
-        ? `Handover criteria met: ${triggeredCriteria.join(', ')}`
-        : 'Handover criteria not met',
-      score: totalScore,
+      reason: reason.trim(),
+      score: analysis.qualificationScore,
       triggeredCriteria,
-      nextActions: shouldHandover 
-        ? this.generateNextActions(analysis, criteria)
-        : ['Continue AI conversation'],
+      nextActions: shouldHandover ? [
+        'Create handover notification',
+        'Assign to appropriate agent',
+        'Send summary to sales team'
+      ] : ['Continue automated conversation'],
       recommendedAgent: this.selectRecommendedAgent(analysis, criteria),
       urgencyLevel
     };
-
-    return evaluation;
   }
 
   /**
@@ -287,7 +273,7 @@ export class HandoverService {
   }
 
   private static detectAutomotiveContext(content: string): string[] {
-    const contexts = [];
+    const contexts: string[] = [];
     
     this.defaultCriteria.automotiveKeywords.forEach(keyword => {
       if (content.includes(keyword.toLowerCase())) {
@@ -299,7 +285,7 @@ export class HandoverService {
   }
 
   private static detectUrgencyIndicators(content: string): string[] {
-    const indicators = [];
+    const indicators: string[] = [];
     
     this.defaultCriteria.urgentKeywords.forEach(keyword => {
       if (content.includes(keyword.toLowerCase())) {
