@@ -36,6 +36,7 @@ const navigation: NavItem[] = [
       { name: "Conversations", href: "/conversations", icon: MessageSquare },
       { name: "Email Monitor", href: "/email-monitor", icon: Mail },
       { name: "AI Agent Settings", href: "/ai-settings", icon: Zap },
+      { name: "Scoring Config", href: "/scoring-config", icon: Target },
     ],
   },
   {

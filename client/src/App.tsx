@@ -16,6 +16,7 @@ import AutomotivePromptsPage from "@/pages/automotive-prompts";
 import EmailMonitorPage from "@/pages/email-monitor";
 import NotificationsPage from "@/pages/notifications";
 import IntelligencePage from "@/pages/intelligence-backup";
+import ScoringConfigPage from "@/pages/scoring-config";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -31,6 +32,7 @@ function Router() {
         <Route path="/automotive-prompts" component={AutomotivePromptsPage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
         <Route path="/intelligence" component={IntelligencePage} />
+        <Route path="/scoring-config" component={ScoringConfigPage} />
         <Route path="/notifications" component={NotificationsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/white-label" component={WhiteLabelPage} />
