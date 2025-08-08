@@ -28,7 +28,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserRole(id: string, role: string): Promise<User>;
-  
+
   // Campaign methods
   getCampaigns(): Promise<Campaign[]>;
   getCampaign(id: string): Promise<Campaign | undefined>;
@@ -36,17 +36,17 @@ export interface IStorage {
   updateCampaign(id: string, campaign: Partial<InsertCampaign>): Promise<Campaign>;
   deleteCampaign(id: string): Promise<void>;
   cloneCampaign(id: string, newName?: string): Promise<Campaign>;
-  
+
   // Conversation methods
   getConversations(userId?: string): Promise<Conversation[]>;
   getConversation(id: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation>;
-  
+
   // Conversation message methods
-  getConversationMessages(conversationId: string): Promise<ConversationMessage[]>;
+  getConversationMessages(conversationId: string, limit?: number): Promise<ConversationMessage[]>;
   createConversationMessage(message: InsertConversationMessage): Promise<ConversationMessage>;
-  
+
   // Lead methods
   getLeads(campaignId?: string): Promise<Lead[]>;
   getLead(id: string): Promise<Lead | undefined>;
@@ -54,7 +54,9 @@ export interface IStorage {
   createLeads(leads: InsertLead[]): Promise<Lead[]>;
   updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead>;
   deleteLead(id: string): Promise<void>;
-  
+  getLeadsByCampaign(campaignId: string): Promise<Lead[]>;
+  getLeadByPhone(phone: string): Promise<Lead | null>;
+
   // AI Agent Configuration methods
   getAiAgentConfigs(): Promise<AiAgentConfig[]>;
   getActiveAiAgentConfig(): Promise<AiAgentConfig | undefined>;
@@ -110,7 +112,7 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .returning();
-    
+
     // Store campaign in Supermemory for AI recall
     try {
       const supermemoryModule = await import('./services/supermemory');
@@ -129,7 +131,7 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.warn('Failed to store campaign in Supermemory:', error);
     }
-    
+
     return newCampaign;
   }
 
@@ -185,11 +187,11 @@ export class DatabaseStorage implements IStorage {
   // Conversation methods
   async getConversations(userId?: string): Promise<Conversation[]> {
     let query = db.select().from(conversations).orderBy(desc(conversations.updatedAt));
-    
+
     if (userId) {
       return await query.where(eq(conversations.userId, userId));
     }
-    
+
     return await query;
   }
 
@@ -229,17 +231,18 @@ export class DatabaseStorage implements IStorage {
   async updateConversationStatus(id: string, status: string): Promise<Conversation | null> {
     const conversation = await this.getConversation(id);
     if (!conversation) return null;
-    
+
     return this.updateConversation(id, { status });
   }
 
   // Conversation message methods
-  async getConversationMessages(conversationId: string): Promise<ConversationMessage[]> {
-    return await db
+  async getConversationMessages(conversationId: string, limit?: number): Promise<ConversationMessage[]> {
+    const query = db
       .select()
       .from(conversationMessages)
       .where(eq(conversationMessages.conversationId, conversationId))
       .orderBy(desc(conversationMessages.createdAt));
+    return limit ? (await query).slice(0, limit) : await query;
   }
 
   async createConversationMessage(message: InsertConversationMessage): Promise<ConversationMessage> {
@@ -250,7 +253,7 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
-    
+
     // Store human messages in Supermemory for AI recall
     if (!message.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
       try {
@@ -271,7 +274,7 @@ export class DatabaseStorage implements IStorage {
         console.warn('Failed to store lead message in Supermemory:', error);
       }
     }
-    
+
     return newMessage;
   }
 
@@ -320,8 +323,22 @@ export class DatabaseStorage implements IStorage {
     return lead || null;
   }
 
+  async getLeadsByCampaign(campaignId: string): Promise<Lead[]> {
+    return await db.select().from(leads).where(eq(leads.campaignId, campaignId)).orderBy(desc(leads.createdAt));
+  }
+
+  async getLeadByPhone(phone: string): Promise<Lead | null> {
+    const [lead] = await db.select().from(leads).where(eq(leads.phone, phone));
+    return lead || null;
+  }
+
+
   async getConversationsByLead(leadId: string): Promise<Conversation[]> {
-    return await db.select().from(conversations).where(eq(conversations.userId, leadId)).orderBy(desc(conversations.createdAt));
+    return await db
+      .select()
+      .from(conversations)
+      .where(eq(conversations.leadId, leadId))
+      .orderBy(desc(conversations.createdAt));
   }
 
   // AI Agent Configuration methods
@@ -367,7 +384,7 @@ export class DatabaseStorage implements IStorage {
   async setActiveAiAgentConfig(id: string): Promise<AiAgentConfig> {
     // First, deactivate all configs
     await db.update(aiAgentConfig).set({ isActive: false });
-    
+
     // Then activate the selected config
     const [activeConfig] = await db
       .update(aiAgentConfig)
