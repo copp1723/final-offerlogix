@@ -174,7 +174,7 @@ router.get('/ai', async (_req, res) => {
  */
 router.get('/database', async (_req, res) => {
   try {
-    const { db } = await import('../../db/client');
+    const { db } = await import('../db');
     const { sql } = await import('drizzle-orm');
     
     // Simple database connectivity test
