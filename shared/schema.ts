@@ -159,6 +159,7 @@ export const insertAiAgentConfigSchema = createInsertSchema(aiAgentConfig).omit(
 
 export const insertConversationSchema = createInsertSchema(conversations).pick({
   campaignId: true,
+  leadId: true,
   userId: true,
   subject: true,
   status: true,

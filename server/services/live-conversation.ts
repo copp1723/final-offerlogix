@@ -14,10 +14,10 @@ interface ConversationMessage {
   id: string;
   conversationId: string;
   senderId: string;
-  senderType: 'lead' | 'agent' | 'ai';
+  messageType: 'text' | 'email';
   content: string;
   timestamp: Date;
-  metadata?: any;
+  isFromAI?: 0 | 1;
 }
 
 export class LiveConversationService {
@@ -101,9 +101,9 @@ export class LiveConversationService {
     const messageRecord = await storage.createConversationMessage({
       conversationId,
       senderId: leadId,
-      senderType: 'lead' as const,
+      messageType: 'text',
       content: message.content,
-      metadata: message.metadata
+      isFromAI: 0
     });
 
     // Broadcast to other connected agents/admins
@@ -171,13 +171,9 @@ export class LiveConversationService {
           const aiMessage = await storage.createConversationMessage({
             conversationId,
             senderId: 'ai-agent',
-            senderType: 'ai' as const,
+            messageType: 'text',
             content: aiResponse,
-            metadata: {
-              systemPrompt: systemPrompt,
-              context: context,
-              enhancers: AutomotivePromptService.applyConversationEnhancers(context, currentSeason, brand)
-            }
+            isFromAI: 1
           });
 
           // Send AI response to lead
@@ -286,15 +282,16 @@ export class LiveConversationService {
   }
 
   // Public method to send message programmatically
-  async sendMessageToLead(leadId: string, conversationId: string, message: string, senderType: 'agent' | 'ai' = 'agent') {
+  async sendMessageToLead(leadId: string, conversationId: string, message: string, messageType: 'text' | 'email' = 'text', isFromAI: 0 | 1 = 0) {
     const connectionId = `${leadId}-${conversationId}`;
     const connection = this.connections.get(connectionId);
 
     // Save to database
     const messageRecord = await storage.createConversationMessage({
       conversationId,
-      senderId: senderType === 'agent' ? 'human-agent' : 'ai-agent',
-      senderType,
+      senderId: isFromAI === 0 ? 'human-agent' : 'ai-agent',
+      messageType,
+      isFromAI,
       content: message
     });
 
