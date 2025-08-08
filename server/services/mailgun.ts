@@ -45,6 +45,10 @@ export async function sendCampaignEmail(
           subject: subject,
           html: content,
           text: content.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+          // RFC 8058 compliant headers for deliverability
+          'h:List-Unsubscribe': `<mailto:unsubscribe@${process.env.MAILGUN_DOMAIN}?subject=unsubscribe>, <https://${process.env.MAILGUN_DOMAIN}/u/${encodeURIComponent(to)}>`,
+          'h:List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+          'h:Precedence': 'bulk'
         }),
       }
     );

@@ -18,6 +18,8 @@ import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { CSVValidationService } from "./services/csv/csv-validation";
 import notificationRoutes from "./routes/notifications";
+import deliverabilityRoutes from "./routes/deliverability";
+import aiConversationRoutes from "./routes/ai-conversation";
 import { leadScoringService } from "./services/lead-scoring";
 import { predictiveOptimizationService } from "./services/predictive-optimization";
 import { dynamicResponseIntelligenceService } from "./services/dynamic-response-intelligence";
@@ -1281,6 +1283,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User notification system routes
   app.use('/api/notifications', notificationRoutes);
+  app.use('/api/deliverability', deliverabilityRoutes);
+  app.use('/api/ai', aiConversationRoutes);
 
   // SMS Integration Routes
   app.post("/api/sms/opt-in", async (req, res) => {

@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { storage } from '../storage';
 import { liveConversationService } from './live-conversation';
 import { InboundEmailService } from './inbound-email';
+import { SuppressionManager } from './deliverability/SuppressionManager';
 
 export class WebhookHandler {
   /**
@@ -46,6 +47,9 @@ export class WebhookHandler {
       if (!event.event || !event['message-id']) {
         return res.status(400).json({ error: 'Invalid webhook payload' });
       }
+
+      // Process suppression events first
+      await SuppressionManager.processWebhookEvent(event);
 
       // Process different event types
       switch (event.event) {
