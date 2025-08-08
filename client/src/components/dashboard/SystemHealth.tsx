@@ -95,23 +95,6 @@ export default function SystemHealth() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
-          {systemStatuses.map((item) => (
-            <div key={item.service} className="flex items-center justify-between p-3 border border-gray-100 rounded-lg">
-              <div className="flex items-center space-x-3">
-                {getServiceIcon(item.service)}
-                <div>
-                  <div className="font-medium text-sm">{item.service}</div>
-                  <div className="text-xs text-gray-500">{item.details}</div>
-                </div>
-              </div>
-              <div className="flex items-center space-x-2">
-                {getStatusIcon(item.status)}
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(item.status)}`}>
-                  {getStatusText(item.status)}
-                </span>
-              </div>
-            </div>
-          ))}
         </div>
       </CardContent>
     </Card>
