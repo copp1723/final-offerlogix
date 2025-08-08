@@ -93,6 +93,23 @@ const defaultProfiles: ScoringProfile[] = [
       timing_patterns: 2
     },
     thresholds: { hot: 65, warm: 35 }
+  },
+  {
+    id: 'subprime-automotive',
+    name: 'Sub-Prime Automotive',
+    type: 'dealership',
+    description: 'Optimized scoring for sub-prime automotive customers with focus on engagement and urgency',
+    weights: {
+      response_speed: 30,
+      message_quality: 10,
+      vehicle_specificity: 15,
+      urgency_indicators: 25,
+      financial_readiness: 5,
+      engagement_frequency: 10,
+      contact_completeness: 3,
+      timing_patterns: 2
+    },
+    thresholds: { hot: 60, warm: 30 }
   }
 ];
 

@@ -21,7 +21,7 @@ const DEFAULT_BRANDING: BrandingConfig = {
   primaryColor: '#2563eb',
   secondaryColor: '#1e40af', 
   logoUrl: '',
-  companyName: 'AutoCampaigns AI',
+  companyName: 'OneKeel Swarm',
   favicon: '',
   customCss: ''
 };

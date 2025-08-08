@@ -108,6 +108,79 @@ export class LeadScoringService {
     updatedAt: new Date()
   };
 
+  private subPrimeAutomotiveProfile: ScoringProfile = {
+    id: 'subprime-automotive',
+    name: 'Sub-Prime Automotive',
+    description: 'Optimized scoring for sub-prime automotive customers with focus on engagement and urgency',
+    industry: 'automotive-subprime',
+    criteria: [
+      {
+        id: 'response_speed',
+        name: 'Response Speed',
+        description: 'How quickly lead responds to initial contact',
+        weight: 10,
+        category: 'engagement'
+      },
+      {
+        id: 'urgency_indicators',
+        name: 'Urgency Language',
+        description: 'Use of urgent language like "need soon", "this week", "ASAP"',
+        weight: 9,
+        category: 'content'
+      },
+      {
+        id: 'engagement_frequency',
+        name: 'Engagement Frequency',
+        description: 'Number of interactions and follow-ups initiated by lead',
+        weight: 8,
+        category: 'engagement'
+      },
+      {
+        id: 'vehicle_specificity',
+        name: 'Vehicle Interest Specificity',
+        description: 'How specific the lead is about vehicle models/features',
+        weight: 6,
+        category: 'content'
+      },
+      {
+        id: 'contact_completeness',
+        name: 'Contact Information',
+        description: 'Completeness of contact details provided',
+        weight: 5,
+        category: 'profile'
+      },
+      {
+        id: 'message_quality',
+        name: 'Message Quality',
+        description: 'Specificity and detail in lead communications',
+        weight: 4,
+        category: 'content'
+      },
+      {
+        id: 'financial_readiness',
+        name: 'Financial Indicators',
+        description: 'Mentions of financing, budget, trade-in, cash purchase',
+        weight: 3,
+        category: 'behavior'
+      },
+      {
+        id: 'timing_patterns',
+        name: 'Response Timing',
+        description: 'Responds during business hours vs off-hours',
+        weight: 2,
+        category: 'timing'
+      }
+    ],
+    thresholds: {
+      hot: 60,
+      warm: 30,
+      cold: 0
+    },
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date()
+  };
+
   async calculateLeadScore(leadId: string, profileId?: string): Promise<LeadScore> {
     const lead = await storage.getLead(leadId);
     if (!lead) {
@@ -343,8 +416,14 @@ export class LeadScoringService {
   }
 
   private async getScoringProfile(profileId: string): Promise<ScoringProfile> {
-    // For now return default, but this would query a profiles table
-    return this.defaultAutomotiveProfile;
+    // For now return based on profileId, but this would query a profiles table
+    switch (profileId) {
+      case 'subprime-automotive':
+        return this.subPrimeAutomotiveProfile;
+      case 'automotive-default':
+      default:
+        return this.defaultAutomotiveProfile;
+    }
   }
 
   async createScoringProfile(profile: Omit<ScoringProfile, 'id' | 'createdAt' | 'updatedAt'>): Promise<ScoringProfile> {
