@@ -9,12 +9,21 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Lightbulb, Sparkles, Mail, Type } from "lucide-react";
+import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays } from "lucide-react";
+import { SMSIntegration } from "@/components/SMSIntegration";
+import { CampaignScheduler } from "@/components/CampaignScheduler";
 import { z } from "zod";
 
 const formSchema = insertCampaignSchema.extend({
   name: z.string().min(1, "Campaign name is required"),
   context: z.string().min(10, "Please provide more detailed context"),
+}).omit({ 
+  createdAt: true, 
+  updatedAt: true, 
+  id: true,
+  openRate: true,
+  templates: true,
+  subjectLines: true
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -33,6 +42,8 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   const [generatedTemplates, setGeneratedTemplates] = useState<string[]>([]);
   const [numberOfTemplates, setNumberOfTemplates] = useState(5);
   const [daysBetweenMessages, setDaysBetweenMessages] = useState(3);
+  const [communicationType, setCommunicationType] = useState<'email' | 'email_sms' | 'sms'>('email');
+  const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -45,15 +56,19 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       status: "draft",
       numberOfTemplates: 5,
       daysBetweenMessages: 3,
+      communicationType: "email",
+      scheduleType: "immediate",
+      isTemplate: false,
     },
   });
 
   const createCampaign = useMutation({
-    mutationFn: (data: FormData) => apiRequest('POST', '/api/campaigns', data),
-    onSuccess: () => {
+    mutationFn: (data: FormData) => apiRequest('/api/campaigns', 'POST', data),
+    onSuccess: (response: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
       toast({ title: "Campaign created successfully!" });
-      onClose();
+      setCreatedCampaignId(response.id);
+      onStepChange(2); // Move to next step for scheduling
     },
     onError: () => {
       toast({ title: "Failed to create campaign", variant: "destructive" });
@@ -62,7 +77,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const generateGoals = useMutation({
     mutationFn: (context: string) => 
-      apiRequest('POST', '/api/ai/suggest-goals', { context }),
+      apiRequest('/api/ai/suggest-goals', 'POST', { context }),
     onSuccess: (response: any) => {
       const goals = response.json?.goals || [];
       setAiSuggestions(goals);
@@ -75,10 +90,10 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const enhanceTemplates = useMutation({
     mutationFn: ({ context, name }: { context: string; name: string }) =>
-      apiRequest('POST', '/api/ai/enhance-templates', { context, name }),
+      apiRequest('/api/ai/enhance-templates', 'POST', { context, name }),
     onSuccess: () => {
       toast({ title: "Templates enhanced with AI!" });
-      onStepChange(2);
+      onStepChange(3);
     },
     onError: () => {
       toast({ title: "Failed to enhance templates", variant: "destructive" });

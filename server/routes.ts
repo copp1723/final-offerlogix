@@ -7,6 +7,8 @@ import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 import { mailgunService } from "./services/email/mailgun-service";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
+import { campaignScheduler } from "./services/campaign-scheduler";
+import { smsIntegration } from "./services/sms-integration";
 import { tenantMiddleware, type TenantRequest } from "./tenant";
 import { db } from "./db";
 import { clients } from "@shared/schema";
@@ -1214,6 +1216,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // User notification system routes
   app.use('/api/notifications', notificationRoutes);
+
+  // SMS Integration Routes
+  app.post("/api/sms/opt-in", async (req, res) => {
+    try {
+      const { leadId, campaignId, optInMessage } = req.body;
+      const success = await smsIntegration.sendOptInRequest(leadId, campaignId, optInMessage);
+      res.json({ success });
+    } catch (error) {
+      console.error('SMS opt-in error:', error);
+      res.status(500).json({ message: "Failed to send SMS opt-in" });
+    }
+  });
+
+  app.post("/api/sms/opt-in-response", async (req, res) => {
+    try {
+      const { phoneNumber, response } = req.body;
+      const optedIn = await smsIntegration.processOptInResponse(phoneNumber, response);
+      res.json({ optedIn });
+    } catch (error) {
+      console.error('SMS opt-in response error:', error);
+      res.status(500).json({ message: "Failed to process SMS opt-in response" });
+    }
+  });
+
+  app.get("/api/leads/:id/sms-status", async (req, res) => {
+    try {
+      const status = await smsIntegration.getSMSStatus(req.params.id);
+      res.json(status);
+    } catch (error) {
+      console.error('SMS status error:', error);
+      res.status(500).json({ message: "Failed to get SMS status" });
+    }
+  });
+
+  // Campaign Scheduling Routes
+  app.post("/api/campaigns/:id/schedule", async (req, res) => {
+    try {
+      const { scheduleType, scheduledStart, recurringPattern, recurringDays, recurringTime } = req.body;
+      
+      const scheduleConfig = {
+        scheduleType,
+        scheduledStart: scheduledStart ? new Date(scheduledStart) : undefined,
+        recurringPattern,
+        recurringDays,
+        recurringTime
+      };
+
+      const nextExecution = await campaignScheduler.scheduleCampaign(req.params.id, scheduleConfig);
+      res.json({ success: true, nextExecution });
+    } catch (error) {
+      console.error('Campaign scheduling error:', error);
+      res.status(500).json({ message: "Failed to schedule campaign" });
+    }
+  });
+
+  app.get("/api/campaigns/:id/schedule", async (req, res) => {
+    try {
+      const schedule = await campaignScheduler.getCampaignSchedule(req.params.id);
+      res.json(schedule);
+    } catch (error) {
+      console.error('Get campaign schedule error:', error);
+      res.status(500).json({ message: "Failed to get campaign schedule" });
+    }
+  });
+
+  app.delete("/api/campaigns/:id/schedule", async (req, res) => {
+    try {
+      await campaignScheduler.cancelScheduledCampaign(req.params.id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Cancel campaign schedule error:', error);
+      res.status(500).json({ message: "Failed to cancel campaign schedule" });
+    }
+  });
+
+  app.post("/api/campaigns/:id/execute", async (req, res) => {
+    try {
+      const result = await campaignScheduler.executeCampaign(req.params.id);
+      res.json(result);
+    } catch (error) {
+      console.error('Execute campaign error:', error);
+      res.status(500).json({ message: "Failed to execute campaign" });
+    }
+  });
 
   const httpServer = createServer(app);
   

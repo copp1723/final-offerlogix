@@ -21,6 +21,12 @@ export class SystemInitializer {
       // Campaign orchestrator is ready for use
       console.log('✅ Campaign orchestrator initialized');
 
+      // Start campaign scheduler
+      console.log('📅 Starting campaign scheduler...');
+      const { campaignScheduler } = await import('./campaign-scheduler');
+      campaignScheduler.startScheduler();
+      console.log('✅ Campaign scheduler started');
+
     } catch (error) {
       console.warn('⚠️ Service initialization warning:', error instanceof Error ? error.message : 'Unknown error');
     }
@@ -36,6 +42,14 @@ export class SystemInitializer {
       console.log('✅ Enhanced email monitoring service stopped');
     } catch (error) {
       console.error('❌ Error stopping enhanced email monitoring:', error);
+    }
+
+    try {
+      const { campaignScheduler } = await import('./campaign-scheduler');
+      campaignScheduler.stopScheduler();
+      console.log('✅ Campaign scheduler stopped');
+    } catch (error) {
+      console.error('❌ Error stopping campaign scheduler:', error);
     }
 
     console.log('👋 AutoCampaigns AI services shutdown complete');
