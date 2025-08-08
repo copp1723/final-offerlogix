@@ -49,7 +49,7 @@ export async function generateAutomotiveContent(
         'X-Title': 'OneKeel Swarm',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o',
+        model: 'openai/gpt-4o-mini',
         messages: [
           {
             role: 'system',
@@ -98,7 +98,7 @@ export async function generateContent(prompt: string): Promise<string> {
         'X-Title': 'OneKeel Swarm',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-4o',
+        model: 'openai/gpt-4o-mini',
         messages: [
           {
             role: 'system',
