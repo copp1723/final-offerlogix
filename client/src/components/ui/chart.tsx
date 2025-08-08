@@ -16,7 +16,7 @@ export type ChartConfig = {
     | { color?: string; theme?: never }
     | { color?: never; theme: Record<keyof typeof THEMES, string> }
   )
-}
+} | Record<string, never> // allow empty object
 
 type ChartContextProps = {
   config: ChartConfig
@@ -37,17 +37,19 @@ function useChart() {
 const ChartContainer = React.forwardRef<
   HTMLDivElement,
   React.ComponentProps<"div"> & {
-    config: ChartConfig
+    config?: ChartConfig // made optional
     children: React.ComponentProps<
       typeof RechartsPrimitive.ResponsiveContainer
     >["children"]
   }
->(({ id, className, children, config, ...props }, ref) => {
+>(({ id, className, children, config = {}, ...props }, ref) => {
+  // if consumer forgot to pass config we default to empty object to avoid Object.entries crash
+  const safeConfig: ChartConfig = config || {};
   const uniqueId = React.useId()
   const chartId = `chart-${id || uniqueId.replace(/:/g, "")}`
 
   return (
-    <ChartContext.Provider value={{ config }}>
+    <ChartContext.Provider value={{ config: safeConfig }}>
       <div
         data-chart={chartId}
         ref={ref}
@@ -57,7 +59,7 @@ const ChartContainer = React.forwardRef<
         )}
         {...props}
       >
-        <ChartStyle id={chartId} config={config} />
+        <ChartStyle id={chartId} config={safeConfig} />
         <RechartsPrimitive.ResponsiveContainer>
           {children}
         </RechartsPrimitive.ResponsiveContainer>
@@ -68,8 +70,9 @@ const ChartContainer = React.forwardRef<
 ChartContainer.displayName = "Chart"
 
 const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
-  const colorConfig = Object.entries(config).filter(
-    ([, config]) => config.theme || config.color
+  const safeConfig: ChartConfig = config || {};
+  const colorConfig = Object.entries(safeConfig).filter(
+    ([, item]) => (item as any)?.theme || (item as any)?.color
   )
 
   if (!colorConfig.length) {
@@ -81,18 +84,12 @@ const ChartStyle = ({ id, config }: { id: string; config: ChartConfig }) => {
       dangerouslySetInnerHTML={{
         __html: Object.entries(THEMES)
           .map(
-            ([theme, prefix]) => `
-${prefix} [data-chart=${id}] {
-${colorConfig
+            ([theme, prefix]) => `\n${prefix} [data-chart=${id}] {\n${colorConfig
   .map(([key, itemConfig]) => {
-    const color =
-      itemConfig.theme?.[theme as keyof typeof itemConfig.theme] ||
-      itemConfig.color
-    return color ? `  --color-${key}: ${color};` : null
+    const c = (itemConfig as any)?.theme?.[theme as any] || (itemConfig as any)?.color
+    return c ? `  --color-${key}: ${c};` : null
   })
-  .join("\n")}
-}
-`
+  .join("\n")}\n}`
           )
           .join("\n"),
       }}
