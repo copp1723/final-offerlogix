@@ -15,6 +15,7 @@ import NotFound from "@/pages/not-found";
 import AutomotivePromptsPage from "@/pages/automotive-prompts";
 import EmailMonitorPage from "@/pages/email-monitor";
 import NotificationsPage from "@/pages/notifications";
+import IntelligencePage from "@/pages/intelligence";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
 
@@ -29,6 +30,7 @@ function Router() {
         <Route path="/ai-settings" component={AiSettingsPage} />
         <Route path="/automotive-prompts" component={AutomotivePromptsPage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
+        <Route path="/intelligence" component={IntelligencePage} />
         <Route path="/notifications" component={NotificationsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/white-label" component={WhiteLabelPage} />

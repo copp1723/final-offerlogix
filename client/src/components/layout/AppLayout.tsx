@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Car, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail } from "lucide-react";
+import { Car, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,11 @@ const navigation: NavItem[] = [
     name: "Dashboard",
     href: "/",
     icon: BarChart3,
+  },
+  {
+    name: "Intelligence",
+    href: "/intelligence",
+    icon: Brain,
   },
   {
     name: "Campaigns",

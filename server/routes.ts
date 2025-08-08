@@ -18,6 +18,9 @@ import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { CSVValidationService } from "./services/csv/csv-validation";
 import notificationRoutes from "./routes/notifications";
+import { leadScoringService } from "./services/lead-scoring";
+import { predictiveOptimizationService } from "./services/predictive-optimization";
+import { dynamicResponseIntelligenceService } from "./services/dynamic-response-intelligence";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1298,6 +1301,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error('Execute campaign error:', error);
       res.status(500).json({ message: "Failed to execute campaign" });
+    }
+  });
+
+  // Intelligence System API Routes
+  
+  // Lead Scoring Routes
+  app.get("/api/intelligence/lead-scoring/:leadId", async (req: TenantRequest, res) => {
+    try {
+      const { leadId } = req.params;
+      const { profileId } = req.query;
+      
+      const score = await leadScoringService.calculateLeadScore(leadId, profileId as string);
+      res.json(score);
+    } catch (error) {
+      console.error('Lead scoring error:', error);
+      res.status(500).json({ message: "Failed to calculate lead score" });
+    }
+  });
+
+  app.post("/api/intelligence/lead-scoring/bulk", async (req: TenantRequest, res) => {
+    try {
+      const { profileId } = req.body;
+      
+      const scores = await leadScoringService.bulkScoreLeads(profileId);
+      res.json(scores);
+    } catch (error) {
+      console.error('Bulk lead scoring error:', error);
+      res.status(500).json({ message: "Failed to calculate bulk lead scores" });
+    }
+  });
+
+  app.post("/api/intelligence/scoring-profiles", async (req: TenantRequest, res) => {
+    try {
+      const profileData = req.body;
+      
+      const profile = await leadScoringService.createScoringProfile(profileData);
+      res.json(profile);
+    } catch (error) {
+      console.error('Create scoring profile error:', error);
+      res.status(500).json({ message: "Failed to create scoring profile" });
+    }
+  });
+
+  // Predictive Optimization Routes
+  app.get("/api/intelligence/predictive/insights", async (req: TenantRequest, res) => {
+    try {
+      const insights = await predictiveOptimizationService.getPredictiveInsights();
+      res.json(insights);
+    } catch (error) {
+      console.error('Predictive insights error:', error);
+      res.status(500).json({ message: "Failed to get predictive insights" });
+    }
+  });
+
+  app.get("/api/intelligence/predictive/recommendations", async (req: TenantRequest, res) => {
+    try {
+      const { campaignId } = req.query;
+      
+      const recommendations = await predictiveOptimizationService.generateOptimizationRecommendations(campaignId as string);
+      res.json(recommendations);
+    } catch (error) {
+      console.error('Predictive recommendations error:', error);
+      res.status(500).json({ message: "Failed to generate optimization recommendations" });
+    }
+  });
+
+  app.get("/api/intelligence/predictive/performance", async (req: TenantRequest, res) => {
+    try {
+      const performanceData = await predictiveOptimizationService.analyzeHistoricalPerformance();
+      res.json(performanceData);
+    } catch (error) {
+      console.error('Performance analysis error:', error);
+      res.status(500).json({ message: "Failed to analyze performance data" });
+    }
+  });
+
+  // Dynamic Response Intelligence Routes
+  app.get("/api/intelligence/conversation/:conversationId/analysis", async (req: TenantRequest, res) => {
+    try {
+      const { conversationId } = req.params;
+      
+      const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
+      res.json(analysis);
+    } catch (error) {
+      console.error('Conversation analysis error:', error);
+      res.status(500).json({ message: "Failed to analyze conversation" });
+    }
+  });
+
+  app.get("/api/intelligence/conversation/active-analysis", async (req: TenantRequest, res) => {
+    try {
+      const analyses = await dynamicResponseIntelligenceService.analyzeAllActiveConversations();
+      res.json(analyses);
+    } catch (error) {
+      console.error('Active conversations analysis error:', error);
+      res.status(500).json({ message: "Failed to analyze active conversations" });
+    }
+  });
+
+  app.get("/api/intelligence/conversation/escalation-candidates", async (req: TenantRequest, res) => {
+    try {
+      const candidates = await dynamicResponseIntelligenceService.getEscalationCandidates();
+      res.json(candidates);
+    } catch (error) {
+      console.error('Escalation candidates error:', error);
+      res.status(500).json({ message: "Failed to get escalation candidates" });
+    }
+  });
+
+  app.post("/api/intelligence/conversation/learn", async (req: TenantRequest, res) => {
+    try {
+      await dynamicResponseIntelligenceService.learnFromSuccessfulConversations();
+      res.json({ success: true, message: "Learning completed successfully" });
+    } catch (error) {
+      console.error('Conversation learning error:', error);
+      res.status(500).json({ message: "Failed to learn from conversations" });
+    }
+  });
+
+  // Combined Intelligence Dashboard Route
+  app.get("/api/intelligence/dashboard", async (req: TenantRequest, res) => {
+    try {
+      const [
+        leadScores,
+        predictiveInsights,
+        conversationAnalyses,
+        escalationCandidates
+      ] = await Promise.all([
+        leadScoringService.bulkScoreLeads(),
+        predictiveOptimizationService.getPredictiveInsights(),
+        dynamicResponseIntelligenceService.analyzeAllActiveConversations(),
+        dynamicResponseIntelligenceService.getEscalationCandidates()
+      ]);
+
+      const dashboard = {
+        leadScoring: {
+          totalLeads: leadScores.length,
+          hotLeads: leadScores.filter(s => s.priority === 'hot').length,
+          warmLeads: leadScores.filter(s => s.priority === 'warm').length,
+          coldLeads: leadScores.filter(s => s.priority === 'cold').length,
+          averageScore: leadScores.reduce((acc, s) => acc + s.totalScore, 0) / leadScores.length || 0,
+          topScores: leadScores.slice(0, 10)
+        },
+        predictiveOptimization: {
+          insights: predictiveInsights,
+          recommendationCount: (await predictiveOptimizationService.generateOptimizationRecommendations()).length
+        },
+        conversationIntelligence: {
+          totalConversations: conversationAnalyses.length,
+          escalationCount: escalationCandidates.length,
+          highUrgency: conversationAnalyses.filter(a => a.urgency === 'high' || a.urgency === 'critical').length,
+          readyToBuy: conversationAnalyses.filter(a => a.intent === 'ready_to_buy').length,
+          averageConfidence: conversationAnalyses.reduce((acc, a) => acc + a.confidence, 0) / conversationAnalyses.length || 0
+        }
+      };
+
+      res.json(dashboard);
+    } catch (error) {
+      console.error('Intelligence dashboard error:', error);
+      res.status(500).json({ message: "Failed to generate intelligence dashboard" });
     }
   });
 

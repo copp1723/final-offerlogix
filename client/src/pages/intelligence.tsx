@@ -1,0 +1,428 @@
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { 
+  Brain, 
+  TrendingUp, 
+  MessageSquare, 
+  Target, 
+  Zap, 
+  AlertCircle, 
+  CheckCircle, 
+  Clock,
+  Users,
+  Activity,
+  ArrowUpRight,
+  Settings
+} from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+
+interface IntelligenceDashboard {
+  leadScoring: {
+    totalLeads: number;
+    hotLeads: number;
+    warmLeads: number;
+    coldLeads: number;
+    averageScore: number;
+    topScores: Array<{
+      leadId: string;
+      totalScore: number;
+      priority: 'hot' | 'warm' | 'cold';
+      factors: string[];
+    }>;
+  };
+  predictiveOptimization: {
+    insights: any;
+    recommendationCount: number;
+  };
+  conversationIntelligence: {
+    totalConversations: number;
+    escalationCount: number;
+    highUrgency: number;
+    readyToBuy: number;
+    averageConfidence: number;
+  };
+}
+
+interface OptimizationRecommendation {
+  type: 'timing' | 'sequence' | 'targeting' | 'content';
+  confidence: number;
+  recommendation: string;
+  reasoning: string;
+  expectedImprovement: number;
+  implementation: string;
+}
+
+interface ConversationAnalysis {
+  conversationId: string;
+  leadId: string;
+  mood: 'positive' | 'neutral' | 'negative' | 'frustrated' | 'excited';
+  urgency: 'low' | 'medium' | 'high' | 'critical';
+  intent: 'research' | 'comparison' | 'ready_to_buy' | 'price_focused' | 'undecided';
+  buyingSignals: string[];
+  riskFactors: string[];
+  recommendedAction: 'continue' | 'escalate' | 'schedule_call' | 'send_offer' | 'urgent_followup';
+  confidence: number;
+  nextSteps: string[];
+}
+
+export default function IntelligencePage() {
+  const [activeTab, setActiveTab] = useState('overview');
+
+  const { data: dashboard, isLoading: dashboardLoading } = useQuery({
+    queryKey: ['/api/intelligence/dashboard'],
+    refetchInterval: 30000 // Refresh every 30 seconds
+  });
+
+  const { data: recommendations, isLoading: recommendationsLoading } = useQuery({
+    queryKey: ['/api/intelligence/predictive/recommendations']
+  });
+
+  const { data: escalationCandidates, isLoading: escalationLoading } = useQuery({
+    queryKey: ['/api/intelligence/conversation/escalation-candidates']
+  });
+
+  const { data: activeConversations, isLoading: conversationsLoading } = useQuery({
+    queryKey: ['/api/intelligence/conversation/active-analysis']
+  });
+
+  if (dashboardLoading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <Activity className="h-8 w-8 animate-spin mx-auto mb-4" />
+          <p>Loading intelligence dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getDashboard = (): IntelligenceDashboard => {
+    if (!dashboard) {
+      return {
+        leadScoring: { totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0, topScores: [] },
+        predictiveOptimization: { insights: {}, recommendationCount: 0 },
+        conversationIntelligence: { totalConversations: 0, escalationCount: 0, highUrgency: 0, readyToBuy: 0, averageConfidence: 0 }
+      };
+    }
+    return dashboard;
+  };
+
+  const dashboardData = getDashboard();
+
+  const getPriorityColor = (priority: string) => {
+    switch (priority) {
+      case 'hot': return 'bg-red-100 text-red-800';
+      case 'warm': return 'bg-orange-100 text-orange-800';
+      case 'cold': return 'bg-blue-100 text-blue-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getUrgencyColor = (urgency: string) => {
+    switch (urgency) {
+      case 'critical': return 'bg-red-100 text-red-800';
+      case 'high': return 'bg-orange-100 text-orange-800';
+      case 'medium': return 'bg-yellow-100 text-yellow-800';
+      case 'low': return 'bg-green-100 text-green-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getMoodIcon = (mood: string) => {
+    switch (mood) {
+      case 'excited': return '🎉';
+      case 'positive': return '😊';
+      case 'neutral': return '😐';
+      case 'negative': return '😞';
+      case 'frustrated': return '😤';
+      default: return '😐';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center">
+            <Brain className="h-8 w-8 mr-3 text-purple-600" />
+            Intelligence Dashboard
+          </h1>
+          <p className="text-gray-600">AI-powered insights for automotive campaign optimization</p>
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="lead-scoring">Lead Scoring</TabsTrigger>
+          <TabsTrigger value="predictive">Predictive Optimization</TabsTrigger>
+          <TabsTrigger value="conversations">Conversation Intelligence</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-6">
+          {/* Overview Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Lead Scoring</CardTitle>
+                <Target className="h-4 w-4 text-blue-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dashboardData.leadScoring.totalLeads}</div>
+                <p className="text-xs text-muted-foreground">Total Leads Analyzed</p>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Badge className="bg-red-100 text-red-800">{dashboardData.leadScoring.hotLeads} Hot</Badge>
+                  <Badge className="bg-orange-100 text-orange-800">{dashboardData.leadScoring.warmLeads} Warm</Badge>
+                  <Badge className="bg-blue-100 text-blue-800">{dashboardData.leadScoring.coldLeads} Cold</Badge>
+                </div>
+                <div className="mt-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Avg Score</span>
+                    <span>{Math.round(dashboardData.leadScoring.averageScore)}%</span>
+                  </div>
+                  <Progress value={dashboardData.leadScoring.averageScore} className="mt-1" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Predictive Optimization</CardTitle>
+                <TrendingUp className="h-4 w-4 text-green-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dashboardData.predictiveOptimization.recommendationCount}</div>
+                <p className="text-xs text-muted-foreground">Active Recommendations</p>
+                <div className="mt-4">
+                  <Button variant="outline" size="sm" className="w-full">
+                    <Settings className="h-4 w-4 mr-2" />
+                    View Optimizations
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Conversation Intelligence</CardTitle>
+                <MessageSquare className="h-4 w-4 text-purple-600" />
+              </CardHeader>
+              <CardContent>
+                <div className="text-2xl font-bold">{dashboardData.conversationIntelligence.totalConversations}</div>
+                <p className="text-xs text-muted-foreground">Active Conversations</p>
+                <div className="flex items-center space-x-2 mt-2">
+                  <Badge className="bg-red-100 text-red-800">{dashboardData.conversationIntelligence.escalationCount} Escalations</Badge>
+                  <Badge className="bg-green-100 text-green-800">{dashboardData.conversationIntelligence.readyToBuy} Ready to Buy</Badge>
+                </div>
+                <div className="mt-2">
+                  <div className="flex justify-between text-sm">
+                    <span>Confidence</span>
+                    <span>{Math.round(dashboardData.conversationIntelligence.averageConfidence)}%</span>
+                  </div>
+                  <Progress value={dashboardData.conversationIntelligence.averageConfidence} className="mt-1" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Priority Actions */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <AlertCircle className="h-5 w-5 mr-2 text-orange-600" />
+                Priority Actions Required
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {(escalationCandidates as ConversationAnalysis[])?.slice(0, 5).map((candidate: ConversationAnalysis, index: number) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <span className="text-xl">{getMoodIcon(candidate.mood)}</span>
+                      <div>
+                        <div className="font-medium">Conversation {candidate.conversationId.slice(0, 8)}</div>
+                        <div className="text-sm text-gray-600">
+                          {candidate.buyingSignals.length} buying signals • {candidate.recommendedAction}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Badge className={getUrgencyColor(candidate.urgency)}>{candidate.urgency}</Badge>
+                      <Button size="sm">Take Action</Button>
+                    </div>
+                  </div>
+                )) || []}
+                {(!escalationCandidates || (escalationCandidates as ConversationAnalysis[]).length === 0) && (
+                  <div className="text-center py-8 text-gray-500">
+                    <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                    <p>No urgent actions required</p>
+                    <p className="text-sm">All conversations are being handled appropriately</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="lead-scoring" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Top Scoring Leads</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Lead ID</TableHead>
+                    <TableHead>Score</TableHead>
+                    <TableHead>Priority</TableHead>
+                    <TableHead>Key Factors</TableHead>
+                    <TableHead>Action</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {dashboardData.leadScoring.topScores.map((lead, index) => (
+                    <TableRow key={index}>
+                      <TableCell className="font-medium">{lead.leadId.slice(0, 8)}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center space-x-2">
+                          <span className="font-bold">{lead.totalScore}%</span>
+                          <Progress value={lead.totalScore} className="w-16" />
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Badge className={getPriorityColor(lead.priority)}>{lead.priority}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          {lead.factors.slice(0, 2).map((factor, i) => (
+                            <Badge key={i} variant="outline" className="text-xs">{factor}</Badge>
+                          ))}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        <Button size="sm" variant="outline">
+                          <ArrowUpRight className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="predictive" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Optimization Recommendations</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {(recommendations as OptimizationRecommendation[])?.map((rec: OptimizationRecommendation, index: number) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center space-x-2">
+                        <Badge variant="outline">{rec.type}</Badge>
+                        <span className="font-medium">{rec.confidence}% Confidence</span>
+                      </div>
+                      <Badge className="bg-green-100 text-green-800">+{rec.expectedImprovement}% Expected</Badge>
+                    </div>
+                    <h4 className="font-medium mb-1">{rec.recommendation}</h4>
+                    <p className="text-sm text-gray-600 mb-2">{rec.reasoning}</p>
+                    <div className="bg-blue-50 p-3 rounded text-sm">
+                      <strong>Implementation:</strong> {rec.implementation}
+                    </div>
+                  </div>
+                )) || (
+                  <div className="text-center py-8 text-gray-500">
+                    <TrendingUp className="h-12 w-12 mx-auto mb-2" />
+                    <p>Analyzing campaign data...</p>
+                    <p className="text-sm">Recommendations will appear as more data is collected</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="conversations" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Conversation Analysis</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {(activeConversations as ConversationAnalysis[])?.map((analysis: ConversationAnalysis, index: number) => (
+                  <div key={index} className="border rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center space-x-3">
+                        <span className="text-xl">{getMoodIcon(analysis.mood)}</span>
+                        <div>
+                          <div className="font-medium">Conversation {analysis.conversationId.slice(0, 8)}</div>
+                          <div className="text-sm text-gray-600">Lead: {analysis.leadId.slice(0, 8)}</div>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Badge className={getUrgencyColor(analysis.urgency)}>{analysis.urgency}</Badge>
+                        <Badge variant="outline">{analysis.intent.replace('_', ' ')}</Badge>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-3">
+                      <div>
+                        <div className="text-sm font-medium">Buying Signals</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {analysis.buyingSignals.slice(0, 3).map((signal, i) => (
+                            <Badge key={i} className="bg-green-100 text-green-800 text-xs">{signal}</Badge>
+                          ))}
+                          {analysis.buyingSignals.length > 3 && (
+                            <Badge variant="outline" className="text-xs">+{analysis.buyingSignals.length - 3} more</Badge>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">Risk Factors</div>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {analysis.riskFactors.slice(0, 2).map((risk, i) => (
+                            <Badge key={i} className="bg-red-100 text-red-800 text-xs">{risk}</Badge>
+                          ))}
+                          {analysis.riskFactors.length > 2 && (
+                            <Badge variant="outline" className="text-xs">+{analysis.riskFactors.length - 2} more</Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 p-3 rounded">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <div className="text-sm font-medium">Recommended Action: {analysis.recommendedAction.replace('_', ' ')}</div>
+                          <div className="text-xs text-gray-600">{analysis.confidence}% confidence</div>
+                        </div>
+                        <Button size="sm">Execute</Button>
+                      </div>
+                    </div>
+                  </div>
+                )) || (
+                  <div className="text-center py-8 text-gray-500">
+                    <MessageSquare className="h-12 w-12 mx-auto mb-2" />
+                    <p>No active conversations to analyze</p>
+                    <p className="text-sm">Conversation intelligence will appear as customers engage</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
