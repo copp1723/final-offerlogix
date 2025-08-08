@@ -27,6 +27,14 @@ async function ensureDatabaseReady() {
   }
 }
 
+// Helper to check table existence (shared)
+async function tableExists(client: any, table: string): Promise<boolean> {
+  const { rowCount } = await client.query(
+    `SELECT 1 FROM information_schema.tables WHERE table_name = $1`, [table]
+  );
+  return !!rowCount;
+}
+
 // Legacy patcher: add columns that older prod DBs might miss (idempotent)
 async function applyLegacyPatches() {
   const client = await pool.connect();
@@ -55,8 +63,6 @@ async function applyLegacyPatches() {
 
     // Functional columns required by runtime
     await addColumn('handover_goals', `ALTER TABLE campaigns ADD COLUMN handover_goals text`);
-
-    // Scheduling/communication columns
     await addColumn('communication_type', `ALTER TABLE campaigns ADD COLUMN communication_type varchar(20) DEFAULT 'email'`);
     await addColumn('sms_opt_in_required', `ALTER TABLE campaigns ADD COLUMN sms_opt_in_required boolean DEFAULT true`);
     await addColumn('sms_opt_in_message', `ALTER TABLE campaigns ADD COLUMN sms_opt_in_message text DEFAULT 'Would you like to continue this conversation via text? Reply YES to receive SMS updates.'`);
@@ -67,8 +73,6 @@ async function applyLegacyPatches() {
     await addColumn('recurring_time', `ALTER TABLE campaigns ADD COLUMN recurring_time varchar(8)`);
     await addColumn('is_active', `ALTER TABLE campaigns ADD COLUMN is_active boolean DEFAULT true`);
     await addColumn('next_execution', `ALTER TABLE campaigns ADD COLUMN next_execution timestamp`);
-
-    // Additional campaign fields used by app
     await addColumn('target_audience', `ALTER TABLE campaigns ADD COLUMN target_audience text`);
     await addColumn('handover_prompt', `ALTER TABLE campaigns ADD COLUMN handover_prompt text`);
     await addColumn('templates', `ALTER TABLE campaigns ADD COLUMN templates jsonb`);
@@ -98,11 +102,7 @@ async function applyLegacyPatches() {
     await addColumnTo('leads', 'client_id', `ALTER TABLE leads ADD COLUMN client_id uuid`);
     await addColumnTo('leads', 'created_at', `ALTER TABLE leads ADD COLUMN created_at timestamp DEFAULT now()`);
     await addColumnTo('leads', 'updated_at', `ALTER TABLE leads ADD COLUMN updated_at timestamp DEFAULT now()`);
-
-    // Conversations: lead_id (added later)
     await addColumnTo('conversations', 'lead_id', `ALTER TABLE conversations ADD COLUMN lead_id varchar`);
-
-    // Users: notification_preferences
     await addColumnTo('users', 'notification_preferences', `ALTER TABLE users ADD COLUMN notification_preferences jsonb DEFAULT '{
       "emailNotifications": true,
       "campaignAlerts": true,
@@ -113,14 +113,32 @@ async function applyLegacyPatches() {
       "quotaWarnings": true
     }'::jsonb`);
 
-    // ai_agent_config new columns
+    // Ensure ai_agent_config table exists
+    if (!(await tableExists(client, 'ai_agent_config'))) {
+      console.log('[DB Patch] Creating missing ai_agent_config table');
+      await client.query(`CREATE TABLE IF NOT EXISTS ai_agent_config (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        name varchar NOT NULL,
+        tonality text DEFAULT 'professional' NOT NULL,
+        personality text,
+        dos_list jsonb DEFAULT '[]',
+        donts_list jsonb DEFAULT '[]',
+        industry varchar DEFAULT 'automotive',
+        response_style text DEFAULT 'helpful',
+        model text DEFAULT 'openai/gpt-5-mini',
+        system_prompt text,
+        is_active boolean DEFAULT false,
+        client_id uuid,
+        created_at timestamp DEFAULT now() NOT NULL,
+        updated_at timestamp DEFAULT now() NOT NULL
+      )`);
+    }
+
     await addColumnTo('ai_agent_config', 'model', `ALTER TABLE ai_agent_config ADD COLUMN model text DEFAULT 'openai/gpt-5-mini'`);
     await addColumnTo('ai_agent_config', 'system_prompt', `ALTER TABLE ai_agent_config ADD COLUMN system_prompt text`);
     await addColumnTo('ai_agent_config', 'client_id', `ALTER TABLE ai_agent_config ADD COLUMN client_id uuid`);
-    // is_active existed in original schema but default changed; ensure column exists, then normalize default
     await addColumnTo('ai_agent_config', 'is_active', `ALTER TABLE ai_agent_config ADD COLUMN is_active boolean DEFAULT false`);
 
-    // Ensure default for model (if column existed with old default or null values) & backfill
     try {
       await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-mini'`);
       await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-mini' WHERE model IS NULL OR model=''`);
@@ -128,7 +146,6 @@ async function applyLegacyPatches() {
       console.warn('[DB Patch] model default update warning:', (e as Error).message);
     }
 
-    // Ensure FK for ai_agent_config.client_id
     try {
       await client.query(`ALTER TABLE ai_agent_config ADD CONSTRAINT ai_agent_config_client_id_clients_id_fk FOREIGN KEY (client_id) REFERENCES clients(id)`);
     } catch (e) {
