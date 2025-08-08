@@ -676,7 +676,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const campaignId = req.params.id;
       const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
       
-      const { campaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      const campaignOrchestrator = new CampaignOrchestrator();
       
       const executionOptions = {
         campaignId,

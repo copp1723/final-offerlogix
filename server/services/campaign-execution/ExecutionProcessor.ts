@@ -195,6 +195,13 @@ export class ExecutionProcessor {
     if (!content) return '';
 
     return content
+      .replace(/\[firstName\]/g, lead.firstName || 'Customer')
+      .replace(/\[Name\]/g, lead.firstName || 'Customer')
+      .replace(/\[name\]/g, lead.firstName || 'Customer')
+      .replace(/\[lastName\]/g, lead.lastName || '')
+      .replace(/\[email\]/g, lead.email)
+      .replace(/\[vehicleInterest\]/g, lead.vehicleInterest || 'our vehicles')
+      .replace(/\[phone\]/g, lead.phone || '')
       .replace(/\{\{firstName\}\}/g, lead.firstName || 'Customer')
       .replace(/\{\{first_name\}\}/g, lead.firstName || 'Customer')
       .replace(/\{\{lastName\}\}/g, lead.lastName || '')
@@ -203,8 +210,6 @@ export class ExecutionProcessor {
       .replace(/\{\{vehicleInterest\}\}/g, lead.vehicleInterest || 'our vehicles')
       .replace(/\{\{vehicle_interest\}\}/g, lead.vehicleInterest || 'our vehicles')
       .replace(/\{\{phone\}\}/g, lead.phone || '')
-      .replace(/\{\{budget\}\}/g, 'Not specified') // Note: budget field doesn't exist in Lead schema
-      .replace(/\{\{timeframe\}\}/g, 'Not specified') // Note: timeframe field doesn't exist in Lead schema
       .replace(/\{\{source\}\}/g, lead.leadSource || 'website');
   }
 

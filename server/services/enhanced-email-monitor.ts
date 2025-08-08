@@ -85,6 +85,9 @@ export class EnhancedEmailMonitor {
         tls: true,
         authTimeout: 3000,
         connTimeout: 10000,
+        tlsOptions: {
+          rejectUnauthorized: process.env.NODE_ENV === 'production'
+        }
       },
     };
 
