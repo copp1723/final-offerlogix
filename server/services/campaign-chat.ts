@@ -140,32 +140,60 @@ export class CampaignChatService {
   ): Promise<string> {
     try {
       const conversionPrompt = `
-You are an expert at converting natural language handover criteria into structured automotive AI prompts.
+# ROLE: Expert Automotive Handover Intelligence Designer
+You are a world-class automotive sales intelligence expert who specializes in converting natural language into precise, actionable AI handover criteria. You understand buyer psychology, sales processes, and automotive industry nuances.
 
-CAMPAIGN CONTEXT: "${campaignContext || 'General automotive campaign'}"
-CAMPAIGN GOALS: "${campaignGoals || 'Generate automotive leads'}"
-TARGET AUDIENCE: "${targetAudience || 'General automotive prospects'}"
-USER'S HANDOVER CRITERIA: "${userInput}"
+## CAMPAIGN INTELLIGENCE:
+**Campaign Context:** "${campaignContext || 'General automotive campaign'}"
+**Campaign Goals:** "${campaignGoals || 'Generate automotive leads'}"  
+**Target Audience:** "${targetAudience || 'General automotive prospects'}"
+**User's Natural Language Criteria:** "${userInput}"
 
-Based on the campaign context and goals above, convert the user's handover criteria into a structured handover prompt that an AI can use to detect when customers should be handed over to sales. The prompt should:
+## YOUR MISSION:
+Transform the user's informal handover criteria into a sophisticated AI evaluation prompt that captures the essence of buyer readiness for THIS specific campaign context.
 
-1. Align with the specific campaign goals and context
-2. Identify keywords and phrases relevant to this campaign type
-3. Define behavioral signals that indicate readiness for THIS specific campaign
-4. Set urgency levels based on language used
-5. Include automotive-specific buying signals relevant to the campaign goals
+## EVALUATION FRAMEWORK:
+Consider these automotive buyer journey stages:
+1. **Awareness** (just browsing, general interest)
+2. **Consideration** (comparing options, seeking information)
+3. **Intent** (serious about purchasing, specific needs)
+4. **Decision** (ready to buy, urgency signals)
 
-Return a JSON object with this structure:
+## REQUIRED OUTPUT:
+Generate a comprehensive handover evaluation prompt that includes:
+
+### CAMPAIGN-SPECIFIC TRIGGERS:
+- Extract keywords from user criteria and map to buyer stages
+- Prioritize signals that align with campaign goals
+- Include audience-specific language patterns
+
+### CONTEXTUAL QUALIFICATION:
+- Define qualification thresholds based on campaign objectives
+- Specify conversation depth requirements
+- Set engagement quality benchmarks
+
+### URGENCY DETECTION:
+- Temporal language indicating immediate need
+- Competitive pressure signals
+- Decision-making timeline indicators
+
+### BEHAVIORAL ANALYSIS:
+- Question patterns showing serious intent
+- Information-seeking behaviors aligned with purchase readiness
+- Emotional indicators (excitement, urgency, concern resolution)
+
+Return ONLY this JSON structure:
 {
-  "handoverPrompt": "Detailed prompt for AI to use when evaluating handover situations for this specific campaign",
+  "handoverPrompt": "Comprehensive AI evaluation prompt for this specific campaign context with detailed triggers, scoring criteria, and handover conditions",
   "campaignSpecific": true,
-  "keywords": ["campaign-relevant", "trigger", "words"],
-  "signals": ["behavioral", "signals", "specific", "to", "campaign"],
-  "urgencyIndicators": ["immediate", "urgent", "language"],
-  "automotiveContext": ["campaign-specific", "automotive", "signals"]
+  "triggerKeywords": ["specific", "campaign-relevant", "trigger", "words"],
+  "qualificationCriteria": ["measurable", "campaign-aligned", "readiness", "signals"],
+  "urgencyIndicators": ["time-sensitive", "decision-ready", "language"],
+  "scoringThresholds": {"qualification": 75, "urgency": 85, "handover": 80},
+  "reasoning": "Brief explanation of why these criteria align with campaign goals and audience"
 }
 
-Focus on making this handover prompt specific to the campaign goals and automotive context provided.`;
+CRITICAL: The handover prompt must be laser-focused on the specific campaign context and goals provided.`;
 
       const result = await generateContent(conversionPrompt);
       const parsed = JSON.parse(result);
@@ -253,31 +281,59 @@ Return JSON array of template objects with "subject" and "content" fields.`;
   }
 
   /**
-   * Get default handover prompt for fallback
+   * Get enhanced default handover prompt for fallback
    */
   private static getDefaultHandoverPrompt(): string {
-    return `You are an automotive sales intelligence AI. Monitor customer conversations for these handover signals:
+    return `# AUTOMOTIVE SALES INTELLIGENCE EVALUATION SYSTEM
 
-IMMEDIATE HANDOVER TRIGGERS:
-- Price inquiries: "what does it cost", "how much", "price", "payment"
-- Purchase intent: "ready to buy", "want to purchase", "I'll take it"
-- Scheduling requests: "test drive", "appointment", "visit dealership"
-- Urgency indicators: "today", "now", "ASAP", "immediately"
-- Human requests: "speak to someone", "talk to human", "real person"
+## YOUR ROLE:
+You are an expert automotive sales intelligence AI analyzing customer conversations to identify optimal handover moments. Your mission is to detect genuine buying interest and qualification signals with precision.
 
-QUALIFICATION SIGNALS:
-- Financing discussions: "loan", "financing", "monthly payment", "down payment" 
-- Trade-in mentions: "trade in", "current vehicle", "sell my car"
-- Specific model interest: mentions of specific vehicle models, years, features
-- Timeline discussions: "when available", "delivery", "how soon"
+## HANDOVER EVALUATION FRAMEWORK:
 
-EVALUATE:
-- Conversation length and engagement level
-- Qualification score based on responses
-- Urgency level from language used
-- Buying stage progression
+### IMMEDIATE HANDOVER TRIGGERS (Score: 90-100)
+**High-Intent Purchase Signals:**
+- Direct purchase language: "ready to buy", "want to purchase", "I'll take it", "let's move forward"
+- Pricing commitment: "what's the best price", "can you match this price", "what's my payment"
+- Scheduling urgency: "today", "this weekend", "ASAP", "how soon can I"
+- Human escalation: "speak to someone", "talk to a person", "manager", "sales rep"
 
-HANDOVER when customer shows 2+ triggers or qualification score >75.`;
+### STRONG QUALIFICATION SIGNALS (Score: 75-89)
+**Serious Consideration Indicators:**
+- Financial readiness: "financing options", "down payment", "monthly payment", "lease terms"
+- Vehicle specificity: mentions specific models, years, trim levels, colors, features  
+- Comparison shopping: "versus", "compared to", "better than", competitor mentions
+- Trade-in discussions: "trade my current car", "trade value", "what's it worth"
+- Timeline establishment: "when available", "delivery time", "how long"
+
+### MODERATE INTEREST SIGNALS (Score: 50-74)
+**Developing Interest Indicators:**
+- Information gathering: detailed feature questions, specification requests
+- Availability checks: "do you have", "in stock", "on the lot"
+- Appointment interest: "come look", "visit", "see it", "test drive" (without urgency)
+- General pricing: "how much", "price range", "cost" (without commitment language)
+
+### EVALUATION CRITERIA:
+1. **Conversation Depth**: 8+ meaningful exchanges indicate serious engagement
+2. **Question Quality**: Specific, detailed questions show genuine interest
+3. **Response Speed**: Quick replies suggest active engagement
+4. **Language Intensity**: Emotional language ("love", "perfect", "exactly") indicates strong interest
+5. **Multiple Signal Types**: Customers showing 2+ different signal categories are handover-ready
+
+### HANDOVER DECISION MATRIX:
+- **Score 90-100**: Immediate handover (within 5 minutes)
+- **Score 80-89**: Priority handover (within 15 minutes)  
+- **Score 75-79**: Standard handover (within 30 minutes)
+- **Score 50-74**: Continue nurturing, reassess in 24 hours
+- **Below 50**: Standard marketing sequence
+
+### SPECIAL CONSIDERATIONS:
+- **Urgency Language**: "today", "now", "immediately" = automatic +10 points
+- **Competitor Mentions**: Active shopping = automatic +5 points
+- **Emotional Indicators**: Excitement or frustration = manual review
+- **Technical Questions**: Deep product knowledge needs = specialist referral
+
+**HANDOVER TRIGGER**: Execute handover when score ≥ 80 OR any immediate trigger is detected.`;
   }
 
   /**
