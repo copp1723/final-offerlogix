@@ -192,7 +192,7 @@ export default function AIChatInterface() {
         </div>
       </div>
 
-      <Card className="h-[600px] flex flex-col">
+      <Card className="flex flex-col max-h-[600px] overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center">
@@ -207,7 +207,7 @@ export default function AIChatInterface() {
           {currentStep !== "complete" && getStepIndicator()}
         </CardHeader>
 
-        <CardContent className="flex-1 flex flex-col p-0">
+        <CardContent className="flex-1 flex flex-col p-0 overflow-hidden">
           {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.map((message) => (
