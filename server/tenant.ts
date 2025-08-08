@@ -36,39 +36,52 @@ export const tenantMiddleware = async (req: TenantRequest, res: Response, next: 
       clientId = req.headers['x-tenant-id'] as string;
     }
     
-    // 4. For API routes, try to get from x-api-key header (future implementation)
-    // This would require an API keys table and lookup
+    // 4. (Future) API key based tenant resolution
     
-    // 5. Default client for development/fallback
+    // 5. Default client fallback (idempotent)
     if (!clientId) {
-      // Get or create default client
-      let [defaultClient] = await db.select().from(clients).where(eq(clients.name, 'Default Client'));
-      
+      // Prefer lookup by domain to avoid mismatch on name changes
+      let [defaultClient] = await db.select().from(clients).where(eq(clients.domain, 'localhost'));
+
       if (!defaultClient) {
-        [defaultClient] = await db.insert(clients).values({
-          name: 'Default Client',
-          domain: 'localhost',
-          brandingConfig: {
-            primaryColor: '#2563eb',
-            secondaryColor: '#1e40af',
-            logoUrl: '',
-            companyName: 'OneKeel Swarm',
-            favicon: '',
-            customCss: ''
-          },
-          settings: {}
-        }).returning();
+        // Attempt insert with ON CONFLICT DO NOTHING to avoid unique violations
+        const inserted = await db.insert(clients)
+          .values({
+            name: 'Default Client',
+            domain: 'localhost',
+            brandingConfig: {
+              primaryColor: '#2563eb',
+              secondaryColor: '#1e40af',
+              logoUrl: '',
+              companyName: 'OneKeel Swarm',
+              favicon: '',
+              customCss: ''
+            },
+            settings: {}
+          })
+          // Drizzle PG helper; ignored if domain already exists
+          .onConflictDoNothing()
+          .returning();
+
+        if (inserted.length) {
+          defaultClient = inserted[0];
+        } else {
+          // Fetch existing row created previously (race-safe)
+            [defaultClient] = await db.select().from(clients).where(eq(clients.domain, 'localhost'));
+        }
       }
-      
-      clientId = defaultClient.id;
+
+      if (defaultClient) {
+        clientId = defaultClient.id;
+      }
     }
     
     // Set client context
-    req.clientId = clientId;
+    req.clientId = clientId as string | undefined;
     
     // Get full client data
     if (clientId) {
-      const [client] = await db.select().from(clients).where(eq(clients.id, clientId));
+      const [client] = await db.select().from(clients).where(eq(clients.id, clientId as string));
       req.client = client;
     }
     

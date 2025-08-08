@@ -12,8 +12,12 @@ npm ci --only=production
 echo "🔨 Building application..."
 vite build --config vite.config.render.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 
-# Run database migrations
-echo "🗄️ Running database migrations..."
+# Run schema push
+echo "🗄️ Running drizzle schema push..."
 npm run db:push
+
+# Run raw SQL migrations (idempotent)
+echo "📑 Applying supplemental SQL migrations..."
+npm run db:sql || echo "(Skipping supplemental SQL migrations if script not present)"
 
 echo "✅ Build completed successfully!"
