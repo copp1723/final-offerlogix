@@ -318,7 +318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/conversations/:id/evaluate-handover", async (req, res) => {
     try {
       const { id } = req.params;
-      const { message, customCriteria } = req.body;
+      const { message, customCriteria, sendEmail = false } = req.body;
 
       // Get conversation from storage
       const conversation = await storage.getConversation(id);
@@ -327,7 +327,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const { HandoverService } = await import('./services/handover-service');
-      const evaluation = await HandoverService.evaluateHandover(id, conversation, message, customCriteria);
+      const evaluation = await HandoverService.evaluateHandover(conversation, message, customCriteria);
+      
+      // If handover is triggered and email is requested, process the handover
+      if (evaluation.shouldHandover && sendEmail) {
+        // Get additional data for handover email
+        const allLeads = await storage.getLeads();
+        const lead = allLeads.find(l => l.id === conversation.leadId);
+        
+        const allCampaigns = await storage.getCampaigns();
+        const campaign = conversation.campaignId ? 
+          allCampaigns.find(c => c.id === conversation.campaignId) : null;
+        
+        await HandoverService.processHandover(
+          id,
+          evaluation,
+          HandoverService.getDefaultCriteria(),
+          {
+            lead,
+            conversation,
+            campaignName: campaign?.name
+          }
+        );
+      }
       
       res.json(evaluation);
     } catch (error) {

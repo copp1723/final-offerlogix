@@ -343,9 +343,26 @@ export class HandoverService {
   static async processHandover(
     conversationId: string,
     evaluation: HandoverEvaluation,
-    criteria: HandoverCriteria
+    criteria: HandoverCriteria,
+    additionalData?: {
+      lead?: any;
+      conversation?: any;
+      campaignName?: string;
+    }
   ): Promise<boolean> {
     try {
+      // Import email service dynamically to avoid circular dependencies
+      const { HandoverEmailService } = await import('./handover-email');
+      
+      // Send handover email notification
+      const emailSent = await HandoverEmailService.sendHandoverNotification({
+        conversationId,
+        evaluation,
+        lead: additionalData?.lead,
+        conversation: additionalData?.conversation,
+        campaignName: additionalData?.campaignName
+      });
+
       // Find appropriate recipients based on recommended agent type
       const recipients = criteria.handoverRecipients.filter(recipient => 
         recipient.role === evaluation.recommendedAgent || recipient.role === 'sales'
@@ -358,10 +375,10 @@ export class HandoverService {
         score: evaluation.score,
         triggeredCriteria: evaluation.triggeredCriteria,
         nextActions: evaluation.nextActions,
-        recipients: recipients.map(r => r.email)
+        recipients: recipients.map(r => r.email),
+        emailSent
       };
 
-      // In a real implementation, this would send notifications via email/SMS
       console.log('Handover processed:', notification);
       
       // Update conversation status to indicate handover
