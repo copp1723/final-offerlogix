@@ -133,21 +133,18 @@ export class AgentRuntime {
       // Try to use Supermemory if available
       const query = topic && topic.trim() ? topic : 'recent conversation context and similar successful replies';
       
-      const supermemoryModule = await import('./supermemory');
-      if ('queryBuilder' in supermemoryModule && supermemoryModule.queryBuilder) {
-        const results = await supermemoryModule.queryBuilder.search({
-          query,
-          limit: 5,
-          tags,
-          threshold: 0.6
-        });
+      const { searchMemories } = await import('../integrations/supermemory');
+      const results = await searchMemories({
+        q: query,
+        clientId: 'default', // TODO: Pass actual clientId
+        limit: 5
+      });
 
-        return results.map((r: any) => ({
-          id: r.id || 'unknown',
-          score: r.score || 0.7,
-          snippet: r.content?.slice(0, 500) || ''
-        }));
-      }
+      return results.map((r: any) => ({
+        id: r.id || 'unknown',
+        score: r.score || 0.7,
+        snippet: r.content?.slice(0, 500) || ''
+      }));
     } catch (error) {
       console.log('Memory recall not available, continuing without context');
     }

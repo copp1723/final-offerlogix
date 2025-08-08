@@ -183,20 +183,21 @@ export class ExecutionProcessor {
       
       // Store email send in Supermemory for AI recall
       try {
-        const { ingestMemory } = await import('../supermemory');
-        await ingestMemory('mail_send', {
+        const { MemoryMapper } = await import('../../integrations/supermemory');
+        await MemoryMapper.writeMailEvent({
+          type: 'mail_event',
+          clientId: campaign.clientId || 'default',
           campaignId: campaign.id,
-          campaignName: campaign.name,
           leadEmail: lead.email,
-          templateTitle: template.title || template.subject || 'Email Template',
-          subject: emailData.subject,
-          html: emailData.html,
-          sentAt: new Date().toISOString(),
-          testMode
-        }, {
-          clientId: campaign.clientId || undefined,
-          campaignId: campaign.id,
-          leadEmail: lead.email || undefined
+          content: `Email sent: ${emailData.subject}\nCampaign: ${campaign.name}\nTemplate: ${template.title || template.subject || 'Email Template'}`,
+          meta: {
+            event: 'sent',
+            subject: emailData.subject,
+            campaignName: campaign.name,
+            templateTitle: template.title || template.subject || 'Email Template',
+            sentAt: new Date().toISOString(),
+            testMode
+          }
         });
       } catch (error) {
         console.warn('Failed to store email send in Supermemory:', error);

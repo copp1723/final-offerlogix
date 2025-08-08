@@ -115,19 +115,17 @@ export class DatabaseStorage implements IStorage {
 
     // Store campaign in Supermemory for AI recall
     try {
-      const supermemoryModule = await import('./services/supermemory');
-      if (supermemoryModule.memoryMapper && typeof supermemoryModule.memoryMapper.addMemory === 'function') {
-        await supermemoryModule.memoryMapper.addMemory({
-          content: `Campaign: ${newCampaign.name}\nContext: ${newCampaign.context}\nGoals: ${newCampaign.handoverGoals}`,
-          tags: ['campaign', `campaign:${newCampaign.id}`],
-          metadata: {
-            type: 'campaign',
-            name: newCampaign.name,
-            status: newCampaign.status,
-            clientId: newCampaign.clientId || undefined
-          }
-        });
-      }
+      const { MemoryMapper } = await import('../integrations/supermemory');
+      await MemoryMapper.writeCampaignSummary({
+        type: 'campaign_summary',
+        clientId: newCampaign.clientId || 'default',
+        campaignId: newCampaign.id,
+        summary: `Campaign: ${newCampaign.name}\nContext: ${newCampaign.context}\nGoals: ${newCampaign.handoverGoals}`,
+        meta: {
+          name: newCampaign.name,
+          status: newCampaign.status
+        }
+      });
     } catch (error) {
       console.warn('Failed to store campaign in Supermemory:', error);
     }
@@ -258,18 +256,18 @@ export class DatabaseStorage implements IStorage {
     if (!message.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
       try {
         const conversation = await this.getConversation(message.conversationId || '');
-        const supermemoryModule = await import('./services/supermemory');
-        if (supermemoryModule.memoryMapper && typeof supermemoryModule.memoryMapper.addMemory === 'function') {
-          await supermemoryModule.memoryMapper.addMemory({
-            content: newMessage.content,
-            tags: ['conversation', `conversation:${message.conversationId}`],
-            metadata: {
-              type: 'lead_message',
-              conversationId: message.conversationId,
-              senderId: message.senderId
-            }
-          });
-        }
+        const { MemoryMapper } = await import('../integrations/supermemory');
+        await MemoryMapper.writeLeadMessage({
+          type: 'lead_msg',
+          clientId: 'default', // TODO: Add clientId to message context
+          campaignId: conversation?.campaignId || undefined,
+          leadEmail: message.senderId || undefined,
+          content: newMessage.content,
+          meta: {
+            conversationId: message.conversationId,
+            senderId: message.senderId
+          }
+        });
       } catch (error) {
         console.warn('Failed to store lead message in Supermemory:', error);
       }

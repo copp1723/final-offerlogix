@@ -16,16 +16,19 @@ export class WebhookHandler {
       // Store Mailgun events in Supermemory for AI recall
       try {
         const event = req.body;
-        const { ingestMemory } = await import('./supermemory');
-        await ingestMemory('mail_event', {
-          event: event.event || 'unknown',
-          messageId: event['message-id'],
-          recipient: event.recipient,
-          timestamp: event.timestamp || new Date().toISOString(),
-          eventData: event
-        }, {
+        const { MemoryMapper } = await import('../integrations/supermemory');
+        await MemoryMapper.writeWebhook({
+          type: 'webhook',
           clientId: 'default', // TODO: resolve from recipient->lead->clientId
-          leadEmail: event.recipient
+          source: 'mailgun',
+          content: `Mailgun ${event.event || 'unknown'} event for ${event.recipient}\nMessage ID: ${event['message-id']}\nTimestamp: ${event.timestamp || new Date().toISOString()}`,
+          meta: {
+            event: event.event || 'unknown',
+            messageId: event['message-id'],
+            recipient: event.recipient,
+            timestamp: event.timestamp || new Date().toISOString(),
+            eventData: event
+          }
         });
       } catch (error) {
         console.warn('Failed to store Mailgun event in Supermemory:', error);
