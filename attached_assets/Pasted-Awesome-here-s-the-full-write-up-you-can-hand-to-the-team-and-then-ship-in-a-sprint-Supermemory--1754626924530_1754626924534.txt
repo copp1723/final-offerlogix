@@ -1,0 +1,494 @@
+Awesome—here’s the full write-up you can hand to the team and then ship in a sprint.
+
+# Supermemory Integration Plan (OneKeel Swarm)
+
+## TL;DR
+
+Supermemory gives your AI agent **fast, multi-modal, persistent recall** (past campaigns, OEM PDFs, Mailgun events, lead replies, inventory pages) without you operating a vector DB, scrapers, OCR, or rerankers. We’ll:
+
+1. Add a thin wrapper client
+2. Ingest the right events (campaigns, emails, webhooks, conversations)
+3. Query it inside your chat flow and lead scoring (RAG-lite)
+4. Enforce multi-tenant isolation via `userId=clientId` & `containerTags`
+5. Add simple cost/latency guardrails, metrics, and fallbacks
+
+---
+
+# 1) Architecture Overview
+
+## What Supermemory handles for you
+
+* **Ingestion & processing**: URLs/PDFs/images/text/Slack/Drive/Notion → OCR, extraction, chunking, embeddings, indexing
+* **Search quality**: query rewriting, reranking, metadata filtering
+* **Scale & latency**: sub-200ms typical, 99.9% uptime
+
+## Where it plugs in your stack
+
+* **Write**: during campaign creation, email sends, webhooks (delivered/opened/clicked/bounced), and conversation messages
+* **Read**: inside `/api/ai/chat-campaign` before calling your LLM; inside LeadScoring & PredictiveOptimization
+
+Tenancy: set `userId = clientId` on every write/search; add `containerTags` like `client:{clientId}`, `campaign:{id}`, `lead:{email}`.
+
+---
+
+# 2) Environment & Dependencies
+
+Add env:
+
+```
+SUPERMEMORY_API_KEY=...
+```
+
+Install SDK:
+
+```bash
+npm i supermemory
+```
+
+---
+
+# 3) Core Client Wrapper
+
+Create a single, reusable client that your services call.
+
+```ts
+// src/services/supermemory.ts
+import supermemory from 'supermemory';
+
+let _client: ReturnType<typeof supermemory> | null = null;
+
+export function getSupermemory() {
+  if (!_client) {
+    const apiKey = process.env.SUPERMEMORY_API_KEY;
+    if (!apiKey) throw new Error('SUPERMEMORY_API_KEY is not set');
+    _client = new supermemory({ apiKey });
+  }
+  return _client;
+}
+
+export async function addMemory({
+  content,
+  metadata = {},
+  containerTags = [],
+  userId,
+}: {
+  content: string;
+  metadata?: Record<string, any>;
+  containerTags?: string[];
+  userId?: string;
+}) {
+  const client = getSupermemory();
+  return client.memory.create({ content, metadata, containerTags, userId });
+}
+
+export async function searchMemories(q: string, opts: any = {}) {
+  const client = getSupermemory();
+  const defaults = {
+    limit: 8,
+    documentThreshold: 0.6,
+    onlyMatchingChunks: true,
+    rewriteQuery: true,
+  };
+  return client.search.execute({ q, ...defaults, ...opts });
+}
+```
+
+---
+
+# 4) Ingestion Points (Write to Supermemory)
+
+You already have the best hooks. We just add minimal calls.
+
+## 4.1 Campaign creation
+
+When a campaign is created/updated, store the brief & assets.
+
+```ts
+// Wherever you create a campaign (e.g., storage.createCampaign or service)
+import { addMemory } from '@/services/supermemory';
+
+await addMemory({
+  content: JSON.stringify({
+    name: campaign.name,
+    context: campaign.context,
+    handoverGoals: campaign.handoverGoals,
+    targetAudience: campaign.targetAudience,
+    numberOfTemplates: campaign.numberOfTemplates,
+    daysBetweenMessages: campaign.daysBetweenMessages,
+    subjectLines: campaign.subjectLines,
+  }),
+  metadata: {
+    type: 'campaign',
+    campaignId: campaign.id,
+    clientId: campaign.clientId,
+    status: campaign.status,
+  },
+  containerTags: [
+    `client:${campaign.clientId || 'default'}`,
+    `campaign:${campaign.id}`,
+  ],
+  userId: campaign.clientId,
+});
+```
+
+## 4.2 ExecutionProcessor: store each sent template (optionally batched)
+
+```ts
+// src/server/services/campaigns/ExecutionProcessor.ts
+import { addMemory } from '../../services/supermemory';
+
+// after a successful send in sendEmailToLead(...)
+await addMemory({
+  content: JSON.stringify({
+    campaignId: campaign.id,
+    campaignName: campaign.name,
+    leadEmail: lead.email,
+    templateTitle: template.title,
+    subject: emailData.subject,
+    html: emailData.html,
+    sentAt: new Date().toISOString(),
+  }),
+  metadata: {
+    type: 'mail_send',
+    campaignId: campaign.id,
+    leadEmail: lead.email,
+  },
+  containerTags: [
+    `client:${campaign.clientId || 'default'}`,
+    `campaign:${campaign.id}`,
+    `lead:${lead.email}`,
+  ],
+  userId: campaign.clientId,
+});
+```
+
+## 4.3 WebhookHandler: store Mailgun events
+
+```ts
+// src/server/services/WebhookHandler.ts
+import { addMemory } from '../services/supermemory';
+
+// inside handleMailgunEvents after parsing event
+await addMemory({
+  content: JSON.stringify(event),
+  metadata: {
+    type: 'mail_event',
+    event: event.event,               // delivered/opened/clicked/failed/unsubscribed
+    messageId: event['message-id'],
+    recipient: event.recipient,
+    campaignId: event['campaign-id'] || undefined,
+  },
+  containerTags: [
+    `client:${/* resolve clientId via campaign/lead lookup if available */ 'default'}`,
+    event['campaign-id'] ? `campaign:${event['campaign-id']}` : undefined,
+    event.recipient ? `lead:${event.recipient}` : undefined,
+  ].filter(Boolean) as string[],
+  userId: /* resolved clientId if known */ undefined,
+});
+```
+
+> If you can map `recipient` → `lead` → `clientId`, set `userId=clientId` to enforce tenancy.
+
+## 4.4 Conversation messages: store **lead** (human) messages
+
+```ts
+// wherever you save conversation messages (e.g., storage.createConversationMessage)
+import { addMemory } from '@/services/supermemory';
+
+if (!payload.isFromAI) {
+  const conv = await storage.getConversation(payload.conversationId);
+  const clientId = conv?.clientId || undefined;
+  await addMemory({
+    content: payload.content,
+    metadata: {
+      type: 'lead_message',
+      conversationId: payload.conversationId,
+      leadId: conv?.leadId,
+    },
+    containerTags: [
+      `client:${clientId || 'default'}`,
+      conv?.campaignId ? `campaign:${conv.campaignId}` : undefined,
+      conv?.leadId ? `leadId:${conv.leadId}` : undefined,
+    ].filter(Boolean) as string[],
+    userId: clientId,
+  });
+}
+```
+
+## 4.5 OEM / Inventory docs (optional but valuable)
+
+When you fetch/upload PDFs/URLs for incentives/inventory:
+
+```ts
+await addMemory({
+  content: 'https://oem.example.com/incentives.pdf',
+  metadata: { type: 'oem_doc', brand: 'Toyota' },
+  containerTags: [`client:${clientId}`],
+  userId: clientId,
+});
+```
+
+---
+
+# 5) Retrieval (Read) in Your AI Flow (RAG-lite)
+
+## 5.1 Enhance `/api/ai/chat-campaign`
+
+Before calling OpenAI, pull relevant past content.
+
+```ts
+// src/server/routes/ai/chat-campaign.ts
+import { searchMemories } from '@/services/supermemory';
+
+const clientId = body.campaignData?.clientId || req.user?.clientId;
+
+const prior = await searchMemories(
+  `winning subject lines and templates for ${body.campaignData?.context || 'automotive'}`,
+  {
+    userId: clientId,
+    filters: {
+      AND: [{ key: 'type', value: 'campaign' }]
+    },
+    limit: 6,
+  }
+);
+
+// Extract snippets
+const retrieved = prior.results?.flatMap(r => r.chunks?.map(c => c.content)).slice(0, 6) || [];
+
+// Feed into your LLM prompt as “retrieved context”
+const systemContext = `
+You are the Automotive Campaign Agent. Use retrieved historical snippets if helpful.
+
+[RETRIEVED CONTEXT]
+${retrieved.join('\n---\n')}
+`;
+```
+
+## 5.2 LeadScoringService: use actual event trail
+
+```ts
+// src/server/services/LeadScoringService.ts
+import { searchMemories } from '@/services/supermemory';
+
+const events = await searchMemories(
+  `${lead.email} engagement`,
+  {
+    userId: lead.clientId,
+    filters: {
+      AND: [
+        { key: 'type', value: 'mail_event' },
+        { key: 'recipient', value: lead.email }
+      ]
+    },
+    limit: 20
+  }
+);
+
+// Map opens/clicks recency into evaluateUrgencyIndicators/FinancialReadiness, etc.
+```
+
+## 5.3 PredictiveOptimizationService: recall sequences & outcomes
+
+Search historic campaigns by tag/metadata and fold metrics into your recommendations.
+
+---
+
+# 6) Multi-Tenancy, Tags, & Filters
+
+**Always** set:
+
+* `userId = clientId` (enforces isolation on search)
+* `containerTags`: `client:{clientId}`, and one or more of:
+
+  * `campaign:{campaignId}`
+  * `lead:{email}` / `leadId:{id}`
+  * `type:*` (mail\_event, mail\_send, lead\_message, campaign, oem\_doc)
+
+**Search best practices**
+
+```ts
+await searchMemories(q, {
+  userId: clientId,
+  limit: 8,
+  documentThreshold: 0.6,
+  onlyMatchingChunks: true,
+  rewriteQuery: true,
+  filters: {
+    AND: [{ key: 'type', value: 'campaign' }]
+  }
+});
+```
+
+---
+
+# 7) UI Enhancements (fast wins)
+
+## 7.1 “Use Past Winners” chip in AI chat
+
+* After each step, call an endpoint that queries supermemory for similar campaigns and surface the top 3 subject lines + openings as quick-insert suggestions.
+
+## 7.2 Lead Timeline Panel
+
+* In the conversation view, show a unified “Memory Timeline” (sends, opens, clicks, lead messages, attachments). This is just a search with `containerTags: [client, lead]`.
+
+---
+
+# 8) Cost, Latency & Reliability Guardrails
+
+* **Limit & thresholds**: `limit: 5–8`, `documentThreshold: 0.6–0.75`, `onlyMatchingChunks: true`
+* **Cache** common queries (Redis, 10–15 min) by `(clientId, normalizedQuery)`
+* **Circuit breaker**: if search fails or exceeds 800ms, proceed without retrieval (your current LLM flow already works)
+* **Batch ingestion** for high-volume sends; you don’t need to await processing completion
+* **Observability**: log `searchMemories` timings, result count; track % of prompts with/without retrieved context
+
+---
+
+# 9) Testing Plan
+
+1. **Unit**
+
+   * Mock `supermemory` client: verify `addMemory` called with correct `userId` and `containerTags`
+   * Validate fallbacks when search throws/returns empty
+
+2. **Integration**
+
+   * Create stub campaign → confirm memory stored
+   * Send test email in testMode → confirm `mail_send` memory stored
+   * Simulate Mailgun webhook payloads → confirm `mail_event` memories stored + searchable
+   * Conversation message (human) → confirm `lead_message` memory stored
+
+3. **E2E**
+
+   * Run chat creation → verify retrieved snippets appear in LLM prompt (log redact contents)
+   * Lead scoring boost with actual events
+
+---
+
+# 10) Security & Compliance
+
+* Never store secrets in content.
+* Keep **PII minimal** in memory: use `leadId` and `lead:{email}` only when necessary.
+* Honor DSR/erase: implement a simple delete (search by `containerTags` & `leadId` → delete IDs returned).
+
+---
+
+# 11) Rollout Checklist (1 Sprint)
+
+* [ ] Add `services/supermemory.ts` + envs
+* [ ] Wire writes: campaign create, ExecutionProcessor sends, Mailgun webhooks, conversation (human) messages
+* [ ] Wire reads: chat-campaign route, LeadScoring, PredictiveOptimization
+* [ ] Add UI “Use Past Winners” chip (optional but delightful)
+* [ ] Add caching + metrics + timeouts
+* [ ] QA + E2E + canary on one tenant
+
+---
+
+# 12) Example Diffs (Guidance)
+
+> **ExecutionProcessor.ts** (inside success path of `sendEmailToLead`)
+
+```diff
++ import { addMemory } from '../../services/supermemory';
+
+   if (!result.success) {
+     return { success: false, error: result.error };
+   }
+
++  try {
++    await addMemory({
++      content: JSON.stringify({
++        campaignId: campaign.id,
++        leadEmail: lead.email,
++        templateTitle: template.title,
++        subject: emailData.subject,
++        html: emailData.html,
++        sentAt: new Date().toISOString(),
++      }),
++      metadata: { type: 'mail_send', campaignId: campaign.id, leadEmail: lead.email },
++      containerTags: [
++        `client:${campaign.clientId || 'default'}`,
++        `campaign:${campaign.id}`,
++        `lead:${lead.email}`,
++      ],
++      userId: campaign.clientId,
++    });
++  } catch (e) {
++    console.warn('supermemory add mail_send failed', e);
++  }
+```
+
+> **WebhookHandler.ts** (inside `handleMailgunEvents`)
+
+```diff
++ import { addMemory } from '../services/supermemory';
+
+   switch (event.event) {
+     case 'delivered':
+       await this.handleEmailDelivered(event);
+       break;
+     ...
+   }
+
++  try {
++    await addMemory({
++      content: JSON.stringify(event),
++      metadata: {
++        type: 'mail_event',
++        event: event.event,
++        messageId: event['message-id'],
++        recipient: event.recipient,
++      },
++      containerTags: [
++        `client:${'default'}`, // TODO: resolve from recipient→lead→clientId
++        event.recipient ? `lead:${event.recipient}` : undefined,
++      ].filter(Boolean) as string[],
++      userId: undefined, // TODO: resolve clientId if available
++    });
++  } catch (e) {
++    console.warn('supermemory add mail_event failed', e);
++  }
+```
+
+> **/api/ai/chat-campaign** (before LLM call)
+
+```diff
++ import { searchMemories } from '@/services/supermemory';
+
++ const clientId = body.campaignData?.clientId || req.user?.clientId;
++ let retrieved: string[] = [];
++ try {
++   const prior = await searchMemories(
++     `best performing subject lines and templates for ${body.campaignData?.context || 'automotive'}`,
++     {
++       userId: clientId,
++       filters: { AND: [{ key: 'type', value: 'campaign' }] },
++       limit: 6,
++     }
++   );
++   retrieved = prior.results?.flatMap(r => r.chunks?.map(c => c.content)).slice(0, 6) || [];
++ } catch (e) {
++   console.warn('supermemory search failed, continuing without RAG', e);
++ }
+
+- const conversationContext = `...existing...`;
++ const conversationContext = `
++ ...existing...
++
++ [RETRIEVED CONTEXT FOR INSPIRATION]
++ ${retrieved.join('\n---\n')}
++ `;
+```
+
+---
+
+# 13) What you unlock immediately
+
+* **Higher-quality emails faster**: “Use Past Winners” + OEM context in the prompt
+* **Richer lead scoring**: actual opens/clicks/replies drive urgency/intent scores
+* **Better optimization**: lookback across similar campaigns without building data plumbing
+* **No infra babysitting**: zero time spent on embeddings/DB/ocr/scrapers
+
+---
+
+If you want, I can also add a **/memories/admin** page to browse ingest status and a **delete-by-tag** endpoint for DSRs. Want me to draft those next, or should I push PRs for the server changes first?

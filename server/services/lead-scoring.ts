@@ -1,5 +1,6 @@
 import { storage } from '../storage';
 import type { Lead, Conversation } from '@shared/schema';
+import { searchMemories, extractMemoryContent } from './supermemory';
 
 export interface ScoringCriteria {
   id: string;

@@ -1,4 +1,5 @@
 import { LLMClient } from './llm-client';
+import { searchMemories, extractMemoryContent } from './supermemory';
 
 interface CampaignChatResponse {
   message: string;
@@ -73,6 +74,24 @@ export class CampaignChatService {
     existingData: any = {}
   ): Promise<CampaignChatResponse> {
     try {
+      // Get relevant past campaign data from Supermemory for context
+      let retrievedContext: string[] = [];
+      try {
+        const clientId = existingData.clientId || 'default';
+        const contextQuery = `automotive campaign ${existingData.context || userMessage}`;
+        
+        const pastCampaigns = await searchMemories(contextQuery, {
+          userId: clientId,
+          filters: {
+            AND: [{ key: 'type', value: 'campaign' }]
+          },
+          limit: 3
+        });
+        
+        retrievedContext = extractMemoryContent(pastCampaigns);
+      } catch (error) {
+        console.warn('Failed to retrieve past campaigns from Supermemory:', error);
+      }
       const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
       const currentStepData = this.campaignSteps[stepIndex];
       
@@ -217,6 +236,12 @@ You are a world-class automotive sales intelligence expert who specializes in co
 **Campaign Goals:** "${campaignGoals || 'Generate automotive leads'}"  
 **Target Audience:** "${targetAudience || 'General automotive prospects'}"
 **User's Natural Language Criteria:** "${userInput}"
+
+${retrievedContext.length > 0 ? `
+## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:
+${retrievedContext.join('\n---\n')}
+Use this historical data to inform your handover criteria generation.
+` : ''}
 
 ## YOUR MISSION:
 Transform the user's informal handover criteria into a sophisticated AI evaluation prompt that captures the essence of buyer readiness for THIS specific campaign context.

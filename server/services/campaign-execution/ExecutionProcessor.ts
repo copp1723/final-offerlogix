@@ -106,7 +106,7 @@ export class ExecutionProcessor {
 
       // Update campaign metrics
       try {
-        const currentMetrics = {}; // Note: performanceMetrics field doesn't exist in schema
+        const currentMetrics: any = {}; // Note: performanceMetrics field doesn't exist in schema
         
         const updatedMetrics = {
           ...currentMetrics,
@@ -180,6 +180,28 @@ export class ExecutionProcessor {
       }
 
       console.log(`✅ Email sent to ${lead.email} for campaign ${campaign.name}`);
+      
+      // Store email send in Supermemory for AI recall
+      try {
+        const { ingestMemory } = await import('../supermemory');
+        await ingestMemory('mail_send', {
+          campaignId: campaign.id,
+          campaignName: campaign.name,
+          leadEmail: lead.email,
+          templateTitle: template.title || template.subject || 'Email Template',
+          subject: emailData.subject,
+          html: emailData.html,
+          sentAt: new Date().toISOString(),
+          testMode
+        }, {
+          clientId: campaign.clientId || undefined,
+          campaignId: campaign.id,
+          leadEmail: lead.email || undefined
+        });
+      } catch (error) {
+        console.warn('Failed to store email send in Supermemory:', error);
+      }
+      
       return { success: true };
 
     } catch (error) {

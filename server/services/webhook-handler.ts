@@ -11,6 +11,24 @@ export class WebhookHandler {
   static async handleMailgunInbound(req: Request, res: Response) {
     try {
       await InboundEmailService.handleInboundEmail(req, res);
+      
+      // Store Mailgun events in Supermemory for AI recall
+      try {
+        const event = req.body;
+        const { ingestMemory } = await import('./supermemory');
+        await ingestMemory('mail_event', {
+          event: event.event || 'unknown',
+          messageId: event['message-id'],
+          recipient: event.recipient,
+          timestamp: event.timestamp || new Date().toISOString(),
+          eventData: event
+        }, {
+          clientId: 'default', // TODO: resolve from recipient->lead->clientId
+          leadEmail: event.recipient
+        });
+      } catch (error) {
+        console.warn('Failed to store Mailgun event in Supermemory:', error);
+      }
     } catch (error) {
       console.error('Mailgun webhook error:', error);
       res.status(500).json({ error: 'Webhook processing failed' });

@@ -110,6 +110,27 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date(),
       })
       .returning();
+    
+    // Store campaign in Supermemory for AI recall
+    try {
+      const { ingestMemory } = await import('./services/supermemory');
+      await ingestMemory('campaign', {
+        name: newCampaign.name,
+        context: newCampaign.context,
+        handoverGoals: newCampaign.handoverGoals,
+        targetAudience: newCampaign.targetAudience,
+        numberOfTemplates: newCampaign.numberOfTemplates,
+        daysBetweenMessages: newCampaign.daysBetweenMessages,
+        subjectLines: newCampaign.subjectLines,
+        status: newCampaign.status
+      }, {
+        clientId: newCampaign.clientId || undefined,
+        campaignId: newCampaign.id
+      });
+    } catch (error) {
+      console.warn('Failed to store campaign in Supermemory:', error);
+    }
+    
     return newCampaign;
   }
 
@@ -230,6 +251,22 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
       })
       .returning();
+    
+    // Store human messages in Supermemory for AI recall
+    if (!message.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
+      try {
+        const conversation = await this.getConversation(message.conversationId);
+        const { ingestMemory } = await import('./services/supermemory');
+        await ingestMemory('lead_message', newMessage.content, {
+          clientId: conversation?.userId || undefined,
+          campaignId: conversation?.campaignId || undefined,
+          leadId: conversation?.leadId || undefined
+        });
+      } catch (error) {
+        console.warn('Failed to store lead message in Supermemory:', error);
+      }
+    }
+    
     return newMessage;
   }
 
