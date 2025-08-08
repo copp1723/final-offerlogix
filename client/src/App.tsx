@@ -15,7 +15,7 @@ import NotFound from "@/pages/not-found";
 import AutomotivePromptsPage from "@/pages/automotive-prompts";
 import EmailMonitorPage from "@/pages/email-monitor";
 import NotificationsPage from "@/pages/notifications";
-import IntelligencePage from "@/pages/intelligence";
+import IntelligencePage from "@/pages/intelligence-backup";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
 

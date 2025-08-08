@@ -241,7 +241,7 @@ export default function IntelligencePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {(escalationCandidates as ConversationAnalysis[])?.slice(0, 5).map((candidate: ConversationAnalysis, index: number) => (
+                {Array.isArray(escalationCandidates) && escalationCandidates.slice(0, 5).map((candidate: ConversationAnalysis, index: number) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <span className="text-xl">{getMoodIcon(candidate.mood)}</span>
@@ -257,8 +257,8 @@ export default function IntelligencePage() {
                       <Button size="sm">Take Action</Button>
                     </div>
                   </div>
-                )) || []}
-                {(!escalationCandidates || (escalationCandidates as ConversationAnalysis[]).length === 0) && (
+                ))}
+                {(!escalationCandidates || !Array.isArray(escalationCandidates) || escalationCandidates.length === 0) && (
                   <div className="text-center py-8 text-gray-500">
                     <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
                     <p>No urgent actions required</p>
@@ -287,7 +287,7 @@ export default function IntelligencePage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {dashboardData.leadScoring.topScores.map((lead, index) => (
+                  {dashboardData.leadScoring.topScores?.map((lead, index) => (
                     <TableRow key={index}>
                       <TableCell className="font-medium">{lead.leadId.slice(0, 8)}</TableCell>
                       <TableCell>
@@ -301,7 +301,7 @@ export default function IntelligencePage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
-                          {lead.factors.slice(0, 2).map((factor, i) => (
+                          {lead.factors?.slice(0, 2).map((factor, i) => (
                             <Badge key={i} variant="outline" className="text-xs">{factor}</Badge>
                           ))}
                         </div>
@@ -326,7 +326,7 @@ export default function IntelligencePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {(recommendations as OptimizationRecommendation[])?.map((rec: OptimizationRecommendation, index: number) => (
+                {Array.isArray(recommendations) && recommendations.map((rec: OptimizationRecommendation, index: number) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center space-x-2">
@@ -341,7 +341,8 @@ export default function IntelligencePage() {
                       <strong>Implementation:</strong> {rec.implementation}
                     </div>
                   </div>
-                )) || (
+                ))}
+                {(!recommendations || !Array.isArray(recommendations) || recommendations.length === 0) && (
                   <div className="text-center py-8 text-gray-500">
                     <TrendingUp className="h-12 w-12 mx-auto mb-2" />
                     <p>Analyzing campaign data...</p>
@@ -360,7 +361,7 @@ export default function IntelligencePage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {(activeConversations as ConversationAnalysis[])?.map((analysis: ConversationAnalysis, index: number) => (
+                {Array.isArray(activeConversations) && activeConversations.map((analysis: ConversationAnalysis, index: number) => (
                   <div key={index} className="border rounded-lg p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center space-x-3">
@@ -380,22 +381,22 @@ export default function IntelligencePage() {
                       <div>
                         <div className="text-sm font-medium">Buying Signals</div>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {analysis.buyingSignals.slice(0, 3).map((signal, i) => (
+                          {analysis.buyingSignals?.slice(0, 3).map((signal, i) => (
                             <Badge key={i} className="bg-green-100 text-green-800 text-xs">{signal}</Badge>
                           ))}
-                          {analysis.buyingSignals.length > 3 && (
-                            <Badge variant="outline" className="text-xs">+{analysis.buyingSignals.length - 3} more</Badge>
+                          {(analysis.buyingSignals?.length || 0) > 3 && (
+                            <Badge variant="outline" className="text-xs">+{(analysis.buyingSignals?.length || 0) - 3} more</Badge>
                           )}
                         </div>
                       </div>
                       <div>
                         <div className="text-sm font-medium">Risk Factors</div>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {analysis.riskFactors.slice(0, 2).map((risk, i) => (
+                          {analysis.riskFactors?.slice(0, 2).map((risk, i) => (
                             <Badge key={i} className="bg-red-100 text-red-800 text-xs">{risk}</Badge>
                           ))}
-                          {analysis.riskFactors.length > 2 && (
-                            <Badge variant="outline" className="text-xs">+{analysis.riskFactors.length - 2} more</Badge>
+                          {(analysis.riskFactors?.length || 0) > 2 && (
+                            <Badge variant="outline" className="text-xs">+{(analysis.riskFactors?.length || 0) - 2} more</Badge>
                           )}
                         </div>
                       </div>
@@ -411,7 +412,8 @@ export default function IntelligencePage() {
                       </div>
                     </div>
                   </div>
-                )) || (
+                ))}
+                {(!activeConversations || !Array.isArray(activeConversations) || activeConversations.length === 0) && (
                   <div className="text-center py-8 text-gray-500">
                     <MessageSquare className="h-12 w-12 mx-auto mb-2" />
                     <p>No active conversations to analyze</p>
