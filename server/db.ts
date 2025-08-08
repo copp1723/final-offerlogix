@@ -98,6 +98,43 @@ async function applyLegacyPatches() {
     await addColumnTo('leads', 'client_id', `ALTER TABLE leads ADD COLUMN client_id uuid`);
     await addColumnTo('leads', 'created_at', `ALTER TABLE leads ADD COLUMN created_at timestamp DEFAULT now()`);
     await addColumnTo('leads', 'updated_at', `ALTER TABLE leads ADD COLUMN updated_at timestamp DEFAULT now()`);
+
+    // Conversations: lead_id (added later)
+    await addColumnTo('conversations', 'lead_id', `ALTER TABLE conversations ADD COLUMN lead_id varchar`);
+
+    // Users: notification_preferences
+    await addColumnTo('users', 'notification_preferences', `ALTER TABLE users ADD COLUMN notification_preferences jsonb DEFAULT '{
+      "emailNotifications": true,
+      "campaignAlerts": true,
+      "leadAlerts": true,
+      "systemAlerts": true,
+      "monthlyReports": true,
+      "highEngagementAlerts": true,
+      "quotaWarnings": true
+    }'::jsonb`);
+
+    // ai_agent_config new columns
+    await addColumnTo('ai_agent_config', 'model', `ALTER TABLE ai_agent_config ADD COLUMN model text DEFAULT 'openai/gpt-5-mini'`);
+    await addColumnTo('ai_agent_config', 'system_prompt', `ALTER TABLE ai_agent_config ADD COLUMN system_prompt text`);
+    await addColumnTo('ai_agent_config', 'client_id', `ALTER TABLE ai_agent_config ADD COLUMN client_id uuid`);
+    // is_active existed in original schema but default changed; ensure column exists, then normalize default
+    await addColumnTo('ai_agent_config', 'is_active', `ALTER TABLE ai_agent_config ADD COLUMN is_active boolean DEFAULT false`);
+
+    // Ensure default for model (if column existed with old default or null values) & backfill
+    try {
+      await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-mini'`);
+      await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-mini' WHERE model IS NULL OR model=''`);
+    } catch (e) {
+      console.warn('[DB Patch] model default update warning:', (e as Error).message);
+    }
+
+    // Ensure FK for ai_agent_config.client_id
+    try {
+      await client.query(`ALTER TABLE ai_agent_config ADD CONSTRAINT ai_agent_config_client_id_clients_id_fk FOREIGN KEY (client_id) REFERENCES clients(id)`);
+    } catch (e) {
+      // ignore duplicate_object
+    }
+
   } catch (err) {
     console.warn('[DB Patch] Warning while applying legacy patches:', (err as Error)?.message || err);
   } finally {
