@@ -1,16 +1,38 @@
-import { Activity, Car, Wrench } from "lucide-react";
+import { Activity, Users, ArrowRightLeft, Target } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign } from "@shared/schema";
+
+interface Lead {
+  id: string;
+  status: string;
+  assignedTo?: string;
+}
+
+interface Conversation {
+  id: string;
+  status: string;
+  handoverCompleted: boolean;
+}
 
 export default function QuickStats() {
   const { data: campaigns } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
 
+  const { data: leads } = useQuery<Lead[]>({
+    queryKey: ["/api/leads"],
+    retry: false
+  });
+
+  const { data: conversations } = useQuery<Conversation[]>({
+    queryKey: ["/api/conversations"],
+    retry: false
+  });
+
   const activeCampaigns = campaigns?.filter(c => c.status === 'active').length || 0;
-  const avgOpenRate = campaigns?.length 
-    ? Math.round(campaigns.reduce((acc, c) => acc + (c.openRate || 0), 0) / campaigns.length)
-    : 0;
+  const engagedLeads = leads?.filter(l => l.status === 'engaged' || l.assignedTo).length || 0;
+  const handoverCount = conversations?.filter(c => c.handoverCompleted).length || 0;
+  const totalLeads = leads?.length || 0;
 
   return (
     <div>
@@ -31,27 +53,31 @@ export default function QuickStats() {
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Test Drives Booked</p>
-              <p className="text-2xl font-bold text-gray-900">847</p>
+              <p className="text-sm text-gray-600">Engaged Leads</p>
+              <p className="text-2xl font-bold text-gray-900">{engagedLeads}</p>
             </div>
             <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
-              <Car className="w-6 h-6 text-green-600" />
+              <Users className="w-6 h-6 text-green-600" />
             </div>
           </div>
-          <p className="text-sm text-green-600 mt-2">+12% this month</p>
+          <p className="text-sm text-green-600 mt-2">
+            {totalLeads > 0 ? `${Math.round((engagedLeads / totalLeads) * 100)}% of total leads` : 'No leads yet'}
+          </p>
         </div>
 
         <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Service Appointments</p>
-              <p className="text-2xl font-bold text-gray-900">341</p>
+              <p className="text-sm text-gray-600">Handovers Completed</p>
+              <p className="text-2xl font-bold text-gray-900">{handoverCount}</p>
             </div>
             <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-              <Wrench className="w-6 h-6 text-orange-600" />
+              <ArrowRightLeft className="w-6 h-6 text-orange-600" />
             </div>
           </div>
-          <p className="text-sm text-orange-600 mt-2">+8% this month</p>
+          <p className="text-sm text-orange-600 mt-2">
+            {conversations?.length ? `${Math.round((handoverCount / conversations.length) * 100)}% handover rate` : 'No conversations yet'}
+          </p>
         </div>
       </div>
     </div>
