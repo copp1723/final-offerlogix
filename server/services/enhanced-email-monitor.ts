@@ -1,7 +1,8 @@
 import imaps, { ImapSimple } from 'imap-simple';
-import { simpleParser } from 'mailparser';
+import { simpleParser, ParsedMail } from 'mailparser';
 import { storage } from '../storage';
 import { webSocketService } from './websocket';
+import { parseLeadEmail, validateLeadData, shouldProcessForLeadIngestion } from './lead-ingestion-parser';
 
 interface EmailTriggerRule {
   id: string;
@@ -72,7 +73,8 @@ export class EnhancedEmailMonitor {
 
     // Check if IMAP configuration is available
     if (!process.env.IMAP_HOST || !process.env.IMAP_USER || !process.env.IMAP_PASSWORD) {
-      console.log('Enhanced email monitor not started - IMAP configuration missing');
+      console.log('IMAP lead ingestion not started - IMAP configuration missing');
+      console.log('Set IMAP_HOST, IMAP_USER, IMAP_PASSWORD to enable lead ingestion from email');
       return;
     }
 

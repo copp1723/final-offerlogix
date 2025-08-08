@@ -1289,6 +1289,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Health check routes
   const healthRoutes = await import('./routes/health');
   app.use('/api/health', healthRoutes.default);
+  
+  // IMAP health check
+  const imapHealthRoutes = await import('./routes/health-imap');
+  app.use('/api/health', imapHealthRoutes.default);
 
   // SMS Integration Routes
   app.post("/api/sms/opt-in", async (req, res) => {

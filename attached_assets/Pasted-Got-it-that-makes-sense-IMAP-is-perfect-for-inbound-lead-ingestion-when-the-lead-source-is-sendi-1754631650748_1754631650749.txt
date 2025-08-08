@@ -1,0 +1,118 @@
+Got it — that makes sense.
+
+IMAP is perfect for inbound lead ingestion when the lead source is sending to a regular mailbox (OEM forms, Cars.com/Autotrader, website contact forms that forward to sales@onekeel.ai, etc.). Keep IMAP for those, and keep Mailgun Routes for campaign reply handling. Two lanes, zero confusion:
+
+Final architecture
+	•	Lane A — Campaign replies: Mailgun mailing subdomain (mg.onekeel.ai) → Routes → /api/webhooks/mailgun/inbound. No IMAP needed here.
+	•	Lane B — New lead ingestion (third-party sources): IMAP monitor on sales@onekeel.ai (or dedicated leads@onekeel.ai) → parse messages → create/update leads and conversations.
+
+What to keep/enable
+
+A) IMAP lead ingestion (keep this on)
+
+Purpose: ingest net-new leads arriving in a normal mailbox.
+
+Env
+
+IMAP_HOST=imap.gmail.com            # or your provider
+IMAP_PORT=993
+IMAP_SECURE=true
+IMAP_USER=sales@onekeel.ai
+IMAP_PASSWORD=<app_password_or_oauth_token>
+IMAP_FOLDER=INBOX
+IMAP_IDLE=true
+IMAP_POLL_INTERVAL_MS=60000         # safety loop if IDLE breaks
+IMAP_MOVE_PROCESSED=Processed       # optional folder to file processed mail
+IMAP_MOVE_FAILED=Failed             # optional
+LEAD_INGEST_ALLOWED_SENDERS=*       # or comma-list of trusted senders
+
+Code touchpoints (you already have most of this)
+	•	server/services/enhanced-email-monitor.ts (or email-monitor.ts)
+	•	Ensure it:
+	•	Watches INBOX (IDLE + periodic poll fallback).
+	•	Dedupes via Message-Id hash.
+	•	Filters by LEAD_INGEST_ALLOWED_SENDERS if you want to avoid junk.
+	•	Moves mail to Processed/Failed folders when configured.
+	•	InboundEmailService.handleInboundEmail or a dedicated LeadIngestionService:
+	•	Parse common lead formats (plain text, HTML table, JSON attachments).
+	•	Extract: name, email, phone, vehicle interest, source, notes.
+	•	Upsert lead → create conversation → write Supermemory snapshot.
+	•	Attach raw MIME or sanitized HTML to the conversation for audit.
+
+Minimal parser stub (drop-in shape)
+
+// server/services/lead-ingestion-parser.ts
+export function parseLeadEmail({ subject, html, text, from }: {
+  subject: string; html?: string; text?: string; from: string;
+}) {
+  // 1) Try structured formats first
+  // 2) Fallback to regex heuristics
+  const foundEmail = (text || html || '').match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
+  const phone = (text || html || '').match(/(\+?\d[\d\s().-]{7,}\d)/)?.[0];
+  const vehicleInterest = (text || html || '').match(/(model|trim|vehicle|interest)[:\s-]+(.{2,50})/i)?.[2];
+  return {
+    firstName: undefined,
+    lastName: undefined,
+    email: foundEmail,
+    phone,
+    vehicleInterest,
+    leadSource: from,
+    notes: subject
+  };
+}
+
+Safety
+	•	Use an app password or OAuth, never a real mailbox password.
+	•	Rate limit processing and backoff on IMAP disconnects.
+	•	Log and drop attachments you don’t need; never execute attachments.
+	•	Redact PII before sending anything to Supermemory (you already added this).
+
+Health
+	•	Add /api/health/imap that checks last successful fetch timestamp and current connection state.
+	•	Emit a metric like imap_last_message_ts and alert if stale.
+
+B) Mailgun inbound for replies (keep this for campaign back-and-forth)
+
+Purpose: handle replies to campaign emails reliably, with webhook speed and proper threading.
+
+DNS and routes
+Already covered, but confirm:
+	•	From/Reply-To on mg.onekeel.ai.
+	•	Mailgun Routes: forward to POST /api/webhooks/mailgun/inbound (+ store).
+	•	Events: POST /api/webhooks/mailgun/events for delivered/opened/clicked/bounced/unsubscribed.
+
+Inbound handler must:
+	•	Verify Mailgun signature.
+	•	Thread by In-Reply-To/References or fallback to From + last active convo.
+	•	Append conversation message, broadcast over WS, write memory, and trigger reply planner if enabled.
+
+Guardrails so the lanes don’t overlap
+	•	Campaign sends should use Reply-To: reply@mg.onekeel.ai. Those go to Mailgun webhook only.
+	•	IMAP monitor should ignore mail sent to *@mg.onekeel.ai to avoid double-ingest. Easiest: filter by recipient domain in your IMAP handler and skip mg.onekeel.ai.
+	•	For forms that currently forward to reply@mg.onekeel.ai, switch them to leads@onekeel.ai so they stay in the IMAP lane.
+
+Quick validation steps
+	1.	Send a test lead email from a personal account to leads@onekeel.ai
+Expect: IMAP monitor logs, new lead created, conversation opened, memory write.
+	2.	Send a campaign email and reply to it
+Expect: inbound webhook hit, threaded reply appears in the same conversation, memory write, optional auto-reply.
+	3.	Bounce/unsubscribe tests
+Expect: suppression added, future sends blocked for that address, memory updated.
+	4.	Health checks
+Confirm /api/health/imap, /api/health/mailgun, and WS status are green.
+
+Minimal diffs I’d make
+	•	In the IMAP monitor, add a recipient domain guard:
+
+const toAddrs = extractRecipients(msg);
+if (toAddrs.some(a => a.endsWith('@mg.onekeel.ai'))) return; // skip Mailgun lane mail
+
+	•	In send pipeline, pin Reply-To to the Mailgun lane:
+
+replyTo = process.env.MG_REPLY_TO || `reply@mg.onekeel.ai`;
+
+	•	Add /api/health/imap and expose last processed UID and timestamp.
+
+Bottom line
+
+Yes—keep IMAP for inbound lead ingestion to regular mailboxes. Keep Mailgun Routes for campaign replies. With those guards in place, you’re set up correctly for both paths without stepping on yourself. If you want, I can share a one-file IMAP monitor with the domain guard and folder moves you can drop in as a replacement.
