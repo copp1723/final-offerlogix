@@ -72,7 +72,7 @@ router.put('/preferences/:userId', async (req, res) => {
     const [updatedUser] = await db.update(users)
       .set({ 
         notificationPreferences: validatedData
-      })
+      } as any)
       .where(eq(users.id, userId))
       .returning();
     
@@ -186,28 +186,80 @@ router.post('/test/:userId', async (req, res) => {
     let success = false;
     switch (type) {
       case 'campaign_executed':
-        success = await userNotificationService.notifyCampaignExecuted(userId, notificationData);
+        success = await userNotificationService.notifyCampaignExecuted(userId, notificationData as {
+          campaignName: string;
+          campaignId: string;
+          emailsSent: number;
+          leadsTargeted: number;
+          templateTitle: string;
+          executedAt: Date;
+        });
         break;
       case 'campaign_completed':
-        success = await userNotificationService.notifyCampaignCompleted(userId, notificationData);
+        success = await userNotificationService.notifyCampaignCompleted(userId, notificationData as {
+          campaignName: string;
+          campaignId: string;
+          totalEmailsSent: number;
+          openRate: number;
+          leadsEngaged: number;
+          duration: string;
+        });
         break;
       case 'lead_assigned':
-        success = await userNotificationService.notifyLeadAssigned(userId, notificationData);
+        success = await userNotificationService.notifyLeadAssigned(userId, notificationData as {
+          leadName: string;
+          leadEmail: string;
+          leadPhone?: string;
+          vehicleInterest?: string;
+          leadSource?: string;
+          campaignName: string;
+        });
         break;
       case 'high_engagement':
-        success = await userNotificationService.notifyHighEngagement(userId, notificationData);
+        success = await userNotificationService.notifyHighEngagement(userId, notificationData as {
+          campaignName: string;
+          campaignId: string;
+          openRate: number;
+          clickRate: number;
+          responses: number;
+          engagementScore: number;
+          benchmark: number;
+        });
         break;
       case 'system_alert':
-        success = await userNotificationService.sendSystemAlert(userId, notificationData);
+        success = await userNotificationService.sendSystemAlert(userId, notificationData as {
+          alertTitle: string;
+          message: string;
+          details?: string;
+          actionRequired?: string;
+        });
         break;
       case 'monthly_report':
-        success = await userNotificationService.sendMonthlyReport(userId, notificationData);
+        success = await userNotificationService.sendMonthlyReport(userId, notificationData as {
+          month: string;
+          year: number;
+          campaignsExecuted: number;
+          totalEmailsSent: number;
+          newLeads: number;
+          avgOpenRate: number;
+          responseRate: number;
+          conversions: number;
+        });
         break;
       case 'email_validation_warning':
-        success = await userNotificationService.sendValidationWarning(userId, notificationData);
+        success = await userNotificationService.sendValidationWarning(userId, notificationData as {
+          campaignName: string;
+          campaignId: string;
+          issues: string[];
+        });
         break;
       case 'quota_warning':
-        success = await userNotificationService.sendQuotaWarning(userId, notificationData);
+        success = await userNotificationService.sendQuotaWarning(userId, notificationData as {
+          percentage: number;
+          emailsSent: number;
+          emailsQuota: number;
+          resetDate: string;
+        });
         break;
     }
     

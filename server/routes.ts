@@ -935,9 +935,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userId } = req.query;
       const conversations = await storage.getConversations(userId as string);
-      res.json(conversations);
+      res.json(conversations || []);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch conversations" });
+      console.error('Conversations fetch error:', error);
+      res.status(200).json([]); // be tolerant on dashboard load
     }
   });
 
@@ -1612,17 +1613,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Combined Intelligence Dashboard Route
   app.get("/api/intelligence/dashboard", async (req: TenantRequest, res) => {
     try {
-      const [
-        leadScores,
-        predictiveInsights,
-        conversationAnalyses,
-        escalationCandidates
-      ] = await Promise.all([
+      // Make each piece fault-tolerant so one failure doesn't 500 the whole dashboard
+      const [leadScoresRes, predictiveInsightsRes, conversationAnalysesRes, escalationCandidatesRes] = await Promise.allSettled([
         leadScoringService.bulkScoreLeads(),
         predictiveOptimizationService.getPredictiveInsights(),
         dynamicResponseIntelligenceService.analyzeAllActiveConversations(),
         dynamicResponseIntelligenceService.getEscalationCandidates()
       ]);
+
+      const leadScores = leadScoresRes.status === 'fulfilled' ? leadScoresRes.value : [];
+      const predictiveInsights = predictiveInsightsRes.status === 'fulfilled' ? predictiveInsightsRes.value : {
+        optimalSendTimes: [],
+        recommendedSequence: [],
+        targetingRecommendations: [],
+        seasonalAdjustments: []
+      };
+      const conversationAnalyses = conversationAnalysesRes.status === 'fulfilled' ? conversationAnalysesRes.value : [];
+      const escalationCandidates = escalationCandidatesRes.status === 'fulfilled' ? escalationCandidatesRes.value : [];
+
+      let recommendationCount = 0;
+      try {
+        recommendationCount = (await predictiveOptimizationService.generateOptimizationRecommendations()).length;
+      } catch { /* ignore */ }
 
       const dashboard = {
         leadScoring: {
@@ -1630,19 +1642,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
           hotLeads: leadScores.filter(s => s.priority === 'hot').length,
           warmLeads: leadScores.filter(s => s.priority === 'warm').length,
           coldLeads: leadScores.filter(s => s.priority === 'cold').length,
-          averageScore: leadScores.reduce((acc, s) => acc + s.totalScore, 0) / leadScores.length || 0,
+          averageScore: leadScores.reduce((acc, s) => acc + s.totalScore, 0) / (leadScores.length || 1),
           topScores: leadScores.slice(0, 10)
         },
         predictiveOptimization: {
           insights: predictiveInsights,
-          recommendationCount: (await predictiveOptimizationService.generateOptimizationRecommendations()).length
+          recommendationCount
         },
         conversationIntelligence: {
           totalConversations: conversationAnalyses.length,
           escalationCount: escalationCandidates.length,
           highUrgency: conversationAnalyses.filter(a => a.urgency === 'high' || a.urgency === 'critical').length,
           readyToBuy: conversationAnalyses.filter(a => a.intent === 'ready_to_buy').length,
-          averageConfidence: conversationAnalyses.reduce((acc, a) => acc + a.confidence, 0) / conversationAnalyses.length || 0
+          averageConfidence: conversationAnalyses.reduce((acc, a) => acc + (a.confidence || 0), 0) / (conversationAnalyses.length || 1)
         }
       };
 

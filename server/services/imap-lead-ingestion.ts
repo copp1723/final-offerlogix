@@ -236,24 +236,23 @@ export class IMAPLeadIngestionService {
 
         // Write to Supermemory if available
         try {
-          const supermemoryModule = await import('./supermemory');
-          if ('memoryService' in supermemoryModule && supermemoryModule.memoryService) {
-            await supermemoryModule.memoryService.addLeadMemory(lead.id, {
-              type: 'lead_ingestion',
-              source: 'email',
-              content: `New lead from email: ${parsed.subject}`,
-              context: {
-                leadData,
-                emailMetadata: {
-                  subject: parsed.subject,
-                  from: parsed.from?.text,
-                  date: parsed.date
-                }
-              }
-            });
-          }
+          const { MemoryMapper } = await import('../integrations/supermemory');
+          await MemoryMapper.writeLeadMessage({
+            type: 'lead_msg',
+            clientId: 'default', // or use lead.clientId if available
+            campaignId: undefined,
+            leadEmail: leadData.email || '',
+            content: `New lead from email: ${parsed.subject || ''}\n\nContent: ${parsed.text || parsed.html || ''}`,
+            meta: {
+              source: 'email_ingestion',
+              emailSubject: parsed.subject,
+              emailFrom: parsed.from?.text,
+              emailDate: parsed.date,
+              leadSource: leadData.leadSource
+            }
+          });
         } catch (error) {
-          console.log('Supermemory not available for lead ingestion');
+          console.log('Supermemory not available for lead ingestion:', error);
         }
       }
 

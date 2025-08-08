@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import { createHash } from "crypto";
 import { supermemory, isRAGEnabled } from "./client";
 
 type Tag = `client:${string}` | `campaign:${string}` | `lead:${string}` | `type:${string}`;
@@ -103,7 +103,7 @@ async function flush() {
 }
 
 function hashEmail(email: string) {
-  return crypto.createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16);
+  return createHash("sha256").update(email.trim().toLowerCase()).digest("hex").slice(0, 16);
 }
 
 // very basic PII scrub—good enough for email bodies/log lines

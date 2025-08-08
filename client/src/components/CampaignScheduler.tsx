@@ -11,6 +11,16 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+interface CampaignSchedule {
+  scheduleType: 'immediate' | 'scheduled' | 'recurring';
+  scheduledStart?: string;
+  recurringPattern?: 'daily' | 'weekly' | 'monthly';
+  recurringDays?: number[];
+  recurringTime?: string;
+  nextExecution?: string;
+  status?: string;
+}
+
 interface CampaignSchedulerProps {
   campaignId: string;
   onScheduled?: () => void;
@@ -38,8 +48,9 @@ export function CampaignScheduler({ campaignId, onScheduled }: CampaignScheduler
   ];
 
   // Get current schedule
-  const { data: schedule, isLoading } = useQuery({
+  const { data: schedule, isLoading } = useQuery<CampaignSchedule>({
     queryKey: ['/api/campaigns', campaignId, 'schedule'],
+    queryFn: () => apiRequest(`/api/campaigns/${campaignId}/schedule`, 'GET'),
   });
 
   // Schedule campaign mutation
@@ -204,7 +215,7 @@ export function CampaignScheduler({ campaignId, onScheduled }: CampaignScheduler
             </div>
             
             <div className="flex gap-2">
-              {schedule.scheduleType === 'immediate' && schedule.status === 'draft' && (
+              {schedule.scheduleType === 'immediate' && schedule.status && !['active', 'completed'].includes(schedule.status) && (
                 <Button 
                   onClick={() => executeMutation.mutate()}
                   disabled={executeMutation.isPending}
@@ -230,7 +241,7 @@ export function CampaignScheduler({ campaignId, onScheduled }: CampaignScheduler
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Schedule Type</Label>
-              <Select value={scheduleType} onValueChange={(value: any) => setScheduleType(value)}>
+              <Select value={scheduleType} onValueChange={(value: 'immediate' | 'scheduled' | 'recurring') => setScheduleType(value)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -268,7 +279,7 @@ export function CampaignScheduler({ campaignId, onScheduled }: CampaignScheduler
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label>Frequency</Label>
-                  <Select value={recurringPattern} onValueChange={(value: any) => setRecurringPattern(value)}>
+                  <Select value={recurringPattern} onValueChange={(value: 'daily' | 'weekly' | 'monthly') => setRecurringPattern(value)}>
                     <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>

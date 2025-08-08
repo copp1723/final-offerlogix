@@ -215,7 +215,7 @@ export class InboundEmailService {
 
         // Send via live conversation service if connected
         if (liveConversationService) {
-          await liveConversationService.sendMessageToLead(leadId, conversationId, aiResponse, 'ai');
+          await liveConversationService.sendMessageToLead(leadId, conversationId, aiResponse, 'text');
         }
       }
 

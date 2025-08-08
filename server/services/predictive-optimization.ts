@@ -375,7 +375,7 @@ export class PredictiveOptimizationService {
   }
 
   private determineVehicleType(leads: Lead[]): string {
-    const vehicles = leads.map(l => l.vehicleInterest || '').join(' ').toLowerCase();
+    const vehicles = (leads || []).map(l => (l?.vehicleInterest || '')).join(' ').toLowerCase();
     if (vehicles.includes('truck')) return 'truck';
     if (vehicles.includes('suv')) return 'suv';
     if (vehicles.includes('sedan')) return 'sedan';

@@ -138,8 +138,11 @@ export class DynamicResponseIntelligenceService {
   }
 
   private async performDeepAnalysis(conversation: Conversation, leadMessages: ConversationMessage[]): Promise<ConversationAnalysis> {
-    const allContent = leadMessages.map(m => m.content).join(' ').toLowerCase();
-    
+    const allContent = (leadMessages || [])
+      .map(m => (m && typeof (m as any).content === 'string' ? (m as any).content : ''))
+      .join(' ')
+      .toLowerCase();
+
     // Analyze mood
     const mood = this.analyzeMood(allContent);
     

@@ -17,13 +17,8 @@ import { z } from "zod";
 const formSchema = insertCampaignSchema.extend({
   name: z.string().min(1, "Campaign name is required"),
   context: z.string().min(10, "Please provide more detailed context"),
-}).omit({ 
-  createdAt: true, 
-  updatedAt: true, 
-  id: true,
-  openRate: true,
-  templates: true,
-  subjectLines: true
+  communicationType: z.enum(["email", "email_sms", "sms"]).default("email"),
+  scheduleType: z.enum(["immediate", "scheduled", "recurring"]).default("immediate"),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -53,12 +48,18 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       name: "",
       context: "",
       handoverGoals: "",
+      targetAudience: "",
+      handoverPrompt: "",
       status: "draft",
+      templates: null,
+      subjectLines: null,
       numberOfTemplates: 5,
       daysBetweenMessages: 3,
+      openRate: null,
+      isTemplate: false,
+      originalCampaignId: null,
       communicationType: "email",
       scheduleType: "immediate",
-      isTemplate: false,
     },
   });
 
@@ -102,7 +103,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const generateSubjects = useMutation({
     mutationFn: ({ context, name }: { context: string; name: string }) =>
-      apiRequest('POST', '/api/ai/generate-subjects', { context, name }),
+      apiRequest('/api/ai/generate-subjects', 'POST', { context, name }),
     onSuccess: () => {
       toast({ title: "Subject lines generated!" });
     },
@@ -113,7 +114,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const generateNames = useMutation({
     mutationFn: (context: string) => 
-      apiRequest('POST', '/api/ai/suggest-names', { context }),
+      apiRequest('/api/ai/suggest-names', 'POST', { context }),
     onSuccess: (response: any) => {
       const names = response.json?.names || [];
       setNameSuggestions(names);
@@ -126,7 +127,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const generateTemplates = useMutation({
     mutationFn: ({ context, name, numberOfTemplates }: { context: string; name: string; numberOfTemplates: number }) =>
-      apiRequest('POST', '/api/ai/generate-templates', { context, name, numberOfTemplates }),
+      apiRequest('/api/ai/generate-templates', 'POST', { context, name, numberOfTemplates }),
     onSuccess: (response: any) => {
       const templates = response.json?.templates || [];
       setGeneratedTemplates(templates);
@@ -556,7 +557,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
               type="submit" 
               variant="outline"
               disabled={createCampaign.isPending}
-              onClick={() => form.setValue('status', 'draft')}
+              onClick={() => form.setValue('status', 'draft' as any)}
             >
               Save Draft
             </Button>

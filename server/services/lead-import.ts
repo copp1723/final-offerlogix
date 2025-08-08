@@ -1,4 +1,4 @@
-import multer from 'multer';
+import * as multer from 'multer';
 import * as csv from 'csv-parse';
 import { storage } from '../storage';
 import { Request, Response } from 'express';
@@ -313,7 +313,7 @@ export class LeadImportService {
         leads = leads.filter(lead => lead.status === status);
       }
       if (source) {
-        leads = leads.filter(lead => lead.source === source);
+        leads = leads.filter(lead => lead.leadSource === source);
       }
 
       // Create CSV headers
@@ -333,21 +333,23 @@ export class LeadImportService {
         'Updated Date'
       ];
 
-      // Generate CSV rows
+      // Generate CSV rows - fix missing properties and null handling
       const csvRows = leads.map(lead => [
         lead.id,
         lead.firstName || '',
         lead.lastName || '',
-        lead.name || '',
+        // Construct name from firstName/lastName since 'name' doesn't exist on Lead type
+        (lead.firstName && lead.lastName) ? `${lead.firstName} ${lead.lastName}` : (lead.firstName || lead.lastName || ''),
         lead.email,
         lead.phone || '',
-        lead.status,
-        lead.source,
-        lead.qualificationScore || '',
+        lead.status || '',
+        lead.leadSource || '', // Use leadSource instead of source
+        '', // qualificationScore doesn't exist on Lead type - empty for now
         lead.vehicleInterest || '',
         lead.campaignId || '',
-        new Date(lead.createdAt).toISOString(),
-        new Date(lead.updatedAt).toISOString()
+        // Handle potential null dates
+        lead.createdAt ? new Date(lead.createdAt).toISOString() : '',
+        lead.updatedAt ? new Date(lead.updatedAt).toISOString() : ''
       ]);
 
       // Combine headers and rows

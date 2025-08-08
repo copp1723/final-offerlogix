@@ -106,10 +106,14 @@ export class LiveConversationService {
       isFromAI: 0
     });
 
-    // Broadcast to other connected agents/admins
+    // Broadcast to other connected agents/admins - add timestamp for ConversationMessage interface
+    const messageWithTimestamp = {
+      ...messageRecord,
+      timestamp: messageRecord.createdAt
+    };
     this.broadcastToAgents(conversationId, {
       type: 'new_message',
-      message: messageRecord
+      message: messageWithTimestamp
     });
 
     // Trigger AI response if enabled
@@ -139,10 +143,12 @@ export class LiveConversationService {
           return;
         }
 
-        // Create automotive context
+        // Create automotive context - handle missing name property
+        const leadName = (lead.firstName && lead.lastName) ? `${lead.firstName} ${lead.lastName}` : 
+                        lead.firstName || lead.lastName || 'Customer';
         const context = AutomotivePromptService.createConversationContext(
-          lead.name || 'Customer',
-          lead.vehicleInterest,
+          leadName,
+          lead.vehicleInterest || undefined,
           incomingMessage.content,
           recentMessages.map(m => m.content)
         );
@@ -150,7 +156,7 @@ export class LiveConversationService {
         // Generate enhanced system prompt with conversation enhancers
         const config = AutomotivePromptService.getDefaultDealershipConfig();
         const currentSeason = this.getCurrentSeason();
-        const brand = this.extractBrandFromMessage(incomingMessage.content, lead.vehicleInterest);
+        const brand = this.extractBrandFromMessage(incomingMessage.content, lead.vehicleInterest || undefined);
 
         const systemPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
           config,
@@ -236,13 +242,13 @@ export class LiveConversationService {
   }
 
   private broadcastToAgents(conversationId: string, data: any) {
-    // Find all agent connections for this conversation
-    for (const [connectionId, connection] of this.connections) {
+    // Find all agent connections for this conversation - fix Map iteration issue
+    this.connections.forEach((connection, connectionId) => {
       if (connection.conversationId === conversationId && 
           connection.ws.readyState === WebSocket.OPEN) {
         connection.ws.send(JSON.stringify(data));
       }
-    }
+    });
   }
 
   private getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
@@ -268,7 +274,8 @@ export class LiveConversationService {
   private startHeartbeat() {
     setInterval(() => {
       const now = new Date();
-      for (const [connectionId, connection] of this.connections) {
+      // Fix Map iteration issue
+      this.connections.forEach((connection, connectionId) => {
         // Remove stale connections (no activity for 30 minutes)
         if (now.getTime() - connection.lastActivity.getTime() > 30 * 60 * 1000) {
           connection.ws.close();
@@ -277,7 +284,7 @@ export class LiveConversationService {
           // Send ping
           connection.ws.ping();
         }
-      }
+      });
     }, 60000); // Every minute
   }
 

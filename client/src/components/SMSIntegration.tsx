@@ -12,6 +12,11 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+interface SMSStatus {
+  hasPhone: boolean;
+  optInStatus: 'opted-in' | 'opted-out' | 'pending' | 'unknown';
+}
+
 interface SMSIntegrationProps {
   campaignId: string;
   leadId?: string;
@@ -31,8 +36,9 @@ export function SMSIntegration({
   const [customOptInMessage, setCustomOptInMessage] = useState('');
 
   // Get SMS status for lead if provided
-  const { data: smsStatus, isLoading } = useQuery({
+  const { data: smsStatus, isLoading } = useQuery<SMSStatus>({
     queryKey: ['/api/leads', leadId, 'sms-status'],
+    queryFn: () => apiRequest(`/api/leads/${leadId}/sms-status`, 'GET'),
     enabled: !!leadId,
   });
 
@@ -121,7 +127,7 @@ export function SMSIntegration({
             <Label>Communication Type</Label>
             <Select 
               value={communicationType} 
-              onValueChange={(value: any) => onCommunicationTypeChange?.(value)}
+              onValueChange={(value: 'email' | 'email_sms' | 'sms') => onCommunicationTypeChange?.(value)}
             >
               <SelectTrigger>
                 <SelectValue />
@@ -148,8 +154,8 @@ export function SMSIntegration({
                   the system will automatically offer SMS communication for faster responses.
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Default message: "Would you like to continue this conversation via text? 
-                  Reply YES to receive SMS updates about your automotive interests."
+                  Default message: &ldquo;Would you like to continue this conversation via text? 
+                  Reply YES to receive SMS updates about your automotive interests.&rdquo;
                 </div>
               </div>
             </div>

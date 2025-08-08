@@ -296,11 +296,11 @@ export class EmailMonitorService {
         });
 
         // Send email response using Mailgun
-        await this.sendEmailResponse(lead.email, aiResponseContent, `Re: ${email.subject}`);
+        await this.sendEmailResponse(lead.email, aiResponseContent, `Re: ${incomingMessage.content.split('\n')[0] || 'Email Response'}`);
 
         // Notify via WebSocket if connected
         if (liveConversationService) {
-          await liveConversationService.sendMessageToLead(lead.id, conversation.id, aiResponseContent, 'ai');
+          await liveConversationService.sendMessageToLead(lead.id, conversation.id, aiResponseContent, 'email');
         }
       }
     } catch (error) {
@@ -444,7 +444,8 @@ export class EmailMonitorService {
 
       if (rule.actions.addTags) {
         const existingTags = lead.tags || [];
-        updates.tags = [...new Set([...existingTags, ...rule.actions.addTags])];
+        const tagSet = new Set([...existingTags, ...rule.actions.addTags]);
+        updates.tags = Array.from(tagSet);
       }
 
       if (Object.keys(updates).length > 0) {
