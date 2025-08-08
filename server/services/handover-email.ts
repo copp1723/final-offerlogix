@@ -1,4 +1,4 @@
-import { MailgunService } from './mailgun';
+import { sendCampaignEmail } from './mailgun';
 
 export interface HandoverEvaluation {
   shouldHandover: boolean;
@@ -34,12 +34,11 @@ export class HandoverEmailService {
       const emailContent = this.generateHandoverEmail(data);
       
       // Send email via Mailgun
-      const success = await MailgunService.sendEmail({
-        to: recipientEmail,
-        from: fromEmail,
-        subject: `🚨 Urgent Handover Required - ${lead?.firstName || 'Customer'} Ready to Purchase`,
-        content: emailContent
-      });
+      const success = await sendCampaignEmail(
+        recipientEmail,
+        `🚨 Urgent Handover Required - ${lead?.firstName || 'Customer'} Ready to Purchase`,
+        emailContent
+      );
       
       console.log(`Handover email sent: ${success ? 'SUCCESS' : 'FAILED'}`);
       return success;
