@@ -1806,44 +1806,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Advanced analytics aggregate endpoint (placeholder synthesized metrics)
-  app.get('/api/intelligence/advanced-analytics', async (req: TenantRequest, res) => {
-    try {
-      const timeframe = (req.query.timeframe as string) || '30d';
-      // Placeholder synthetic values; in production compute from DB
-      res.json({
-        leadScoring: {
-          totalLeads: 0,
-          hotLeads: 0,
-          warmLeads: 0,
-          coldLeads: 0,
-          averageScore: 0,
-          qualityScore: 0,
-          confidenceLevel: 0,
-          accuracyTrend: 0,
-          lifetimeValueDistribution: { high: 0, medium: 0, low: 0 },
-          conversionPredictions: { next7Days: 0, next30Days: 0, next90Days: 0 }
-        },
-        mlOptimization: {
-          sendTimeOptimization: { optimalTimes: [] },
-          audienceSegmentation: { clusters: [] },
-          abTestingRecommendations: []
-        },
-        customerJourney: {
-          journeyStages: [],
-          churnPredictions: [],
-          nextBestActions: []
-        },
-        dataQuality: {
-          overview: { qualityScore: 0, totalRecords: 0 },
-          leadDataQuality: { completeness: 0, accuracy: 0, consistency: 0, freshness: 0 }
-        },
-        timeframe
-      });
-    } catch (e) {
-      res.status(500).json({ message: 'Failed to load advanced analytics' });
-    }
-  });
 
   // System health endpoint aggregating key service states
   app.get('/api/health', async (_req, res) => {
