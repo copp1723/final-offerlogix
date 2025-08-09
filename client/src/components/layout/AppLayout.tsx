@@ -22,36 +22,43 @@ const navigation: NavItem[] = [
     icon: BarChart3,
   },
   {
+    name: "Campaigns",
+    href: "/campaigns",
+    icon: Target,
+  },
+  {
+    name: "Leads",
+    href: "/leads",
+    icon: Users,
+  },
+  {
+    name: "Conversations",
+    href: "/conversations",
+    icon: MessageSquare,
+  },
+  {
     name: "Intelligence",
     href: "/intelligence",
     icon: Brain,
   },
   {
-    name: "Campaigns",
-    href: "/campaigns",
-    icon: Target,
-    children: [
-      { name: "All Campaigns", href: "/campaigns", icon: FileText },
-      { name: "Leads", href: "/leads", icon: Users },
-      { name: "Conversations", href: "/conversations", icon: MessageSquare },
-      { name: "Email Monitor", href: "/email-monitor", icon: Mail },
-      { name: "AI Agent Settings", href: "/ai-settings", icon: Zap },
-      { name: "Scoring Config", href: "/scoring-config", icon: Target },
-    ],
+    name: "AI Management",
+    href: "/ai-settings",
+    icon: Zap,
+  },
+  {
+    name: "Email Monitor",
+    href: "/email-monitor",
+    icon: Mail,
   },
   {
     name: "Settings",
     href: "/settings",
     icon: Settings,
-    children: [
-      { name: "Notifications", href: "/notifications", icon: Bell },
-      { name: "User Management", href: "/users", icon: Users },
-      { name: "White Label", href: "/white-label", icon: Car },
-    ],
   },
 ];
 
-function SidebarNavItem({ item, isActive, isChild = false }: { item: NavItem; isActive: boolean; isChild?: boolean }) {
+function SidebarNavItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
   const Icon = item.icon;
   
   return (
@@ -59,13 +66,12 @@ function SidebarNavItem({ item, isActive, isChild = false }: { item: NavItem; is
       <div
         className={cn(
           "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-          isChild && "ml-6 text-sm",
           isActive
             ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
             : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
         )}
       >
-        <Icon className={cn("flex-shrink-0", isChild ? "w-4 h-4" : "w-5 h-5")} />
+        <Icon className="flex-shrink-0 w-5 h-5" />
         <span>{item.name}</span>
       </div>
     </Link>
@@ -100,33 +106,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-2">
-            {navigation.map((item) => {
-              const isParentActive = location === item.href || 
-                (item.children?.some(child => location === child.href) && location !== "/");
-              
-              return (
-                <div key={item.name}>
-                  <SidebarNavItem 
-                    item={item} 
-                    isActive={location === item.href}
-                  />
-                  
-                  {/* Show children if parent is active or current location matches child */}
-                  {item.children && isParentActive && (
-                    <div className="mt-2 space-y-1">
-                      {item.children.map((child) => (
-                        <SidebarNavItem
-                          key={child.name}
-                          item={child}
-                          isActive={location === child.href}
-                          isChild={true}
-                        />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+            {navigation.map((item) => (
+              <SidebarNavItem 
+                key={item.name}
+                item={item} 
+                isActive={location === item.href}
+              />
+            ))}
           </nav>
 
           {/* User section */}

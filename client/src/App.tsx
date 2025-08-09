@@ -12,10 +12,9 @@ import AiSettingsPage from "@/pages/ai-settings";
 import WhiteLabelPage from "@/pages/white-label";
 import SettingsPage from "@/pages/settings";
 import NotFound from "@/pages/not-found";
-import AutomotivePromptsPage from "@/pages/automotive-prompts";
 import EmailMonitorPage from "@/pages/email-monitor";
 import NotificationsPage from "@/pages/notifications";
-import IntelligencePage from "@/pages/intelligence-backup";
+import IntelligencePage from "@/pages/intelligence";
 import ScoringConfigPage from "@/pages/scoring-config";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
@@ -25,13 +24,12 @@ function Router() {
     <AppLayout>
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/conversations" component={ConversationsPage} />
-        <Route path="/leads" component={LeadsPage} />
         <Route path="/campaigns" component={CampaignsPage} />
-        <Route path="/ai-settings" component={AiSettingsPage} />
-        <Route path="/automotive-prompts" component={AutomotivePromptsPage} />
-        <Route path="/email-monitor" component={EmailMonitorPage} />
+        <Route path="/leads" component={LeadsPage} />
+        <Route path="/conversations" component={ConversationsPage} />
         <Route path="/intelligence" component={IntelligencePage} />
+        <Route path="/ai-settings" component={AiSettingsPage} />
+        <Route path="/email-monitor" component={EmailMonitorPage} />
         <Route path="/scoring-config" component={ScoringConfigPage} />
         <Route path="/notifications" component={NotificationsPage} />
         <Route path="/settings" component={SettingsPage} />

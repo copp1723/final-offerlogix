@@ -45,7 +45,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { Plus, Edit, Trash2, Check, Settings, Shield } from "lucide-react";
+import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import EmailValidationPanel from "@/components/campaigns/EmailValidationPanel";
 import AutomotivePromptTester from "@/components/ai/AutomotivePromptTester";
@@ -247,12 +247,30 @@ export default function AiSettingsPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">AI Agent Settings</h1>
-        <Button onClick={() => handleEdit()}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Configuration
-        </Button>
+        <div>
+          <h1 className="text-2xl font-semibold text-gray-900 flex items-center">
+            <Brain className="h-6 w-6 mr-3 text-blue-600" />
+            AI Management Center
+          </h1>
+          <p className="text-gray-600 mt-1">Configure AI agents, test prompts, and manage automotive intelligence</p>
+        </div>
       </div>
+
+      <Tabs defaultValue="agent-configs" className="space-y-6">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="agent-configs">Agent Configurations</TabsTrigger>
+          <TabsTrigger value="prompt-tester">Prompt Tester</TabsTrigger>
+          <TabsTrigger value="validation">Email Validation</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="agent-configs" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-lg font-medium">AI Agent Configurations</h2>
+            <Button onClick={() => handleEdit()}>
+              <Plus className="h-4 w-4 mr-2" />
+              New Configuration
+            </Button>
+          </div>
 
       {/* Active Configuration Card */}
       {activeConfig && (
@@ -371,171 +389,207 @@ export default function AiSettingsPage() {
         ))}
       </div>
 
-      {/* Edit/Create Dialog */}
-      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>
-              {selectedConfig ? "Edit" : "Create"} AI Agent Configuration
-            </DialogTitle>
-            <DialogDescription>
-              Configure how the AI agent behaves and responds to users.
-            </DialogDescription>
-          </DialogHeader>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Configuration Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Professional Automotive Agent" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <div className="grid md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="tonality"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Tonality</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+          {/* Edit/Create Dialog */}
+          <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>
+                  {selectedConfig ? "Edit" : "Create"} AI Agent Configuration
+                </DialogTitle>
+                <DialogDescription>
+                  Configure how the AI agent behaves and responds to users.
+                </DialogDescription>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Configuration Name</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select tonality" />
-                          </SelectTrigger>
+                          <Input placeholder="e.g., Professional Automotive Agent" {...field} />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="professional">Professional</SelectItem>
-                          <SelectItem value="friendly">Friendly</SelectItem>
-                          <SelectItem value="casual">Casual</SelectItem>
-                          <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="responseStyle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Response Style</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="tonality"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tonality</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select tonality" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="professional">Professional</SelectItem>
+                              <SelectItem value="friendly">Friendly</SelectItem>
+                              <SelectItem value="casual">Casual</SelectItem>
+                              <SelectItem value="enthusiastic">Enthusiastic</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={form.control}
+                      name="responseStyle"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Response Style</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value || undefined}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select response style" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="helpful">Helpful</SelectItem>
+                              <SelectItem value="consultative">Consultative</SelectItem>
+                              <SelectItem value="direct">Direct</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <FormField
+                    control={form.control}
+                    name="personality"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Personality Description</FormLabel>
                         <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select response style" />
-                          </SelectTrigger>
+                          <Textarea 
+                            placeholder="Describe the agent's personality and approach..."
+                            {...field}
+                            value={field.value || ''}
+                          />
                         </FormControl>
-                        <SelectContent>
-                          <SelectItem value="helpful">Helpful</SelectItem>
-                          <SelectItem value="consultative">Consultative</SelectItem>
-                          <SelectItem value="direct">Direct</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+                        <FormDescription>
+                          Provide a brief description of how the agent should behave.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-              <FormField
-                control={form.control}
-                name="personality"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Personality Description</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Describe the agent's personality and approach..."
-                        {...field}
-                        value={field.value || ''}
+                  {/* Do's Section */}
+                  <div className="space-y-2">
+                    <FormLabel>Do's - What the agent should always do</FormLabel>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add a do..."
+                        value={newDo}
+                        onChange={(e) => setNewDo(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDo())}
                       />
-                    </FormControl>
-                    <FormDescription>
-                      Provide a brief description of how the agent should behave.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <Button type="button" onClick={addDo} size="sm">
+                        Add
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {form.watch("dosList").map((item, index) => (
+                        <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeDo(index)}>
+                          {item} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Do's Section */}
-              <div className="space-y-2">
-                <FormLabel>Do's - What the agent should always do</FormLabel>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add a do..."
-                    value={newDo}
-                    onChange={(e) => setNewDo(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDo())}
-                  />
-                  <Button type="button" onClick={addDo} size="sm">
-                    Add
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {form.watch("dosList").map((item, index) => (
-                    <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeDo(index)}>
-                      {item} ×
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+                  {/* Don'ts Section */}
+                  <div className="space-y-2">
+                    <FormLabel>Don'ts - What the agent should never do</FormLabel>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="Add a don't..."
+                        value={newDont}
+                        onChange={(e) => setNewDont(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDont())}
+                      />
+                      <Button type="button" onClick={addDont} size="sm">
+                        Add
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {form.watch("dontsList").map((item, index) => (
+                        <Badge key={index} variant="destructive" className="cursor-pointer" onClick={() => removeDont(index)}>
+                          {item} ×
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
 
-              {/* Don'ts Section */}
-              <div className="space-y-2">
-                <FormLabel>Don'ts - What the agent should never do</FormLabel>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="Add a don't..."
-                    value={newDont}
-                    onChange={(e) => setNewDont(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDont())}
-                  />
-                  <Button type="button" onClick={addDont} size="sm">
-                    Add
-                  </Button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {form.watch("dontsList").map((item, index) => (
-                    <Badge key={index} variant="destructive" className="cursor-pointer" onClick={() => removeDont(index)}>
-                      {item} ×
-                    </Badge>
-                  ))}
-                </div>
-              </div>
+                  <div className="flex justify-end space-x-2 pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setEditDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={createMutation.isPending || updateMutation.isPending}
+                    >
+                      {selectedConfig 
+                        ? (updateMutation.isPending ? "Updating..." : "Update Configuration")
+                        : (createMutation.isPending ? "Creating..." : "Create Configuration")
+                      }
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
 
-              <div className="flex justify-end space-x-2 pt-4">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setEditDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createMutation.isPending || updateMutation.isPending}
-                >
-                  {selectedConfig 
-                    ? (updateMutation.isPending ? "Updating..." : "Update Configuration")
-                    : (createMutation.isPending ? "Creating..." : "Create Configuration")
-                  }
-                </Button>
-              </div>
-            </form>
-          </Form>
-        </DialogContent>
-      </Dialog>
+        <TabsContent value="prompt-tester" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5 text-blue-600" />
+                Automotive Prompt Tester
+              </CardTitle>
+              <CardDescription>
+                Test and analyze automotive conversation prompts for optimal AI responses
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AutomotivePromptTester />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="validation" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5 text-green-600" />
+                Email Validation Panel
+              </CardTitle>
+              <CardDescription>
+                Validate email configurations and test deliverability
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EmailValidationPanel />
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

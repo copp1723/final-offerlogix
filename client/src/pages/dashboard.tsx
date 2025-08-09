@@ -31,58 +31,9 @@ export default function Dashboard() {
         <AIChatInterface />
       </div>
 
-      {/* Dashboard Cards - Even 4-card layout */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+      {/* Quick Stats */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <QuickStats />
-        
-        {/* Lead Scoring Summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <Target className="h-4 w-4 mr-2 text-blue-600" />
-              Lead Scoring
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{leadScoring.totalLeads}</div>
-            <p className="text-xs text-muted-foreground mb-3">Leads Analyzed</p>
-            <div className="flex items-center space-x-2">
-              <Badge className="bg-red-100 text-red-800 text-xs">{leadScoring.hotLeads} Hot</Badge>
-              <Badge className="bg-orange-100 text-orange-800 text-xs">{leadScoring.warmLeads} Warm</Badge>
-              <Badge className="bg-blue-100 text-blue-800 text-xs">{leadScoring.coldLeads} Cold</Badge>
-            </div>
-            <div className="mt-3">
-              <div className="flex justify-between text-xs">
-                <span>Avg Score</span>
-                <span>{Math.round(leadScoring.averageScore)}%</span>
-              </div>
-              <Progress value={leadScoring.averageScore} className="mt-1" />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Predictive Insights Summary */}
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium flex items-center">
-              <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
-              AI Insights
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{predictiveOpt.recommendationCount}</div>
-            <p className="text-xs text-muted-foreground mb-3">Recommendations</p>
-            {predictiveOpt.insights?.optimalSendTimes?.[0] && (
-              <div className="text-xs text-gray-600">
-                <div className="font-medium">Best Send Time:</div>
-                <div>
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][predictiveOpt.insights.optimalSendTimes[0].dayOfWeek]} at {predictiveOpt.insights.optimalSendTimes[0].hour}:00
-                </div>
-                <div className="text-green-600">{predictiveOpt.insights.optimalSendTimes[0].confidence}% confidence</div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
