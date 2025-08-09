@@ -199,6 +199,9 @@ export function EmailMonitorDashboard() {
               <div className="text-sm text-gray-600">Status</div>
             </div>
           </div>
+          { (status as any).lastCheckAt && (
+            <div className="text-xs text-gray-500 mb-4">Last Check: {new Date((status as any).lastCheckAt).toLocaleTimeString()}</div>
+          ) }
           
           <div className="flex items-center space-x-2">
             {!status.running ? (

@@ -716,13 +716,68 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create or update a rule (upsert)
+  app.post("/api/email-monitor/rules", async (req, res) => {
+    try {
+      const rule = req.body;
+      if (!rule || !rule.id || !rule.name) {
+        return res.status(400).json({ message: 'Rule id and name required' });
+      }
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      // Simple replace logic
+      const existing = enhancedEmailMonitor.getTriggerRules().find(r => r.id === rule.id);
+      if (existing) {
+        // remove then add
+        enhancedEmailMonitor.removeTriggerRule(rule.id);
+      }
+      enhancedEmailMonitor.addTriggerRule({
+        ...rule,
+        // Convert any regex-like strings (containing |) into RegExp server-side for matching logic
+        conditions: {
+          ...rule.conditions,
+          subject: rule.conditions?.subject ? new RegExp(rule.conditions.subject, 'i') : undefined,
+          body: rule.conditions?.body ? new RegExp(rule.conditions.body, 'i') : undefined
+        }
+      });
+      res.json({ message: 'Rule saved' });
+    } catch (error) {
+      console.error('Email monitor save rule error:', error);
+      res.status(500).json({ message: 'Failed to save rule' });
+    }
+  });
+
+  app.delete('/api/email-monitor/rules/:id', async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const removed = enhancedEmailMonitor.removeTriggerRule(id);
+      if (!removed) return res.status(404).json({ message: 'Rule not found' });
+      res.json({ message: 'Rule deleted' });
+    } catch (error) {
+      console.error('Email monitor delete rule error:', error);
+      res.status(500).json({ message: 'Failed to delete rule' });
+    }
+  });
+
   // Start/stop monitoring (placeholder)
   app.post("/api/email-monitor/start", async (req, res) => {
-    res.json({ message: "Email monitor started successfully" });
+    try {
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      await enhancedEmailMonitor.start();
+      res.json({ message: "Email monitor started successfully" });
+    } catch (e) {
+      res.status(500).json({ message: 'Failed to start email monitor' });
+    }
   });
 
   app.post("/api/email-monitor/stop", async (req, res) => {
-    res.json({ message: "Email monitor stopped successfully" });
+    try {
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      await enhancedEmailMonitor.stop();
+      res.json({ message: "Email monitor stopped successfully" });
+    } catch (e) {
+      res.status(500).json({ message: 'Failed to stop email monitor' });
+    }
   });
 
   // SMS routes

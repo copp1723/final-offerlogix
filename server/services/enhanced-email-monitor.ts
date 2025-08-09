@@ -61,6 +61,7 @@ export class EnhancedEmailMonitor {
   private checkInterval: NodeJS.Timeout | null = null;
   private isRunning = false;
   private lastProcessedUid = 0;
+  private lastCheckAt: Date | null = null;
 
   constructor() {
     this.loadDefaultTriggerRules();
@@ -157,6 +158,7 @@ export class EnhancedEmailMonitor {
     if (!this.connection || !this.isRunning) return;
 
     try {
+  this.lastCheckAt = new Date();
       const searchCriteria = ['UNSEEN'];
       const fetchOptions = { 
         bodies: ['HEADER', 'TEXT', ''], 
@@ -654,7 +656,8 @@ This is an automated response. Please do not reply to this email directly.
       connected: this.connection !== null,
       ruleCount: this.triggerRules.length,
       enabledRules: this.triggerRules.filter(r => r.enabled).length,
-      campaignTriggers: this.campaignTriggers.length
+  campaignTriggers: this.campaignTriggers.length,
+  lastCheckAt: this.lastCheckAt ? this.lastCheckAt.toISOString() : null
     };
   }
 }
