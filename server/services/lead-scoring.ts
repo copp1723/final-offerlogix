@@ -109,48 +109,6 @@ export class LeadScoringService {
     updatedAt: new Date()
   };
 
-  private luxuryAutomotiveProfile: ScoringProfile = {
-    id: 'luxury-dealership',
-    name: 'Luxury Dealership',
-    description: 'Premium focus with emphasis on financial readiness and engagement quality',
-    industry: 'automotive-luxury',
-    criteria: [
-      { id: 'response_speed', name: 'Response Speed', description: 'How quickly lead responds to initial contact', weight: 7, category: 'engagement' },
-      { id: 'message_quality', name: 'Message Quality', description: 'Specificity and detail in lead communications', weight: 10, category: 'content' },
-      { id: 'vehicle_specificity', name: 'Vehicle Interest Specificity', description: 'How specific the lead is about vehicle models/features', weight: 8, category: 'content' },
-      { id: 'urgency_indicators', name: 'Urgency Language', description: 'Use of urgent language signaling intent', weight: 5, category: 'content' },
-      { id: 'financial_readiness', name: 'Financial Indicators', description: 'Budget, financing, trade-in, cash purchase indicators', weight: 9, category: 'behavior' },
-      { id: 'engagement_frequency', name: 'Engagement Frequency', description: 'Number of proactive touches from lead', weight: 5, category: 'engagement' },
-      { id: 'contact_completeness', name: 'Contact Information', description: 'Completeness of contact details provided', weight: 3, category: 'profile' },
-      { id: 'timing_patterns', name: 'Response Timing', description: 'Responsiveness during business / premium buying windows', weight: 2, category: 'timing' }
-    ],
-    thresholds: { hot: 80, warm: 60, cold: 0 },
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
-  private commercialFleetProfile: ScoringProfile = {
-    id: 'commercial-fleet',
-    name: 'Commercial Fleet',
-    description: 'Volume-focused scoring for commercial and fleet sales',
-    industry: 'automotive-commercial',
-    criteria: [
-      { id: 'response_speed', name: 'Response Speed', description: 'Speed of reply to initial outreach', weight: 9, category: 'engagement' },
-      { id: 'message_quality', name: 'Message Quality', description: 'Clarity and professionalism of communication', weight: 6, category: 'content' },
-      { id: 'vehicle_specificity', name: 'Vehicle Interest Specificity', description: 'Specific fleet / model requirement articulation', weight: 10, category: 'content' },
-      { id: 'urgency_indicators', name: 'Urgency Language', description: 'Operational urgency / deployment timing signals', weight: 8, category: 'content' },
-      { id: 'financial_readiness', name: 'Financial Indicators', description: 'Budget authorization / procurement readiness', weight: 4, category: 'behavior' },
-      { id: 'engagement_frequency', name: 'Engagement Frequency', description: 'Number of structured follow-ups by lead', weight: 4, category: 'engagement' },
-      { id: 'contact_completeness', name: 'Contact Information', description: 'Full org / role / contact structure', weight: 3, category: 'profile' },
-      { id: 'timing_patterns', name: 'Response Timing', description: 'Business-aligned timing patterns', weight: 2, category: 'timing' }
-    ],
-    thresholds: { hot: 70, warm: 50, cold: 0 },
-    isActive: true,
-    createdAt: new Date(),
-    updatedAt: new Date()
-  };
-
   private subPrimeAutomotiveProfile: ScoringProfile = {
     id: 'subprime-automotive',
     name: 'Sub-Prime Automotive',
@@ -345,7 +303,7 @@ export class LeadScoringService {
     return 25;
   }
 
-  private evaluateMessageQuality(conversations: any[]): Promise<number> {
+  private evaluateMessageQuality(conversations: Conversation[]): Promise<number> {
     // Analyze message content for quality indicators
     const messages = this.getAllMessages(conversations);
     const leadMessages = messages.filter((m: any) => !m.isFromAI);
@@ -393,7 +351,7 @@ export class LeadScoringService {
       'need now', 'today', 'tomorrow', 'weekend', 'ready to buy'
     ];
     
-  const allContent = conversations.flatMap(c => (c as any).messages || [])
+    const allContent = conversations.flatMap(c => c.messages || [])
       .map(m => m.content.toLowerCase())
       .join(' ');
     
@@ -413,7 +371,7 @@ export class LeadScoringService {
       'down payment', 'monthly', 'lease', 'credit', 'approved'
     ];
     
-  const allContent = conversations.flatMap(c => (c as any).messages || [])
+    const allContent = conversations.flatMap(c => c.messages || [])
       .map(m => m.content.toLowerCase())
       .join(' ');
     
@@ -427,7 +385,7 @@ export class LeadScoringService {
     return Math.min(100, financialScore);
   }
 
-  private evaluateEngagementFrequency(conversations: any[]): number {
+  private evaluateEngagementFrequency(conversations: Conversation[]): number {
     const msgs = this.getAllMessages(conversations);
     const leadMsgs = msgs.filter((m: any) => !m.isFromAI).length;
     if (!msgs.length) return 0;
@@ -485,8 +443,6 @@ export class LeadScoringService {
   getScoringProfiles(): ScoringProfile[] {
     return [
       { ...this.defaultAutomotiveProfile },
-      { ...this.luxuryAutomotiveProfile },
-      { ...this.commercialFleetProfile },
       { ...this.subPrimeAutomotiveProfile }
     ];
   }

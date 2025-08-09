@@ -10,6 +10,12 @@ import { storage } from '../storage';
 import { parseLeadEmail, validateLeadData, shouldProcessForLeadIngestion } from './lead-ingestion-parser';
 import { updateIMAPHealth, recordIMAPMessage, recordIMAPError } from '../routes/health-imap';
 
+// Reliability tuning knobs
+const IMAP_CONNECT_TIMEOUT_MS = Number(process.env.IMAP_CONNECT_TIMEOUT_MS ?? 10000);
+const IMAP_AUTH_TIMEOUT_MS = Number(process.env.IMAP_AUTH_TIMEOUT_MS ?? 5000);
+const IMAP_IDLE_FALLBACK_MS = Number(process.env.IMAP_IDLE_FALLBACK_MS ?? 60000);
+const IMAP_MAX_MSG_SIZE_BYTES = Number(process.env.IMAP_MAX_MSG_SIZE_BYTES ?? 5_000_000);
+
 export class IMAPLeadIngestionService {
   private connection: ImapSimple | null = null;
   private isRunning = false;
@@ -41,8 +47,8 @@ export class IMAPLeadIngestionService {
         tlsOptions: {
           rejectUnauthorized: false
         },
-        authTimeout: 5000,
-        connTimeout: 10000,
+        authTimeout: IMAP_AUTH_TIMEOUT_MS,
+        connTimeout: IMAP_CONNECT_TIMEOUT_MS,
       }
     };
 
@@ -107,9 +113,11 @@ export class IMAPLeadIngestionService {
 
   private startPeriodicCheck() {
     const intervalMs = Number(process.env.IMAP_POLL_INTERVAL_MS) || 60000;
-    this.checkInterval = setInterval(() => {
-      this.checkForNewMessages();
-    }, intervalMs);
+    const loop = async () => {
+      await this.checkForNewMessages();
+      this.checkInterval = setTimeout(loop, intervalMs + Math.floor(Math.random() * 2500)) as unknown as NodeJS.Timeout;
+    };
+    this.checkInterval = setTimeout(loop, 1000) as unknown as NodeJS.Timeout;
     
     // Initial check
     setTimeout(() => this.checkForNewMessages(), 2000);
@@ -130,7 +138,17 @@ export class IMAPLeadIngestionService {
       const messages = await this.connection.search(searchCriteria, fetchOptions);
       console.log(`IMAP: Found ${messages.length} unread messages`);
 
-      for (const message of messages) {
+      // Filter out oversized messages to avoid memory pressure
+      const safeMessages = messages.filter(m => {
+        const size = m.attributes?.size || 0;
+        if (size > IMAP_MAX_MSG_SIZE_BYTES) {
+          console.warn(`Skipping oversized message UID ${m.attributes?.uid} (${size} bytes)`);
+          return false;
+        }
+        return true;
+      });
+
+      for (const message of safeMessages) {
         await this.processMessage(message);
       }
 
@@ -157,7 +175,14 @@ export class IMAPLeadIngestionService {
       const all = message.parts.find((part: any) => part.which === '');
       if (!all?.body) return;
 
-      const parsed: ParsedMail = await simpleParser(all.body);
+      const controller = new AbortController();
+      const parseTimeout = setTimeout(() => controller.abort(), 8000);
+      let parsed: ParsedMail;
+      try {
+        parsed = await simpleParser(all.body, { skipHtmlToText: false });
+      } finally {
+        clearTimeout(parseTimeout);
+      }
       
       // Extract recipients for domain guard
       const toAddresses = [
@@ -278,13 +303,21 @@ export class IMAPLeadIngestionService {
       // Optionally move to processed folder
       const processedFolder = process.env.IMAP_MOVE_PROCESSED;
       if (processedFolder && reason === 'processed') {
-        await this.connection.moveMessage(uid, processedFolder);
+        try {
+          await this.connection.moveMessage(uid, processedFolder);
+        } catch (err) {
+          console.error(`Failed moving UID ${uid} to processed folder:`, err);
+        }
       }
 
       // Optionally move failed to separate folder
       const failedFolder = process.env.IMAP_MOVE_FAILED;
       if (failedFolder && reason.includes('failed')) {
-        await this.connection.moveMessage(uid, failedFolder);
+        try {
+          await this.connection.moveMessage(uid, failedFolder);
+        } catch (err) {
+          console.error(`Failed moving UID ${uid} to failed folder:`, err);
+        }
       }
 
     } catch (error) {
