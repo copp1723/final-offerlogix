@@ -1,7 +1,9 @@
 declare module 'imap-simple' {
   export interface ImapSimple {
     search(criteria: any[], fetchOptions?: any): Promise<any[]>;
-    addFlags(source: number[], flag: string, callback: (err: Error | null) => void): void;
+  // Library supports both single UID and array plus callback; we add promise-friendly overload
+  addFlags(source: number | number[], flag: string | string[], callback: (err: Error | null) => void): void;
+  moveMessage(source: number | number[], boxName: string): Promise<void>;
     getBoxes(callback: (err: Error | null, boxes: any) => void): void;
     openBox(name: string): Promise<any>;
     closeBox(callback: (err: Error | null) => void): void;

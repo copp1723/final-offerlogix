@@ -10,17 +10,19 @@ interface SystemStatus {
 }
 
 export default function SystemHealth() {
-  const { data: emailStatus } = useQuery({
+  interface EmailMonitorStatus { running?: boolean; lastCheckAt?: string }
+  const { data: emailStatus } = useQuery<EmailMonitorStatus | undefined>({
     queryKey: ['/api/email-monitor/status'],
     retry: false
   });
+  const emailRunning = !!emailStatus?.running;
 
   const systemStatuses: SystemStatus[] = [
     {
       service: "Email Monitor",
-      status: emailStatus?.running ? 'online' : 'warning',
+  status: emailRunning ? 'online' : 'warning',
       lastCheck: "Just now",
-      details: emailStatus?.running ? "Processing emails" : "Ready to start"
+  details: emailRunning ? "Processing emails" : "Ready to start"
     },
     {
       service: "AI Processing", 

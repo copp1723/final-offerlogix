@@ -150,14 +150,24 @@ export class EmailMonitorService {
         const result = await this.processEmail(parsed);
         
         if (result.processed) {
-          // Mark as seen after successful processing
           const uid = message.attributes.uid;
-          await this.connection!.addFlags(uid, ['\\Seen']);
+          await this.markSeen(uid);
         }
       } catch (error) {
         console.error('Error processing email:', error);
       }
     }
+  }
+
+  private async markSeen(uid: number) {
+    if (!this.connection) return;
+    await new Promise<void>((resolve, reject) => {
+      try {
+        this.connection!.addFlags(uid, '\\Seen', (err) => {
+          if (err) reject(err); else resolve();
+        });
+      } catch (e) { reject(e as any); }
+    });
   }
 
   private async processEmail(email: ParsedMail): Promise<{ processed: boolean; leadId?: string }> {

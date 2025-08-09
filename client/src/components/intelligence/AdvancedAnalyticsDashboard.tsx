@@ -103,22 +103,22 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedTimeframe, setSelectedTimeframe] = useState('30d');
 
-  const { data: analyticsData, isLoading } = useQuery({
+  const { data: analyticsData, isLoading } = useQuery<AdvancedAnalyticsData | undefined>({
     queryKey: ['/api/intelligence/advanced-analytics', selectedTimeframe],
     refetchInterval: 60000 // Refresh every minute
   });
 
-  const { data: mlInsights } = useQuery({
+  const { data: mlInsights } = useQuery<any>({
     queryKey: ['/api/intelligence/ml-optimization/insights'],
     refetchInterval: 300000 // Refresh every 5 minutes
   });
 
-  const { data: journeyAnalysis } = useQuery({
+  const { data: journeyAnalysis } = useQuery<any>({
     queryKey: ['/api/intelligence/customer-journey/analysis'],
     refetchInterval: 180000 // Refresh every 3 minutes
   });
 
-  const { data: dataQualityReport } = useQuery({
+  const { data: dataQualityReport } = useQuery<any>({
     queryKey: ['/api/intelligence/data-quality/report'],
     refetchInterval: 600000 // Refresh every 10 minutes
   });
@@ -135,7 +135,7 @@ const AdvancedAnalyticsDashboard: React.FC = () => {
     );
   }
 
-  const data = analyticsData || {
+  const data: AdvancedAnalyticsData = analyticsData || {
     leadScoring: {
       totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0,
       qualityScore: 0, confidenceLevel: 0, accuracyTrend: 0,

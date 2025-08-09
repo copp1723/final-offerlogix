@@ -14,11 +14,22 @@ import { SMSIntegration } from "@/components/SMSIntegration";
 import { CampaignScheduler } from "@/components/CampaignScheduler";
 import { z } from "zod";
 
+// Extend base schema with UI-only helper fields used in the form so React Hook Form typing matches
 const formSchema = insertCampaignSchema.extend({
   name: z.string().min(1, "Campaign name is required"),
   context: z.string().min(10, "Please provide more detailed context"),
   communicationType: z.enum(["email", "email_sms", "sms"]).default("email"),
   scheduleType: z.enum(["immediate", "scheduled", "recurring"]).default("immediate"),
+  handoverGoals: z.string().optional().default(""),
+  targetAudience: z.string().optional().default(""),
+  handoverPrompt: z.string().optional().default(""),
+  status: z.string().optional().default("draft"),
+  templates: z.any().optional().nullable(),
+  subjectLines: z.any().optional().nullable(),
+  numberOfTemplates: z.number().optional().default(5),
+  daysBetweenMessages: z.number().optional().default(3),
+  originalCampaignId: z.string().nullable().optional(),
+  isTemplate: z.boolean().optional().default(false)
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -55,7 +66,6 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       subjectLines: null,
       numberOfTemplates: 5,
       daysBetweenMessages: 3,
-      openRate: null,
       isTemplate: false,
       originalCampaignId: null,
       communicationType: "email",
@@ -138,7 +148,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     },
   });
 
-  const onSubmit = (data: FormData) => {
+  const onSubmit: (data: FormData) => void = (data) => {
     const campaignData = {
       ...data,
       templates: generatedTemplates,
@@ -168,7 +178,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   };
 
   const selectGoal = (goal: string) => {
-    form.setValue('handoverGoals', goal);
+  form.setValue('handoverGoals', goal as any);
     setShowSuggestions(false);
   };
 
@@ -216,7 +226,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
           </div>
         </div>
 
-        {/* Campaign Name Field */}
+  {/* Campaign Name Field */}
         <FormField
           control={form.control}
           name="name"

@@ -10,7 +10,7 @@ import { leadScoringService, type LeadScore, type ScoringProfile } from './lead-
 export interface PredictiveLeadScore extends LeadScore {
   lifetimeValue: number;
   conversionProbability: number;
-  churRisk: number;
+  churnRisk: number; // corrected typo
   optimalContactTime: Date | null;
   recommendedActions: string[];
   competitorThreats: string[];
@@ -69,14 +69,14 @@ export class AdvancedLeadScoringService {
       this.determineOptimalContactTime(leadId)
     ]);
 
-    const churnRisk = await this.calculateChurnRisk(leadId);
+  const churnRisk = await this.calculateChurnRisk(leadId);
     const seasonalAdjustment = this.calculateSeasonalAdjustment(leadId);
     
     return {
       ...baseScore,
       lifetimeValue: ltv.predicted,
       conversionProbability: conversionPrediction.probability,
-      churRisk,
+  churnRisk,
       optimalContactTime: optimalTiming,
       recommendedActions: this.generateRecommendedActions(baseScore, conversionPrediction, competitorAnalysis),
       competitorThreats: competitorAnalysis.mentionedCompetitors,
@@ -296,7 +296,7 @@ export class AdvancedLeadScoringService {
       const day = messageTime.getDay();
       
       if (!responseTimesByHour.has(hour)) responseTimesByHour.set(hour, []);
-      if (!responseTimesByDay.has(day)) responseTimesByDay.set(day, [], []);
+      if (!responseTimesByDay.has(day)) responseTimesByDay.set(day, []);
       
       responseTimesByHour.get(hour)!.push(1);
       responseTimesByDay.get(day)!.push(1);
@@ -307,20 +307,20 @@ export class AdvancedLeadScoringService {
     let bestDay = 2;   // Default Tuesday
     let maxResponses = 0;
     
-    for (const [hour, responses] of responseTimesByHour) {
+    Array.from(responseTimesByHour.entries()).forEach(([hour, responses]) => {
       if (responses.length > maxResponses) {
         maxResponses = responses.length;
         bestHour = hour;
       }
-    }
+    });
     
     maxResponses = 0;
-    for (const [day, responses] of responseTimesByDay) {
+    Array.from(responseTimesByDay.entries()).forEach(([day, responses]) => {
       if (responses.length > maxResponses) {
         maxResponses = responses.length;
         bestDay = day;
       }
-    }
+    });
     
     // Calculate next optimal contact time
     const now = new Date();
@@ -341,7 +341,7 @@ export class AdvancedLeadScoringService {
     const month = new Date().getMonth();
     
     // Automotive seasonal patterns
-    const seasonalFactors = {
+  const seasonalFactors: Record<number, number> = {
       0: 0.8,   // January - post-holiday slowdown
       1: 0.9,   // February - tax season prep
       2: 1.1,   // March - spring buying, tax refunds
@@ -788,7 +788,7 @@ export class AdvancedLeadScoringService {
       actions.push('Priority lead - immediate attention');
     }
     
-    return [...new Set(actions)]; // Remove duplicates
+  return Array.from(new Set(actions)); // Remove duplicates
   }
 
   /**

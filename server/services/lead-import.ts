@@ -1,4 +1,4 @@
-import * as multer from 'multer';
+import multer from 'multer';
 import * as csv from 'csv-parse';
 import { storage } from '../storage';
 import { Request, Response } from 'express';

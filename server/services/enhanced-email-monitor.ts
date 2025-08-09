@@ -217,7 +217,13 @@ export class EnhancedEmailMonitor {
 
       // Mark as seen after processing
       if (this.connection) {
-        await this.connection.addFlags(message.attributes.uid, ['\\Seen']);
+        await new Promise<void>((resolve, reject) => {
+          try {
+            this.connection!.addFlags(message.attributes.uid, '\\Seen', (err) => {
+              if (err) reject(err); else resolve();
+            });
+          } catch (e) { reject(e as any); }
+        });
       }
 
     } catch (error) {

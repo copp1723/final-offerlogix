@@ -298,7 +298,13 @@ export class IMAPLeadIngestionService {
 
     try {
       // Mark as read
-      await this.connection.addFlags(uid, ['\\Seen']);
+      await new Promise<void>((resolve, reject) => {
+        try {
+          this.connection!.addFlags(uid, '\\Seen', (err) => {
+            if (err) reject(err); else resolve();
+          });
+        } catch (e) { reject(e as any); }
+      });
 
       // Optionally move to processed folder
       const processedFolder = process.env.IMAP_MOVE_PROCESSED;
