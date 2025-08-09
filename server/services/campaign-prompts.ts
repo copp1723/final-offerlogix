@@ -36,7 +36,7 @@ Car buyers:
 - **Hook Fast**: Lead with what matters to them—specific savings, fresh arrivals, or "this weekend only"
 - **Visual Impact**: Real car photos, personalized hero images, fresh inventory pulls
 - **Clarity and Brevity**: Trim excess text—make "why they should care" instantly obvious
-- **Compelling CTAs**: "Book My Test Drive" or "Claim My Service Discount"  
+- **Compelling CTAs**: "Book My Test Drive" or "Claim My Service Discount"
 - **Mobile-Friendly**: 75%+ of opens happen on mobile, so design for scroll and tap
 
 ### 4. Analytics & Continuous Improvement
@@ -88,11 +88,11 @@ You bake in:
 
 Remember: You're not just creating an email—you're creating a compelling reason for a shopper to stay with *this dealership* instead of browsing competitors. Every email you guide should feel timely, relevant, personalized, and action-driven… while staying true to the dealership's voice and brand.
 
-Ultimate goal: **Keep shoppers engaged. The longer they engage with us, the higher the likelihood they buy with us—not the other guy.** 
+Ultimate goal: **Keep shoppers engaged. The longer they engage with us, the higher the likelihood they buy with us—not the other guy.**
 
 ## Output Rules (Hard)
 - Keep responses concise: default ≤ 120 words unless explicitly asked to generate templates or long-form copy.
-- When the user asks for subject lines or templates, return **valid JSON** only (no preamble, no markdown). Templates must be an array of objects: `{ "subject": string, "content": string }`.
+- When the user asks for subject lines or templates, return **valid JSON** only (no preamble, no markdown). Templates must be an array of objects: { "subject": string, "content": string }.
 - One ask at a time: end with **one** targeted question or action.
 - No emojis. No speculation or fake metrics. If a required input is missing, ask for it.
 - Respect segmentation: if multiple segments are present, either propose shared copy or recommend **6–9** total templates for coverage.
@@ -105,7 +105,7 @@ If the user describes when to hand a lead to sales, convert it into a tight rule
 {"scoreThreshold":80,"urgentKeywords":["today","now","ASAP"],"tradeInTerms":["trade","value","appraisal"]}
 
 ## Segmentation Awareness
-When the audience description contains named segments (e.g., **Dog Days Blowout**, **Truckpocalypse**, **Boss’s Bad Bet**), reflect them back and adapt subject lines/CTAs per segment. Flag under-coverage if `templates &lt; segments * 2`.
+When the audience description contains named segments (e.g., **Dog Days Blowout**, **Truckpocalypse**, **Boss’s Bad Bet**), reflect them back and adapt subject lines/CTAs per segment. Flag under-coverage if templates &lt; segments * 2.
 
 ## Grounding &amp; Context Usage
 If a **PAST CAMPAIGNS** section is present later in the prompt, treat it as retrieval context. Prefer its terminology and offers. Do not invent details that are not in either the user input or the context.
@@ -118,12 +118,12 @@ export class CampaignPromptService {
 
   static generateContextualPrompt(userInput?: string, campaignType?: string, urgency?: 'low' | 'medium' | 'high'): string {
     let prompt = ENHANCED_AUTOMOTIVE_EMAIL_MARKETING_PROMPT;
-    
+
     // Add contextual guidance based on campaign type
     if (campaignType) {
       prompt += `\n\n## CURRENT CONTEXT:
 Campaign Type Focus: ${campaignType}`;
-      
+
       switch (campaignType) {
         case 'new_inventory':
           prompt += `\nPriority: Highlight fresh arrivals, specific model features, and availability urgency.
@@ -139,7 +139,7 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
           break;
       }
     }
-    
+
     // Add urgency-specific guidance
     if (urgency) {
       prompt += `\n\nUrgency Level: ${urgency}`;
@@ -164,7 +164,7 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
 Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 templates if more than one segment is present.`;
       }
     }
-    
+
     return prompt;
   }
 
@@ -173,7 +173,7 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
     let campaignType: string | undefined;
     let urgency: 'low' | 'medium' | 'high' = 'low';
     const keywords: string[] = [];
-    
+
     // Detect campaign type
     if (content.includes('new inventory') || content.includes('new arrivals') || content.includes('just arrived')) {
       campaignType = 'new_inventory';
@@ -196,7 +196,7 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
       campaignType = 'promotional_event';
       keywords.push('clearance');
     }
-    
+
     // Detect urgency
     if (content.includes('urgent') || content.includes('asap') || content.includes('today') ||
         content.includes('immediately') || content.includes('rush') ||
@@ -208,7 +208,7 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
                content.includes('quickly') || content.includes('fast')) {
       urgency = 'medium';
     }
-    
+
     // Extract other keywords
     const automotiveKeywords = [
       'suv', 'truck', 'sedan', 'coupe', 'convertible', 'hybrid', 'electric',
@@ -217,34 +217,34 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
       'clearance', 'closeout', 'rebate', 'inventory', 'year-end',
       'family', 'budget', 'contractor', 'work truck'
     ];
-    
+
     automotiveKeywords.forEach(keyword => {
       if (content.includes(keyword)) {
         keywords.push(keyword);
       }
     });
-    
+
     return { campaignType, urgency, keywords };
   }
 
   static generateResponseGuidance(userIntent: ReturnType<typeof CampaignPromptService.parseUserIntent>): string {
     const guidance = [];
-    
+
     if (userIntent.campaignType) {
       guidance.push(`Focus on ${userIntent.campaignType.replace('_', ' ')} best practices`);
     }
-    
+
     if (userIntent.urgency === 'high') {
       guidance.push("User needs quick turnaround - prioritize immediate next steps");
     }
-    
+
     if (userIntent.keywords.length > 0) {
       guidance.push(`Key topics: ${userIntent.keywords.join(', ')}`);
     }
-    
+
     return guidance.join('. ') + '.';
   }
-}
+
   static detectSegmentsFromText(text?: string): { name: string; description?: string }[] {
     if (!text) return [];
     const out: { name: string; description?: string }[] = [];
@@ -264,3 +264,5 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
     }
     return out.slice(0, 6);
   }
+
+}
