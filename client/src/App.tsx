@@ -18,6 +18,7 @@ import IntelligencePage from "@/pages/intelligence";
 import ScoringConfigPage from "@/pages/scoring-config";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 function Router() {
   return (
@@ -47,7 +48,9 @@ function App() {
       <ClientProvider>
         <TooltipProvider>
           <Toaster />
-          <Router />
+          <ErrorBoundary>
+            <Router />
+          </ErrorBoundary>
         </TooltipProvider>
       </ClientProvider>
     </QueryClientProvider>

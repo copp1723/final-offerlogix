@@ -84,7 +84,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/clients", async (req: TenantRequest, res) => {
     try {
       const clientData = insertClientSchema.parse(req.body);
-      const [client] = await db.insert(clients).values(clientData).returning();
+  const insertedClients = await db.insert(clients).values(clientData).returning();
+  const client = Array.isArray(insertedClients) ? insertedClients[0] : insertedClients as any;
       res.json(client);
     } catch (error) {
       console.error('Create client error:', error);
@@ -956,7 +957,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const template = templates[templateIndex];
-      const emails = targetLeads.map(lead => ({
+  const emails = (targetLeads as any[]).map((lead: any) => ({
         to: lead!.email,
         subject: template.subject || `${campaign.name} - Follow-up`,
         content: template.content || 'Follow-up email content'
@@ -1802,6 +1803,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       res.json(basicDashboard);
+    }
+  });
+
+  // Advanced analytics aggregate endpoint (placeholder synthesized metrics)
+  app.get('/api/intelligence/advanced-analytics', async (req: TenantRequest, res) => {
+    try {
+      const timeframe = (req.query.timeframe as string) || '30d';
+      // Placeholder synthetic values; in production compute from DB
+      res.json({
+        leadScoring: {
+          totalLeads: 0,
+          hotLeads: 0,
+          warmLeads: 0,
+          coldLeads: 0,
+          averageScore: 0,
+          qualityScore: 0,
+          confidenceLevel: 0,
+          accuracyTrend: 0,
+          lifetimeValueDistribution: { high: 0, medium: 0, low: 0 },
+          conversionPredictions: { next7Days: 0, next30Days: 0, next90Days: 0 }
+        },
+        mlOptimization: {
+          sendTimeOptimization: { optimalTimes: [] },
+          audienceSegmentation: { clusters: [] },
+          abTestingRecommendations: []
+        },
+        customerJourney: {
+          journeyStages: [],
+          churnPredictions: [],
+          nextBestActions: []
+        },
+        dataQuality: {
+          overview: { qualityScore: 0, totalRecords: 0 },
+          leadDataQuality: { completeness: 0, accuracy: 0, consistency: 0, freshness: 0 }
+        },
+        timeframe
+      });
+    } catch (e) {
+      res.status(500).json({ message: 'Failed to load advanced analytics' });
+    }
+  });
+
+  // System health endpoint aggregating key service states
+  app.get('/api/health', async (_req, res) => {
+    try {
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const emailStatus = enhancedEmailMonitor.getStatus();
+      // Expand later with DB & external checks
+      res.json({
+        ok: true,
+        timestamp: new Date().toISOString(),
+        services: {
+          emailMonitor: emailStatus
+        }
+      });
+    } catch (e) {
+      res.status(500).json({ ok: false, error: 'Health check failed' });
     }
   });
 
