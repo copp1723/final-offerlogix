@@ -647,6 +647,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Advanced Lead Import - Analyze CSV structure
+  app.post('/api/leads/import/analyze', basicUpload.single('file'), async (req: TenantRequest, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const content = req.file.buffer.toString('utf-8');
+      const rows = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (rows.length === 0) return res.status(400).json({ message: 'Empty file' });
+      const headers = rows[0].split(',').map(h => h.trim());
+      const previewRows = rows.slice(1, 6).map(line => {
+        const cols = line.split(',');
+        const obj: any = {};
+        headers.forEach((h, i) => obj[h] = cols[i]);
+        return obj;
+      });
+      const suggestedMappings = headers.map(h => ({
+        csvColumn: h,
+        leadField: (/email/i.test(h) ? 'email' : /first.?name/i.test(h) ? 'firstName' : /last.?name/i.test(h) ? 'lastName' : /phone/i.test(h) ? 'phone' : /vehicle|interest/i.test(h) ? 'vehicleInterest' : '')
+      }));
+      res.json({ headers, totalRows: rows.length - 1, previewRows, suggestedMappings });
+    } catch (e) {
+      console.error('Lead import analyze error:', e);
+      res.status(500).json({ message: 'Failed to analyze CSV' });
+    }
+  });
+
+  // Advanced Lead Import - Perform import with mappings
+  app.post('/api/leads/import', basicUpload.single('file'), async (req: TenantRequest, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
+      const mappings = (() => { try { return JSON.parse(req.body.mappings || '[]'); } catch { return []; } })();
+      const campaignId = req.body.campaignId || null;
+      const content = req.file.buffer.toString('utf-8');
+      const lines = content.split(/\r?\n/).filter(l => l.trim().length > 0);
+      if (lines.length < 2) return res.status(400).json({ message: 'No data rows found' });
+      const headers = lines[0].split(',').map(h => h.trim());
+      const mapDict: Record<string,string> = {};
+      for (const m of mappings) if (m.leadField) mapDict[m.csvColumn] = m.leadField;
+      const results: any[] = [];
+      const errors: any[] = [];
+      for (let i=1;i<lines.length;i++) {
+        const cols = lines[i].split(',');
+        if (cols.length === 1 && cols[0].trim()==='') continue;
+        const record: any = {};
+        headers.forEach((h, idx) => {
+          const lf = mapDict[h];
+          if (lf) record[lf] = cols[idx];
+        });
+        if (!record.email) {
+          errors.push({ row: i+1, error: 'Missing email' });
+          continue;
+        }
+        results.push({
+          email: record.email.trim(),
+          firstName: record.firstName?.trim() || null,
+            lastName: record.lastName?.trim() || null,
+            phone: record.phone?.trim() || null,
+            vehicleInterest: record.vehicleInterest?.trim() || null,
+            source: record.source || 'csv_import',
+            status: 'new',
+            campaignId,
+            clientId: req.clientId
+        });
+      }
+      let created: any[] = [];
+      if (results.length) {
+        created = await storage.createLeads(results);
+        created.forEach(lead => webSocketService.broadcastNewLead(lead));
+      }
+      res.json({ total: results.length + errors.length, successful: created.length, failed: errors.length, errors, leads: created });
+    } catch (e) {
+      console.error('Lead import process error:', e);
+      res.status(500).json({ message: 'Failed to import leads' });
+    }
+  });
+
   // Simple webhook endpoints
   app.post("/api/webhooks/mailgun/inbound", async (req, res) => {
     try {
