@@ -1,4 +1,22 @@
 /**
+ * Helper to sanitize text: strips emojis, collapses spaces, clamps length.
+ */
+function sanitizeText(text: string, maxLen = 500): string {
+  // Remove emojis (surrogate pairs, pictographs, symbols)
+  // Covers most emoji unicode blocks (incl. surrogate pairs)
+  // https://stackoverflow.com/a/58331663/218196
+  const emojiRegex = /([\u2700-\u27BF]|[\uE000-\uF8FF]|[\uD83C-\uDBFF\uDC00-\uDFFF]+|[\uFE00-\uFE0F]|\u200D|[\u2011-\u26FF])/g;
+  let cleaned = text.replace(emojiRegex, '');
+  // Remove remaining surrogate pairs (sometimes missed)
+  cleaned = cleaned.replace(/[\uD800-\uDBFF][\uDC00-\uDFFF]/g, '');
+  // Collapse multiple spaces
+  cleaned = cleaned.replace(/\s+/g, ' ');
+  // Trim and clamp to maxLen
+  cleaned = cleaned.trim().slice(0, maxLen);
+  return cleaned;
+}
+
+/**
  * Enhanced Reply Planner - Boringly reliable AI response generation
  * Always returns valid responses with deterministic fallbacks
  */
@@ -17,43 +35,78 @@ export interface ReplyPlanResponse {
  * Never throws - always returns a usable response
  */
 export async function planReply(prompt: string): Promise<ReplyPlanResponse> {
-  try {
-    const response = await LLMClient.generate({
-      model: 'openai/gpt-4o-mini',
-      system: 'Always return valid JSON with {message, quickReplies?: string[]}. Be helpful, professional, and automotive-focused.',
-      user: prompt,
-      json: true,
-      temperature: 0.3,
-      maxTokens: 800,
-    });
+  // Retry loop with jittered backoff
+  let lastError: any;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await LLMClient.generate({
+        model: 'openai/gpt-4o-mini',
+        system: 'Always return valid JSON with {message, quickReplies?: string[]}. Be helpful, professional, and automotive-focused.',
+        user: prompt,
+        json: true,
+        temperature: 0.3,
+        maxTokens: 800,
+      });
 
-    const parsed = JSON.parse(response.content);
-    
-    // Validate response structure
-    if (!parsed.message || typeof parsed.message !== 'string') {
-      throw new Error('Invalid response structure');
+      const parsed = JSON.parse(response.content);
+      
+      // Validate response structure
+      if (!parsed.message || typeof parsed.message !== 'string') {
+        throw new Error('Invalid response structure');
+      }
+      // Validate quickReplies: if present, must be array of strings, each ≤ 6 words
+      if (
+        parsed.quickReplies !== undefined &&
+        (!Array.isArray(parsed.quickReplies) ||
+          !parsed.quickReplies.every(
+            (r: any) =>
+              typeof r === 'string' &&
+              r.trim().split(/\s+/).length <= 6
+          ))
+      ) {
+        throw new Error('Invalid quickReplies structure');
+      }
+
+      // Sanitize outputs
+      const sanitizedMessage = sanitizeText(parsed.message, 500);
+      let sanitizedQuickReplies: string[] | undefined = undefined;
+      if (Array.isArray(parsed.quickReplies)) {
+        sanitizedQuickReplies = parsed.quickReplies
+          .map((r: string) => sanitizeText(r, 80))
+          .map((r: string) => r.split(/\s+/).slice(0, 6).join(' '))
+          .filter((r: string) => !!r);
+      }
+
+      return {
+        message: sanitizedMessage,
+        quickReplies: sanitizedQuickReplies,
+        confidence: 0.9,
+        aiGenerated: true
+      };
+    } catch (error) {
+      lastError = error;
+      if (attempt < 3) {
+        const jitter = 150 + Math.floor(Math.random() * 250); // 150–400ms
+        console.warn(`[planReply] LLM attempt ${attempt} failed:`, error);
+        await new Promise(res => setTimeout(res, jitter));
+      }
     }
-
-    return {
-      message: parsed.message,
-      quickReplies: Array.isArray(parsed.quickReplies) ? parsed.quickReplies : undefined,
-      confidence: 0.9,
-      aiGenerated: true
-    };
-
-  } catch (error) {
-    console.warn('AI reply generation failed, using fallback:', error);
-    
-    // Intelligent fallback based on prompt content
-    const fallbackMessage = generateFallbackReply(prompt);
-    
-    return {
-      message: fallbackMessage.message,
-      quickReplies: fallbackMessage.quickReplies,
-      confidence: 0.7,
-      aiGenerated: false
-    };
   }
+  console.warn('AI reply generation failed, using fallback:', lastError);
+  // Fallback
+  const fallbackMessage = generateFallbackReply(prompt);
+  // Sanitize fallback
+  const sanitizedMessage = sanitizeText(fallbackMessage.message, 500);
+  const sanitizedQuickReplies = fallbackMessage.quickReplies
+    .map((r: string) => sanitizeText(r, 80))
+    .map((r: string) => r.split(/\s+/).slice(0, 6).join(' '))
+    .filter((r: string) => !!r);
+  return {
+    message: sanitizedMessage,
+    quickReplies: sanitizedQuickReplies,
+    confidence: 0.7,
+    aiGenerated: false
+  };
 }
 
 /**
@@ -61,7 +114,31 @@ export async function planReply(prompt: string): Promise<ReplyPlanResponse> {
  */
 function generateFallbackReply(prompt: string): { message: string; quickReplies: string[] } {
   const lowerPrompt = prompt.toLowerCase();
-  
+
+  // Warranty/coverage branch
+  if (lowerPrompt.includes('warranty') || lowerPrompt.includes('coverage')) {
+    return {
+      message: "We offer a range of warranty options and coverage plans to protect your vehicle. Would you like to learn more about these options?",
+      quickReplies: ['See warranty plans', 'Extended coverage', 'Schedule visit']
+    };
+  }
+
+  // VIN/vehicle ID branch
+  if (lowerPrompt.includes('vin') || lowerPrompt.includes('vehicle id')) {
+    return {
+      message: "I can help you locate a vehicle by its VIN or vehicle ID. Please share the VIN and I'll check availability for you.",
+      quickReplies: ['Share VIN', 'Check availability', 'Schedule call']
+    };
+  }
+
+  // Appointment/visit branch
+  if (lowerPrompt.includes('appointment') || lowerPrompt.includes('visit')) {
+    return {
+      message: "Would you like to book an appointment or schedule a visit? I can help you find a convenient time.",
+      quickReplies: ['Book appointment', 'View calendar', 'Call now']
+    };
+  }
+
   // Price-related inquiries
   if (lowerPrompt.includes('price') || lowerPrompt.includes('cost') || lowerPrompt.includes('payment')) {
     return {
@@ -127,11 +204,39 @@ export async function generateQuickReplies(context: {
     });
 
     const parsed = JSON.parse(response.content);
-    return Array.isArray(parsed.replies) ? parsed.replies : getFallbackQuickReplies(context);
-
+    let replies: string[] = [];
+    if (Array.isArray(parsed.replies)) {
+      // Sanitize, clamp, dedupe, ≤6 words
+      const seen = new Set<string>();
+      for (let raw of parsed.replies) {
+        if (typeof raw === 'string') {
+          let r = sanitizeText(raw, 80);
+          r = r.split(/\s+/).slice(0, 6).join(' ');
+          const key = r.toLowerCase();
+          if (r && !seen.has(key)) {
+            seen.add(key);
+            replies.push(r);
+          }
+        }
+      }
+    }
+    // Fill with fallback if <3
+    if (replies.length < 3) {
+      for (const fallback of getFallbackQuickReplies(context)) {
+        let r = sanitizeText(fallback, 80);
+        r = r.split(/\s+/).slice(0, 6).join(' ');
+        const key = r.toLowerCase();
+        if (r && !replies.map(x=>x.toLowerCase()).includes(key)) {
+          replies.push(r);
+        }
+        if (replies.length >= 3) break;
+      }
+    }
+    return replies;
   } catch (error) {
     console.warn('Quick reply generation failed, using fallback:', error);
-    return getFallbackQuickReplies(context);
+    // Fallback: sanitize and clamp
+    return getFallbackQuickReplies(context).map(r => sanitizeText(r, 80).split(/\s+/).slice(0,6).join(' '));
   }
 }
 

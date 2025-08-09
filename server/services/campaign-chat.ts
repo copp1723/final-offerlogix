@@ -1,5 +1,7 @@
 import { LLMClient } from './llm-client';
-import { searchForCampaignChat, campaignChatPrompt } from '../integrations/supermemory';
+import { searchForCampaignChat } from '../integrations/supermemory';
+
+import * as crypto from 'crypto';
 
 interface CampaignChatResponse {
   message: string;
@@ -98,57 +100,195 @@ export class CampaignChatService {
     'ok','okay','k','kk','great','thanks','thank you','cool','yes','yep','sure','awesome','now what','what now','what next','next','continue','go on','fine','good','roger','understood','got it','sounds good','alright'
   ];
 
-	  // Parse template count from digits or number words (supports 1–30)
-	  private static parseTemplateCount(input: string): number | null {
-	    if (!input) return null;
-	    const str = input.toLowerCase().replace(/[,.!]/g, ' ').trim();
+    // Parse template count from digits or number words (supports 1–30)
+    private static parseTemplateCount(input: string): number | null {
+      if (!input) return null;
+      const str = input.toLowerCase().replace(/[,.!]/g, ' ').trim();
 
-	    // 1) Prefer explicit digits in the text
-	    const digitMatch = str.match(/(^|\s)([0-9]{1,2})(?=\s|$)/);
-	    if (digitMatch) {
-	      const n = parseInt(digitMatch[2], 10);
-	      if (!isNaN(n)) return n;
-	    }
+      // 1) Prefer explicit digits in the text
+      const digitMatch = str.match(/(^|\s)([0-9]{1,2})(?=\s|$)/);
+      if (digitMatch) {
+        const n = parseInt(digitMatch[2], 10);
+        if (!isNaN(n)) return n;
+      }
 
-	    // 2) Number words up to 30
-	    const ones: Record<string, number> = {
-	      'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
-	      'six': 6, 'seven': 7, 'eight': 8, 'nine': 9
-	    };
-	    const teens: Record<string, number> = {
-	      'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
-	      'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
-	    };
-	    const tens: Record<string, number> = { 'twenty': 20, 'thirty': 30 };
+      // 2) Number words up to 30
+      const ones: Record<string, number> = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9
+      };
+      const teens: Record<string, number> = {
+        'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+      };
+      const tens: Record<string, number> = { 'twenty': 20, 'thirty': 30 };
 
-	    const tokens = str.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+      const tokens = str.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
 
-	    // Direct single-word matches (ones/teens/tens)
-	    for (const t of tokens) {
-	      if (t in ones) return ones[t];
-	      if (t in teens) return teens[t];
-	      if (t in tens) return tens[t];
-	    }
+      // Direct single-word matches (ones/teens/tens)
+      for (const t of tokens) {
+        if (t in ones) return ones[t];
+        if (t in teens) return teens[t];
+        if (t in tens) return tens[t];
+      }
 
-	    // Hyphenated or spaced composites like "twenty one"
-	    for (let i = 0; i < tokens.length; i++) {
-	      const t = tokens[i];
-	      if (t in tens) {
-	        let total = tens[t];
-	        const next = tokens[i + 1];
-	        if (next && next in ones) total += ones[next];
-	        return total;
-	      }
-	    }
+      // Hyphenated or spaced composites like "twenty one"
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t in tens) {
+          let total = tens[t];
+          const next = tokens[i + 1];
+          if (next && next in ones) total += ones[next];
+          return total;
+        }
+      }
 
-	    return null;
-	  }
+      return null;
+    }
+
+    // Generic "number-ish" parser supporting digits and number words (1–30) plus phrases like "every three days" and "every other day"
+    private static parseNumberish(input: string): number | null {
+      if (!input) return null;
+      const str = input.toLowerCase().replace(/[,.!]/g, ' ').trim();
+
+      // "every other day" or "qod"
+      if (/\bevery\s+other\s+day\b/.test(str) || /\bqod\b/.test(str)) return 2;
+
+      // direct digits
+      const digitMatch = str.match(/(^|\s)([0-9]{1,2})(?=\s|$)/);
+      if (digitMatch) {
+        const n = parseInt(digitMatch[2], 10);
+        if (!isNaN(n)) return n;
+      }
+
+      // number words up to 30
+      const ones: Record<string, number> = {
+        'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9
+      };
+      const teens: Record<string, number> = {
+        'ten': 10, 'eleven': 11, 'twelve': 12, 'thirteen': 13, 'fourteen': 14,
+        'fifteen': 15, 'sixteen': 16, 'seventeen': 17, 'eighteen': 18, 'nineteen': 19
+      };
+      const tens: Record<string, number> = { 'twenty': 20, 'thirty': 30 };
+
+      const tokens = str.replace(/-/g, ' ').split(/\s+/).filter(Boolean);
+
+      // phrases like "every three days"
+      for (let i = 0; i < tokens.length; i++) {
+        if (tokens[i] === 'every' && (tokens[i+2] === 'day' || tokens[i+2] === 'days')) {
+          const next = tokens[i+1];
+          if (next in ones) return ones[next];
+          if (next in teens) return teens[next];
+          if (next in tens) return tens[next];
+          const num = parseInt(next || '', 10);
+          if (!isNaN(num)) return num;
+        }
+      }
+
+      // single-word matches
+      for (const t of tokens) {
+        if (t in ones) return ones[t];
+        if (t in teens) return teens[t];
+        if (t in tens) return tens[t];
+      }
+
+      // composites like "twenty one"
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t in tens) {
+          let total = tens[t];
+          const next = tokens[i + 1];
+          if (next && next in ones) total += ones[next];
+          return total;
+        }
+      }
+      return null;
+    }
+
+    // Extract structured segments from a rich audience description. Supports **Bold** markers and bullet sections.
+    private static detectSegmentsFromAudience(text: string): { name: string; description?: string }[] {
+      if (!text) return [];
+      const out: { name: string; description?: string }[] = [];
+      const boldRe = /\*\*(.+?)\*\*/g;
+      let m: RegExpExecArray | null;
+      while ((m = boldRe.exec(text)) !== null) {
+        const name = m[1].trim();
+        // Grab description following the bold label on the same bullet/line
+        const after = text.slice(m.index + m[0].length).split(/\n|\*/)[0];
+        out.push({ name, description: after.trim().replace(/^[:\-–]\s*/, '') });
+      }
+      // Fallback: lines that look like titled bullets
+      if (out.length === 0) {
+        const lines = text.split('\n');
+        for (const line of lines) {
+          const lm = line.match(/^\s*[\-\*\u2022]\s*([A-Z][A-Za-z0-9'\s]+):\s*(.+)$/);
+          if (lm) out.push({ name: lm[1].trim(), description: lm[2].trim() });
+        }
+      }
+      return out.slice(0, 6); // safety cap
+    }
+
+    // Build a compact RAG context string from supermemory results
+    private static buildRagContext(r: any, maxChars = 800): string {
+      if (!r || !Array.isArray(r.results) || r.results.length === 0) return '';
+      const parts: string[] = [];
+      for (const item of r.results.slice(0, 3)) {
+        const title = item?.metadata?.name || item?.metadata?.title || '';
+        const content = (item?.content || '').toString();
+        const snippet = content.length > 300 ? content.slice(0, 300) + '…' : content;
+        parts.push((title ? `[${title}] ` : '') + snippet);
+      }
+      let ctx = parts.join('\n---\n');
+      if (ctx.length > maxChars) ctx = ctx.slice(0, maxChars) + '…';
+      return ctx;
+    }
+
+    // Preflight validation before content generation. Returns not-ok with a coaching message if something is off.
+    private static preflightValidate(data: any): { ok: boolean; message?: string; suggestions?: string[] } {
+      const suggestions: string[] = [];
+      const segCount = Array.isArray(data.segments) ? data.segments.length : 0;
+      const tmplCount = data.numberOfTemplates ? Number(data.numberOfTemplates) : null;
+
+      if (segCount > 1 && (tmplCount === null || tmplCount < 5)) {
+        suggestions.push('Increase templates to 6–9 so each segment has coverage', 'Or confirm shared copy across all segments');
+        return {
+          ok: false,
+          message: `You're running ${segCount} audience segments with only ${tmplCount ?? 'N/A'} templates. That’s too thin for differentiated messaging.`,
+          suggestions,
+        };
+      }
+
+      if (!data.handoverCriteria || (typeof data.handoverCriteria === 'string' && data.handoverCriteria.trim().length < 10)) {
+        suggestions.push('Choose triggers: pricing pressure, test‑drive scheduling, financing readiness, trade‑in with VIN/miles');
+        return {
+          ok: false,
+          message: 'We still need concrete handover triggers before generating content.',
+          suggestions,
+        };
+      }
+
+      // Warn but do not block on demo/very small lead lists
+      if (data.leadList && (Array.isArray(data.leadList) ? data.leadList.length : (data.leadList.total || 0)) <= 1) {
+        // not blocking; just suggestion
+        suggestions.push('Lead list looks like a sample; proceed without launch or add more leads');
+      }
+
+      return { ok: true, suggestions };
+    }
 
 
   // Heuristic + lightweight semantic guard to decide if we should advance
   private static async isSubstantiveAnswer(step: CampaignStep, userMessage: string): Promise<boolean> {
     if (!userMessage) return false;
     const msg = userMessage.trim().toLowerCase();
+    // Step-specific early acceptance BEFORE generic ack filtering so short affirmatives work
+    if (step.id === 'content_generation') {
+      if (/(^|\b)(yes|yep|yeah|sure|generate|go|start|do it|create|ok|okay)(\b|$)/i.test(msg)) return true;
+    }
+    if (step.id === 'review_launch') {
+      if (/(^|\b)(yes|yep|yeah|launch|activate|start|go live|go|ok|okay)(\b|$)/i.test(msg)) return true;
+    }
     // Very short or generic acknowledgement
     if (msg.length < 8 && /^(ok|k|kk|yes|yep|sure|fine)$/i.test(msg)) return false;
     if (this.genericAcks.includes(msg)) return false;
@@ -169,8 +309,8 @@ export class CampaignChatService {
     }
 
     if (step.id === 'email_cadence') {
-      const n = parseInt(msg, 10);
-      return !isNaN(n) && n >= 1 && n <= 30;
+      const n = this.parseNumberish(msg);
+      return n !== null && n >= 1 && n <= 30;
     }
 
     if (step.id === 'content_generation') {
@@ -221,6 +361,10 @@ export class CampaignChatService {
     existingData: any = {}
   ): Promise<CampaignChatResponse> {
     try {
+      const runId = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
+      const startMs = Date.now();
+      const metrics = { runId, ragHit: 0, preflightBlocks: 0, ackRejected: 0, substantivePassed: 0, llmRetries: 0 };
+
       // Get relevant past campaign data from Supermemory for context
       let ragResults: any = null;
       try {
@@ -236,6 +380,9 @@ export class CampaignChatService {
       } catch (error) {
         console.warn('Failed to retrieve past campaigns from Supermemory:', error);
       }
+      const ragContext = this.buildRagContext(ragResults);
+      if (ragContext) metrics.ragHit++;
+
       const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
       const currentStepData = this.campaignSteps[stepIndex];
 
@@ -250,6 +397,7 @@ export class CampaignChatService {
       // BEFORE accepting the answer, validate substantiveness
       const substantive = await this.isSubstantiveAnswer(currentStepData, userMessage);
       if (!substantive) {
+        metrics.ackRejected++;
         const retryQuestion = currentStepData.question;
         const coaching: Record<string,string> = {
           context: 'Please give a descriptive automotive campaign type with purpose or scenario (e.g., "Labor Day weekend clearance focused on trade-ins and same‑day financing").',
@@ -259,7 +407,7 @@ export class CampaignChatService {
           handover_criteria: 'Describe the exact conversational signals that mean a sales rep should take over (pricing pressure, scheduling requests, urgency, financing readiness, trade-in specifics, etc.).',
           email_templates: 'Enter a number 1–30 indicating how many emails you want in the sequence.'
         };
-        return {
+        const response = {
           message: `I need a bit more detail before we move on. ${coaching[currentStepData.id] || ''}\n\n${retryQuestion}`.trim(),
           nextStep: currentStepData.id,
           data: existingData, // do NOT update yet
@@ -271,12 +419,23 @@ export class CampaignChatService {
             percent: Math.round((stepIndex / this.campaignSteps.length) * 100)
           }
         };
+        console.log('[campaign-chat]', { runId, stage: 'coach', step: currentStepData.id, metrics, durationMs: Date.now() - startMs });
+        return response;
       }
 
       // Process user's substantive response for current step
       const updatedData = { ...existingData };
       updatedData[currentStepData.dataField] = userMessage;
+      metrics.substantivePassed++;
 
+      if (currentStep === 'goals') {
+        updatedData.campaignGoals = userMessage;
+        updatedData.handoverGoals = userMessage; // legacy alias for compatibility
+      }
+      if (currentStep === 'target_audience') {
+        const segs = this.detectSegmentsFromAudience(userMessage);
+        if (segs.length) updatedData.segments = segs;
+      }
       // Special processing for handover criteria - uses campaign context and goals
       if (currentStep === 'handover_criteria') {
         const handoverPrompt = await this.convertHandoverCriteriaToPrompt(
@@ -304,15 +463,32 @@ export class CampaignChatService {
       }
 
       if (currentStep === 'email_cadence') {
-        const n = parseInt(userMessage, 10);
-        if (!isNaN(n) && n >= 1 && n <= 30) {
+        const n = this.parseNumberish(userMessage);
+        if (n !== null && n >= 1 && n <= 30) {
           updatedData.daysBetweenMessages = n;
         }
       }
 
       if (currentStep === 'content_generation') {
+        // Preflight gating before generation
+        const pf = this.preflightValidate(updatedData);
+        if (!pf.ok) {
+          metrics.preflightBlocks++;
+          return {
+            message: `${pf.message}\n\n${pf.suggestions?.length ? 'Suggestions:\n- ' + pf.suggestions.join('\n- ') : ''}\n\nShall we adjust the settings above or proceed anyway?`,
+            nextStep: currentStep, // do not advance
+            data: updatedData,
+            actions: ['retry'],
+            suggestions: this.suggestionsByStep[currentStep] || [],
+            progress: {
+              stepIndex,
+              total: this.campaignSteps.length,
+              percent: Math.round((stepIndex / this.campaignSteps.length) * 100)
+            }
+          };
+        }
         try {
-          const generation = await this.generateFinalCampaign({ ...updatedData });
+          const generation = await this.generateFinalCampaign({ ...updatedData }, ragContext);
           updatedData.templates = generation.templates;
           updatedData.subjectLines = generation.subjectLines;
           updatedData.numberOfTemplates = generation.numberOfTemplates;
@@ -333,7 +509,7 @@ export class CampaignChatService {
         // Ensure final campaign has templates/content
         let finalCampaign = { ...updatedData } as any;
         if (!finalCampaign.templates || finalCampaign.templates.length === 0) {
-          finalCampaign = await this.generateFinalCampaign(finalCampaign);
+          finalCampaign = await this.generateFinalCampaign(finalCampaign, ragContext);
         }
 
         // Calculate final progress
@@ -347,6 +523,7 @@ export class CampaignChatService {
         this.broadcastProgress(null, this.campaignSteps.length, this.campaignSteps.length, 100);
 
         const leadCount = finalCampaign.leadList?.total || finalCampaign.leadList?.length || 0;
+        console.log('[campaign-chat]', { runId, stage: 'complete', metrics, durationMs: Date.now() - startMs });
         return {
           message: `Review complete! "${finalCampaign.name}" has ${finalCampaign.numberOfTemplates || finalCampaign.templateCount || 5} templates${leadCount ? ` and ${leadCount} leads` : ''}. Type "Launch" to activate or edit any step before launching.`,
           completed: true,
@@ -372,10 +549,10 @@ Return ONLY a short (<=60 words) natural conversational reply that:
 3) Ends by asking exactly the next step question verbatim: ${nextStep.question}
 Do NOT wrap in quotes. No JSON. No markdown.`;
         const llm = await LLMClient.generate({
-          model: 'openai/gpt-5-mini',
-          system: 'You are a concise, helpful automotive campaign strategist. Keep replies friendly, professional, and specific to automotive marketing. Never hallucinate data not provided.',
-          user: llmUserPrompt,
-          temperature: 0.6,
+          model: 'openai/gpt-4o-mini',
+          system: 'You are a concise, helpful automotive campaign strategist. Keep replies professional and specific to automotive marketing. Never hallucinate data not provided.',
+          user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}` : llmUserPrompt),
+          temperature: 0.4,
           maxTokens: 220
         });
         responseMessage = llm.content?.trim();
@@ -406,6 +583,7 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
       // Broadcast progress via WebSocket
       this.broadcastProgress(null, nextStepIndex, this.campaignSteps.length, progress.percent);
 
+      console.log('[campaign-chat]', { runId, stage: 'advance', nextStep: nextStep.id, metrics, durationMs: Date.now() - startMs });
       return {
         message: responseMessage,
         nextStep: nextStep.id,
@@ -562,21 +740,26 @@ CRITICAL: The handover prompt must be laser-focused on the specific campaign con
   /**
    * Generate final campaign with all AI-enhanced content
    */
-  private static async generateFinalCampaign(data: any): Promise<any> {
+  private static async generateFinalCampaign(data: any, ragContext: string = ''): Promise<any> {
     try {
       // Generate campaign name if not provided
       if (!data.name || data.name.length < 3) {
-        const namePrompt = `Generate a catchy, professional name for an automotive campaign. Context: ${data.context}. Goals: ${data.handoverGoals}. Return only the campaign name, no quotes or extra text.`;
+        const namePrompt = `Generate a catchy, professional name for an automotive campaign.
+Context: ${data.context}
+Goals: ${data.handoverGoals || data.campaignGoals}
+${ragContext ? `Past campaign hints:\n${ragContext}\n` : ''}
+Return only the campaign name, no quotes or extra text.`;
         const { content } = await LLMClient.generateAutomotiveContent(namePrompt);
         data.name = content.trim().replace(/^"|"$/g, ''); // Remove quotes if present
       }
 
-      // Generate email templates based on context and goals
+      const segHint = Array.isArray(data.segments) && data.segments.length ? `\nAudience Segments: ${data.segments.map((s: any) => s.name).join(', ')}` : '';
       const templatePrompt = `
 Create ${data.numberOfTemplates || 5} automotive email templates for this campaign:
 Context: ${data.context}
-Goals: ${data.handoverGoals}
-Handover Criteria: ${data.handoverCriteria}
+Goals: ${data.handoverGoals || data.campaignGoals}
+Handover Criteria: ${data.handoverCriteria}${segHint}
+${ragContext ? `\nPast campaigns context:\n${ragContext}\n` : ''}
 
 Each template should:
 - Be automotive industry focused
@@ -596,7 +779,8 @@ Return JSON array of template objects with "subject" and "content" fields.`;
       }
 
       // Generate subject lines
-      const subjectPrompt = `Generate ${data.numberOfTemplates || 5} compelling email subject lines for automotive campaign: ${data.context}. Return as JSON array of strings.`;
+      const subjectPrompt = `Generate ${data.numberOfTemplates || 5} compelling email subject lines for automotive campaign: ${data.context}.
+${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}Return as JSON array of strings.`;
       const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt);
       let subjects = this.coerceJson(subjectsResult, [`${data.name} - Special Offer`, `${data.name} - Update`, `${data.name} - Reminder`]);
 
@@ -705,20 +889,22 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
    * Extract vehicle-related keywords from user input for better RAG retrieval
    */
   private static extractVehicleKeywords(text: string): string[] {
-    const vehicleTypes = ['truck', 'suv', 'sedan', 'coupe', 'convertible', 'wagon', 'hatchback', 'minivan', 'crossover'];
-    const brands = ['ford', 'toyota', 'honda', 'chevrolet', 'nissan', 'hyundai', 'kia', 'subaru', 'mazda', 'volkswagen'];
+    const vehicleTypes = ['truck','suv','sedan','coupe','convertible','wagon','hatchback','minivan','crossover','van'];
+    const brands = ['ford','toyota','honda','chevrolet','chevy','nissan','hyundai','kia','subaru','mazda','volkswagen','vw','ram','dodge','bmw','mercedes','jeep','gmc'];
+    const trims = ['awd','4wd','fx4','z71','lt','xlt','lariat','trail','sport','off-road','platinum','limited','denali','trs','trd','tremor'];
+    const saleSignals = ['clearance','closeout','rebate','price drop','last year','previous model','leftover','demo','cpo','certified','blowout','inventory reduction'];
     const keywords: string[] = [];
+    const lower = (text || '').toLowerCase();
 
-    const lowerText = text.toLowerCase();
+    // years
+    const years = lower.match(/\b20(1\d|2\d)\b/g);
+    if (years) keywords.push(...Array.from(new Set(years)));
 
-    vehicleTypes.forEach(type => {
-      if (lowerText.includes(type)) keywords.push(type);
-    });
+    for (const t of vehicleTypes) if (lower.includes(t)) keywords.push(t);
+    for (const b of brands) if (lower.includes(b)) keywords.push(b);
+    for (const tr of trims) if (lower.includes(tr)) keywords.push(tr);
+    for (const s of saleSignals) if (lower.includes(s)) keywords.push(s);
 
-    brands.forEach(brand => {
-      if (lowerText.includes(brand)) keywords.push(brand);
-    });
-
-    return keywords;
+    return Array.from(new Set(keywords));
   }
 }

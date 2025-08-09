@@ -88,7 +88,28 @@ You bake in:
 
 Remember: You're not just creating an email—you're creating a compelling reason for a shopper to stay with *this dealership* instead of browsing competitors. Every email you guide should feel timely, relevant, personalized, and action-driven… while staying true to the dealership's voice and brand.
 
-Ultimate goal: **Keep shoppers engaged. The longer they engage with us, the higher the likelihood they buy with us—not the other guy.**`;
+Ultimate goal: **Keep shoppers engaged. The longer they engage with us, the higher the likelihood they buy with us—not the other guy.** 
+
+## Output Rules (Hard)
+- Keep responses concise: default ≤ 120 words unless explicitly asked to generate templates or long-form copy.
+- When the user asks for subject lines or templates, return **valid JSON** only (no preamble, no markdown). Templates must be an array of objects: `{ "subject": string, "content": string }`.
+- One ask at a time: end with **one** targeted question or action.
+- No emojis. No speculation or fake metrics. If a required input is missing, ask for it.
+- Respect segmentation: if multiple segments are present, either propose shared copy or recommend **6–9** total templates for coverage.
+- Avoid generic fluff; prefer concrete automotive language (model years, trims, incentives, inventory status).
+
+## Handover Intelligence
+If the user describes when to hand a lead to sales, convert it into a tight rule-of-thumb and a tiny JSON config:
+- Triggers to watch: pricing pressure, test‑drive scheduling, financing readiness, trade‑in with VIN/miles, explicit urgency (“today”, “this weekend”).
+- Example JSON you may suggest saving:
+{"scoreThreshold":80,"urgentKeywords":["today","now","ASAP"],"tradeInTerms":["trade","value","appraisal"]}
+
+## Segmentation Awareness
+When the audience description contains named segments (e.g., **Dog Days Blowout**, **Truckpocalypse**, **Boss’s Bad Bet**), reflect them back and adapt subject lines/CTAs per segment. Flag under-coverage if `templates &lt; segments * 2`.
+
+## Grounding &amp; Context Usage
+If a **PAST CAMPAIGNS** section is present later in the prompt, treat it as retrieval context. Prefer its terminology and offers. Do not invent details that are not in either the user input or the context.
+`;
 
 export class CampaignPromptService {
   static getCampaignCreationPrompt(): string {
@@ -134,6 +155,15 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
           break;
       }
     }
+
+    // Surface detected audience segments from freeform input
+    if (userInput) {
+      const segs = CampaignPromptService.detectSegmentsFromText(userInput);
+      if (segs.length) {
+        prompt += `\n\nDetected Audience Segments: ${segs.map(s => s.name).join(', ')}
+Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 templates if more than one segment is present.`;
+      }
+    }
     
     return prompt;
   }
@@ -161,12 +191,20 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
       campaignType = 'promotional_event';
       keywords.push('event');
     }
+    // Add clearance/closeout/inventory reduction/year-end/blowout mapping to promotional_event
+    if (content.includes('clearance') || content.includes('closeout') || content.includes('inventory reduction') || content.includes('year-end') || content.includes('blowout')) {
+      campaignType = 'promotional_event';
+      keywords.push('clearance');
+    }
     
     // Detect urgency
-    if (content.includes('urgent') || content.includes('asap') || content.includes('today') || 
-        content.includes('immediately') || content.includes('rush')) {
+    if (content.includes('urgent') || content.includes('asap') || content.includes('today') ||
+        content.includes('immediately') || content.includes('rush') ||
+        content.includes('last chance') || content.includes('final days') || content.includes('ends') ||
+        content.includes('deadline') || content.includes('today only') || content.includes('this weekend') ||
+        content.includes('48 hours') || content.includes('countdown')) {
       urgency = 'high';
-    } else if (content.includes('soon') || content.includes('this week') || 
+    } else if (content.includes('soon') || content.includes('this week') ||
                content.includes('quickly') || content.includes('fast')) {
       urgency = 'medium';
     }
@@ -175,7 +213,9 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
     const automotiveKeywords = [
       'suv', 'truck', 'sedan', 'coupe', 'convertible', 'hybrid', 'electric',
       'ford', 'toyota', 'honda', 'chevrolet', 'bmw', 'mercedes', 'audi',
-      'test drive', 'trade-in', 'warranty', 'certified pre-owned'
+      'test drive', 'trade-in', 'warranty', 'certified pre-owned',
+      'clearance', 'closeout', 'rebate', 'inventory', 'year-end',
+      'family', 'budget', 'contractor', 'work truck'
     ];
     
     automotiveKeywords.forEach(keyword => {
@@ -205,3 +245,22 @@ Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives
     return guidance.join('. ') + '.';
   }
 }
+  static detectSegmentsFromText(text?: string): { name: string; description?: string }[] {
+    if (!text) return [];
+    const out: { name: string; description?: string }[] = [];
+    const boldRe = /\*\*(.+?)\*\*/g;
+    let m: RegExpExecArray | null;
+    while ((m = boldRe.exec(text)) !== null) {
+      const name = m[1].trim();
+      const after = text.slice(m.index + m[0].length).split(/\n|\*/)[0];
+      out.push({ name, description: after.trim().replace(/^[:\-–]\s*/, '') });
+    }
+    if (out.length === 0) {
+      const lines = text.split('\n');
+      for (const line of lines) {
+        const lm = line.match(/^\s*[\-\*\u2022]\s*([A-Z][A-Za-z0-9'\s]+):\s*(.+)$/);
+        if (lm) out.push({ name: lm[1].trim(), description: lm[2].trim() });
+      }
+    }
+    return out.slice(0, 6);
+  }

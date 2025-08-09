@@ -71,8 +71,8 @@ router.put('/preferences/:userId', async (req, res) => {
     
     const [updatedUser] = await db.update(users)
       .set({ 
-        notificationPreferences: validatedData as any
-      })
+        notificationPreferences: validatedData
+      } as any)
       .where(eq(users.id, userId))
       .returning();
     
