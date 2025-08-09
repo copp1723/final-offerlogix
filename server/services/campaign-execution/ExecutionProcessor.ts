@@ -2,6 +2,19 @@ import { storage } from '../../storage';
 // Removed mailgunService import - using dynamic import instead
 import type { Campaign, Lead } from '@shared/schema';
 
+// Reliability tuning knobs (env overrides supported)
+const MAILGUN_MAX_RETRIES = Number(process.env.MAILGUN_MAX_RETRIES ?? 3);
+const MAILGUN_RETRY_BASE_MS = Number(process.env.MAILGUN_RETRY_BASE_MS ?? 200);
+const BATCH_CONCURRENCY = Math.max(1, Number(process.env.EXECUTION_BATCH_CONCURRENCY ?? 10));
+const MAX_EMAIL_HTML_BYTES = Number(process.env.MAX_EMAIL_HTML_BYTES ?? 500_000); // ~500KB
+
+function sleep(ms: number) { return new Promise(res => setTimeout(res, ms)); }
+function backoff(attempt: number) {
+  const capped = Math.min(1500, MAILGUN_RETRY_BASE_MS * 2 ** (attempt - 1));
+  const jitter = Math.floor(Math.random() * 150);
+  return capped + jitter;
+}
+
 export interface ProcessingOptions {
   batchSize?: number;
   delayBetweenEmails?: number;
@@ -61,17 +74,33 @@ export class ExecutionProcessor {
 
       const template = templates[templateIndex];
       
+      // Dedupe leads by email (case-insensitive) and drop obviously invalid emails
+      const emailSeen = new Set<string>();
+      const filteredLeads = leads.filter(l => {
+        const email = (l.email || '').trim();
+        const lower = email.toLowerCase();
+        const isValid = /.+@.+\..+/.test(email);
+        if (!email || !isValid) {
+          errors.push(`Skipped invalid email for lead ${l.id}`);
+          return false;
+        }
+        if (emailSeen.has(lower)) return false;
+        emailSeen.add(lower);
+        return true;
+      });
+
       // Process leads in batches
-      const batches = this.createBatches(leads, batchSize);
+      const batches = this.createBatches(filteredLeads, batchSize);
       
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
         
         console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads) - Template: ${template.title || 'Untitled'}`);
         
-        const batchResults = await Promise.allSettled(
-          batch.map(lead => this.sendEmailToLead(campaign, lead, template, testMode))
+        const batchResultsSettled = await Promise.allSettled(
+          this.runWithConcurrency(batch, BATCH_CONCURRENCY, (lead) => this.sendEmailToLead(campaign, lead, template, testMode))
         );
+        const batchResults = batchResultsSettled as PromiseSettledResult<{ success: boolean; error?: string }>[];
 
         // Process batch results
         for (let i = 0; i < batchResults.length; i++) {
@@ -100,7 +129,7 @@ export class ExecutionProcessor {
 
         // Add delay between batches (except for the last batch)
         if (batchIndex < batches.length - 1) {
-          await this.delay(delayBetweenEmails);
+          await this.delay(Math.max(0, delayBetweenEmails));
         }
       }
 
@@ -157,17 +186,15 @@ export class ExecutionProcessor {
       // Personalize email content
       const personalizedSubject = this.personalizeContent(template.subject || campaign.name, lead);
       const personalizedContent = this.personalizeContent(template.content || template.body || '', lead);
-
       const emailData = {
         to: lead.email,
         subject: testMode ? `[TEST] ${personalizedSubject}` : personalizedSubject,
-        html: personalizedContent,
+        html: this.capHtmlSize(personalizedContent),
         from: `OneKeel Swarm <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
       };
 
-      // Import the mailgun service dynamically
-      const { sendCampaignEmail } = await import('../mailgun');
-      const success = await sendCampaignEmail(
+      // Retry mail send on transient failures
+      const success = await this.sendWithRetries(
         emailData.to,
         emailData.subject,
         emailData.html
@@ -211,6 +238,62 @@ export class ExecutionProcessor {
         success: false, 
         error: error instanceof Error ? error.message : 'Unknown email error' 
       };
+    }
+  }
+
+  // Concurrency limiter for batch processing
+  private async runWithConcurrency<T, R>(items: T[], limit: number, task: (item: T, index: number) => Promise<R>): Promise<R[]> {
+    const results: R[] = new Array(items.length);
+    let next = 0;
+    const workers: Promise<void>[] = [];
+
+    const runWorker = async () => {
+      while (next < items.length) {
+        const current = next++;
+        try {
+          results[current] = await task(items[current], current);
+        } catch (e) {
+          // propagate failure shape if caller expects it
+          // @ts-ignore
+          results[current] = e;
+        }
+      }
+    };
+
+    for (let i = 0; i < Math.min(limit, items.length); i++) {
+      workers.push(runWorker());
+    }
+    await Promise.all(workers);
+    return results;
+  }
+
+  // Bound HTML size for email
+  private capHtmlSize(html: string): string {
+    if (!html) return '';
+    // Quick byte-length cap without heavy parsing
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(html);
+    if (bytes.length <= MAX_EMAIL_HTML_BYTES) return html;
+    // Truncate conservatively at character boundary
+    const ratio = MAX_EMAIL_HTML_BYTES / bytes.length;
+    const cut = Math.max(0, Math.floor(html.length * ratio) - 1);
+    return html.slice(0, cut) + '\n<!-- truncated to stay under size cap -->';
+  }
+
+  // Retry wrapper for mail sends
+  private async sendWithRetries(to: string, subject: string, html: string): Promise<boolean> {
+    const { sendCampaignEmail } = await import('../mailgun');
+    let attempt = 0;
+    while (true) {
+      attempt++;
+      try {
+        const ok = await sendCampaignEmail(to, subject, html);
+        if (ok) return true;
+        if (attempt >= MAILGUN_MAX_RETRIES) return false;
+      } catch (err) {
+        if (attempt >= MAILGUN_MAX_RETRIES) return false;
+      }
+      await sleep(backoff(attempt));
     }
   }
 

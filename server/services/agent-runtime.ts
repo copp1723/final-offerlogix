@@ -9,6 +9,21 @@ import { eq, and } from 'drizzle-orm';
 import { db } from '../db';
 import crypto from 'crypto';
 
+const OPENROUTER_TIMEOUT_MS = Number(process.env.OPENROUTER_TIMEOUT_MS ?? 20000);
+const OPENROUTER_MAX_RETRIES = Number(process.env.OPENROUTER_MAX_RETRIES ?? 3);
+
+const MAX_USER_MSG_CHARS = Number(process.env.AGENT_MAX_USER_MSG ?? 4000);
+const MAX_MEMORY_DOCS = Number(process.env.AGENT_MAX_MEMORY_DOCS ?? 3);
+const MAX_MEMORY_SNIPPET = Number(process.env.AGENT_MAX_MEMORY_SNIPPET ?? 300);
+const MAX_MEMORY_BLOCK = Number(process.env.AGENT_MAX_MEMORY_BLOCK ?? 1200);
+const DEFAULT_FALLBACK_REPLY = 'Thanks for reaching out—how can I help?';
+
+function sanitizeUserMsg(s: string): string {
+  if (!s) return '';
+  // strip control chars except newlines/tabs
+  return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
+}
+
 type ModelId = 'openai/gpt-5-mini' | 'openai/gpt-4o' | 'anthropic/claude-3-5-sonnet' | string;
 
 export interface AgentRuntimeReplyInput {
@@ -42,6 +57,48 @@ interface ActiveAgentConfig {
 }
 
 export class AgentRuntime {
+  private static sleep(ms: number) {
+    return new Promise(res => setTimeout(res, ms));
+  }
+
+  private static stripJsonFences(s: string): string {
+    if (!s) return s;
+    return s
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/```$/i, '')
+      .trim();
+  }
+
+  private static async requestWithRetries(url: string, init: any, traceId: string): Promise<Response> {
+    let attempt = 0;
+    while (true) {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), OPENROUTER_TIMEOUT_MS);
+      try {
+        const res = await fetch(url, { ...init, signal: controller.signal });
+        clearTimeout(t);
+
+        // Retryable statuses
+        if ([408, 429].includes(res.status) || res.status >= 500) {
+          attempt++;
+          if (attempt > OPENROUTER_MAX_RETRIES) return res;
+          const backoff = Math.min(1500, 200 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 150);
+          await this.sleep(backoff);
+          continue;
+        }
+        return res;
+      } catch (err: any) {
+        clearTimeout(t);
+        attempt++;
+        // Network/abort—retry unless exceeded
+        if (attempt > OPENROUTER_MAX_RETRIES) throw err;
+        const backoff = Math.min(1500, 200 * 2 ** (attempt - 1)) + Math.floor(Math.random() * 150);
+        await this.sleep(backoff);
+      }
+    }
+  }
+
   /**
    * Hash emails for memory partitioning without leaking PII
    */
@@ -136,7 +193,7 @@ export class AgentRuntime {
       const { searchMemories } = await import('../integrations/supermemory');
       const results = await searchMemories({
         q: query,
-        clientId: 'default', // TODO: Pass actual clientId
+        clientId: clientId || 'default',
         limit: 5
       });
 
@@ -169,21 +226,38 @@ export class AgentRuntime {
     };
 
     const system = this.buildSystemPrompt(cfg);
+    const startedAt = Date.now();
+    let memMs = 0;
+    let llmMs = 0;
 
-    const memoryDocs = await this.recallMemory({
-      clientId: input.clientId,
-      leadId: input.leadId,
-      topic: input.topic
-    });
+    const userMsg = sanitizeUserMsg(input.message).slice(0, MAX_USER_MSG_CHARS);
 
-    const memoryBlock = memoryDocs.length > 0
-      ? `\nRelevant context:\n${memoryDocs
-          .map(d => `- [${d.score.toFixed(2)}] ${d.snippet.replace(/\n+/g, ' ')}`)
-          .join('\n')}`
-      : '';
+    let memoryDocs = [] as Array<{ id: string; score: number; snippet: string }>;
+    {
+      const t0 = Date.now();
+      memoryDocs = await this.recallMemory({
+        clientId: input.clientId,
+        leadId: input.leadId,
+        topic: input.topic
+      });
+      memMs = Date.now() - t0;
+      // Cap documents and snippet sizes
+      memoryDocs = (memoryDocs || []).slice(0, MAX_MEMORY_DOCS).map(d => ({
+        ...d,
+        snippet: (d.snippet || '').slice(0, MAX_MEMORY_SNIPPET)
+      }));
+    }
+
+    let memoryBlock = '';
+    if (memoryDocs.length > 0) {
+      const rawBlock = `\nRelevant context:\n${memoryDocs
+        .map(d => `- [${d.score.toFixed(2)}] ${d.snippet.replace(/\n+/g, ' ')}`)
+        .join('\n')}`;
+      memoryBlock = rawBlock.length > MAX_MEMORY_BLOCK ? rawBlock.slice(0, MAX_MEMORY_BLOCK) : rawBlock;
+    }
 
     const userPrompt = [
-      `Lead message: "${input.message}"`,
+      `Lead message: "${userMsg}"`,
       input.topic ? `Topic hint: ${input.topic}` : '',
       memoryBlock,
       `\nRespond naturally and helpfully. If appropriate, include one clear call-to-action.`,
@@ -191,76 +265,93 @@ export class AgentRuntime {
     ].filter(Boolean).join('\n');
 
     // Generate with OpenRouter API
+    const apiKey = process.env.OPENROUTER_API_KEY;
+    if (!apiKey) {
+      console.warn('Agent runtime: OPENROUTER_API_KEY not set; returning fallback reply');
+      return {
+        reply: DEFAULT_FALLBACK_REPLY,
+        quickReplies: [],
+        usedConfigId: cfg.id,
+        memoryContextDocs: memoryDocs
+      };
+    }
+
     let reply = '';
     let quickReplies: string[] = [];
 
+    const traceId = (crypto as any).randomUUID ? (crypto as any).randomUUID() : Math.random().toString(36).slice(2);
+
     try {
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'X-Title': 'OneKeel Swarm - Agent Runtime'
+      const llmStart = Date.now();
+      const response = await this.requestWithRetries(
+        'https://openrouter.ai/api/v1/chat/completions',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json',
+            'X-Title': 'OneKeel Swarm - Agent Runtime'
+          },
+          body: JSON.stringify({
+            model: input.model || cfg.model || 'openai/gpt-5-mini',
+            messages: [
+              { role: 'system', content: system },
+              { role: 'user', content: userPrompt }
+            ],
+            max_tokens: Math.min(input.maxTokens ?? 700, 1200),
+            temperature: 0.2
+          })
         },
-        body: JSON.stringify({
-          model: input.model || cfg.model || 'openai/gpt-5-mini',
-          messages: [
-            { role: 'system', content: system },
-            { role: 'user', content: userPrompt }
-          ],
-          max_tokens: input.maxTokens ?? 700,
-          temperature: 0.2
-        })
-      });
+        traceId
+      );
 
       if (response.ok) {
         const data = await response.json();
-        const content = data.choices?.[0]?.message?.content || '';
-        
+        let content = data.choices?.[0]?.message?.content || '';
+        content = this.stripJsonFences(content);
+
         try {
           const parsed = JSON.parse(content);
-          reply = parsed.reply || content;
-          quickReplies = parsed.quickReplies?.slice(0, 4) || [];
+          reply = typeof parsed.reply === 'string' && parsed.reply.trim() ? parsed.reply : content;
+          if (Array.isArray(parsed.quickReplies)) {
+            quickReplies = parsed.quickReplies.filter(Boolean).slice(0, 4);
+          }
         } catch {
-          reply = content || 'Thanks for reaching out—how can I help?';
+          reply = content || DEFAULT_FALLBACK_REPLY;
         }
       } else {
-        reply = 'Thanks for the message—how can I help?';
+        console.error(`OpenRouter non-OK ${response.status} (trace ${traceId})`);
+        reply = DEFAULT_FALLBACK_REPLY;
       }
+      llmMs = Date.now() - llmStart;
     } catch (error) {
-      console.error('Agent runtime LLM error:', error);
-      reply = 'Thanks for reaching out. How can I assist you today?';
+      console.error(`Agent runtime LLM error (trace ${traceId}):`, error);
+      reply = DEFAULT_FALLBACK_REPLY;
     }
 
     // Write the AI reply to memory (best-effort)
     try {
-      const supermemoryModule = await import('./supermemory');
-      if ('memoryMapper' in supermemoryModule && supermemoryModule.memoryMapper) {
-        const tags = [
-          `client:${input.clientId}`,
-          input.leadId ? `lead:${input.leadId}` : null
-        ].filter(Boolean) as string[];
-
-        const { MemoryMapper } = await import('../integrations/supermemory');
-        await MemoryMapper.writeLeadMessage({
-          type: 'lead_msg',
-          clientId: input.clientId || 'default',
-          campaignId: undefined,
-          leadEmail: input.leadId,
-          content: `[AI Reply] ${reply}`,
-          meta: {
-            ai_reply: true,
-            conversationId: input.conversationId,
-            timestamp: new Date().toISOString()
-          }
-        });
-      }
+      const { MemoryMapper } = await import('../integrations/supermemory');
+      await MemoryMapper.writeLeadMessage({
+        type: 'lead_msg',
+        clientId: input.clientId || 'default',
+        campaignId: undefined,
+        leadEmail: undefined,
+        content: `[AI Reply] ${reply}`,
+        meta: {
+          ai_reply: true,
+          conversationId: input.conversationId,
+          leadId: input.leadId,
+          timestamp: new Date().toISOString()
+        }
+      });
     } catch {
-      // Ignore memory write failures
+      // best-effort only
     }
 
+    console.info('agent_runtime.reply', { traceId, clientId: input.clientId, model: input.model || cfg.model, memMs, llmMs, usedConfigId: cfg.id });
     return {
-      reply: reply.trim() || 'Thanks for the message—how can I help?',
+      reply: reply.trim() || DEFAULT_FALLBACK_REPLY,
       quickReplies,
       usedConfigId: cfg.id,
       memoryContextDocs: memoryDocs

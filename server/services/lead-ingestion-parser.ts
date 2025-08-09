@@ -3,6 +3,52 @@
  * Handles OEM forms, Cars.com/Autotrader leads, website contact forms
  */
 
+// ---- Reliability & Sanitization Knobs ----
+const MAX_CONTENT_CHARS = Number(process.env.LEAD_PARSE_MAX_CONTENT ?? 200_000); // cap input size
+const MAX_FIELD_CHARS = Number(process.env.LEAD_PARSE_MAX_FIELD ?? 200); // cap any single field
+
+const EMAIL_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i;
+const PHONE_HINT_REGEX = /(?:phone|tel|mobile|cell)[:\s-]*(\+?\d[\d\s().-]{7,}\d)/i;
+const PHONE_FALLBACK_REGEX = /(\+?\d{1,3}[\s.-]?\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/;
+
+function stripTags(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ');
+}
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'");
+}
+function clamp(s: string | undefined | null): string | undefined {
+  if (!s) return undefined;
+  const t = s.toString().trim();
+  return t.length > MAX_FIELD_CHARS ? t.slice(0, MAX_FIELD_CHARS) : t;
+}
+function normalizeWhitespace(s: string): string {
+  return s.replace(/\s+/g, ' ').trim();
+}
+function toTitleCaseName(s?: string): { first?: string; last?: string } {
+  if (!s) return {};
+  const cleaned = s.replace(/<.*?>/g, '').replace(/\d+/g, '').replace(/[<>]/g, '').trim();
+  if (!cleaned) return {};
+  const parts = cleaned.split(/\s+/).filter(Boolean);
+  const first = parts[0];
+  const last = parts.length > 1 ? parts.slice(1).join(' ') : undefined;
+  const tc = (x?: string) => x ? x.replace(/\b([a-z])(\w*)/gi, (_, a, rest) => a.toUpperCase() + rest.toLowerCase()) : undefined;
+  return { first: tc(first), last: tc(last) };
+}
+function normalizePhone(raw?: string): string | undefined {
+  if (!raw) return undefined;
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length < 10) return undefined;
+  // Keep last 10-11 digits to handle leading country code
+  const trimmed = digits.length > 11 ? digits.slice(-10) : digits;
+  return trimmed.length === 11 ? trimmed : trimmed.slice(-10);
+}
+
 export interface ParsedLeadData {
   firstName?: string;
   lastName?: string;
@@ -25,16 +71,15 @@ export function parseLeadEmail({
   text?: string; 
   from: string;
 }): ParsedLeadData {
-  const content = text || html || '';
-  const cleanContent = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const raw = (text && text.length > 0 ? text : (html || ''));
+  const clipped = raw.length > MAX_CONTENT_CHARS ? raw.slice(0, MAX_CONTENT_CHARS) : raw;
+  const content = decodeEntities(stripTags(clipped));
+  const cleanContent = normalizeWhitespace(content);
   
   // Extract email - most critical field
-  const foundEmail = cleanContent.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0];
-  
-  // Extract phone with various formats
-  const phoneMatch = cleanContent.match(/(?:phone|tel|mobile|cell)[:\s-]*(\+?\d[\d\s().-]{7,}\d)/i) ||
-                    cleanContent.match(/(\+?\d{1,3}[\s.-]?\(??\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4})/);
-  const phone = phoneMatch?.[1] || phoneMatch?.[0];
+  const foundEmail = cleanContent.match(EMAIL_REGEX)?.[0];
+  const phoneMatch = cleanContent.match(PHONE_HINT_REGEX) || cleanContent.match(PHONE_FALLBACK_REGEX);
+  const phone = normalizePhone(phoneMatch?.[1] || phoneMatch?.[0]);
   
   // Extract name patterns
   const namePatterns = [
@@ -52,10 +97,9 @@ export function parseLeadEmail({
     }
   }
   
-  // Split name into first/last
-  const nameParts = fullName.split(/\s+/);
-  const firstName = nameParts[0];
-  const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : undefined;
+  const { first: firstNameRaw, last: lastNameRaw } = toTitleCaseName(fullName);
+  const firstName = clamp(firstNameRaw);
+  const lastName = clamp(lastNameRaw);
   
   // Extract vehicle interest
   const vehiclePatterns = [
@@ -68,10 +112,11 @@ export function parseLeadEmail({
   for (const pattern of vehiclePatterns) {
     const match = cleanContent.match(pattern);
     if (match && match[1]) {
-      vehicleInterest = match[1].trim();
+      vehicleInterest = match[1].replace(/\s+/g, ' ').replace(/[\s,.;:]+$/, '').trim();
       break;
     }
   }
+  vehicleInterest = clamp(vehicleInterest) || '';
   
   // Determine lead source from sender domain
   const senderDomain = from.split('@')[1]?.toLowerCase() || '';
@@ -87,29 +132,34 @@ export function parseLeadEmail({
   
   // Extract additional metadata
   const metadata: Record<string, any> = {
-    originalSubject: subject,
+    originalSubject: clamp(subject),
     senderDomain,
     parsedAt: new Date().toISOString(),
-    contentLength: cleanContent.length
+    contentLength: cleanContent.length,
+    hasHtml: Boolean(html && html.length),
+    hasText: Boolean(text && text.length)
   };
-  
-  // Look for specific form fields
-  const formFields = cleanContent.match(/(\w+)[:\s-]+([^\n\r]{1,100})/gi) || [];
+
+  // Look for simple key:value lines (bounded)
+  const formFields = cleanContent.match(/([A-Za-z][A-Za-z0-9_]{2,24})[:\s-]+([^\n\r]{1,100})/gi) || [];
   for (const field of formFields.slice(0, 10)) { // Limit to prevent bloat
-    const [, key, value] = field.match(/(\w+)[:\s-]+([^\n\r]{1,100})/) || [];
-    if (key && value && key.length > 2 && value.trim().length > 1) {
-      metadata[key.toLowerCase()] = value.trim();
+    const m = field.match(/([A-Za-z][A-Za-z0-9_]{2,24})[:\s-]+([^\n\r]{1,100})/);
+    if (!m) continue;
+    const key = m[1]?.toLowerCase();
+    const value = clamp(normalizeWhitespace(m[2] || ''));
+    if (key && value && !(key in { originalsubject: 1, parsedat: 1, contentlength: 1 })) {
+      metadata[key] = value;
     }
   }
   
   return {
     firstName,
     lastName,
-    email: foundEmail,
-    phone: phone?.replace(/\D/g, '').replace(/^1/, '') || undefined, // Clean phone format
+    email: clamp(foundEmail || undefined),
+    phone,
     vehicleInterest: vehicleInterest || undefined,
     leadSource,
-    notes: subject.length > 5 ? subject : undefined,
+    notes: clamp(subject && subject.length > 5 ? subject : undefined),
     metadata
   };
 }
@@ -119,34 +169,33 @@ export function parseLeadEmail({
  */
 export function validateLeadData(data: ParsedLeadData): { valid: boolean; issues: string[] } {
   const issues: string[] = [];
-  
+
   if (!data.email) {
     issues.push('No email address found');
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email)) {
     issues.push('Invalid email format');
   }
-  
+
   if (!data.firstName && !data.lastName) {
     issues.push('No name information found');
   }
-  
+
   if (!data.phone && !data.vehicleInterest) {
     issues.push('No phone or vehicle interest - limited lead quality');
   }
-  
-  return {
-    valid: issues.length === 0,
-    issues
-  };
+
+  // Bound the number of surfaced issues
+  const bounded = issues.slice(0, 5);
+  return { valid: bounded.length === 0, issues: bounded };
 }
 
 /**
  * Check if email should be processed for lead ingestion
  */
 export function shouldProcessForLeadIngestion(
-  subject: string, 
-  from: string, 
-  to: string[]
+  subject: string,
+  from: string,
+  to: string[] = []
 ): boolean {
   // Skip Mailgun domain emails - those go through webhook lane
   const mgDomains = [

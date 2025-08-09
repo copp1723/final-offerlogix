@@ -215,7 +215,7 @@ export function CampaignScheduler({ campaignId, onScheduled }: CampaignScheduler
             </div>
             
             <div className="flex gap-2">
-              {schedule.scheduleType === 'immediate' && schedule.status && !['active', 'completed'].includes(schedule.status) && (
+              {schedule.scheduleType === 'immediate' && (schedule.status === 'draft' || schedule.status === 'scheduled' || schedule.status === 'active') && (
                 <Button 
                   onClick={() => executeMutation.mutate()}
                   disabled={executeMutation.isPending}
