@@ -69,7 +69,7 @@ export default function IntelligencePage() {
                 <DollarSign className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">${data.leadScoring.monthlyRevenueLift.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-green-600">${data.leadScoring?.monthlyRevenueLift?.toLocaleString() || '0'}</div>
                 <p className="text-xs text-muted-foreground">Monthly Revenue Lift</p>
                 <div className="flex items-center space-x-2 mt-2">
                   <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">{data.leadScoring.hotLeads} Hot</span>
@@ -78,7 +78,7 @@ export default function IntelligencePage() {
                 </div>
                 <div className="mt-2 text-xs text-gray-600">
                   <div className="flex justify-between">
-                    <span>Revenue/Hot Lead:</span><span className="font-medium text-green-600">${data.leadScoring.revenuePerHotLead.toLocaleString()}</span>
+                    <span>Revenue/Hot Lead:</span><span className="font-medium text-green-600">${data.leadScoring?.revenuePerHotLead?.toLocaleString() || '0'}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Conversion Advantage:</span><span className="font-medium text-green-600">+{data.leadScoring.conversionRateAdvantage}%</span>
@@ -99,17 +99,17 @@ export default function IntelligencePage() {
                 <Timer className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{data.leadScoring.timeSavedDaily}h</div>
+                <div className="text-2xl font-bold text-blue-600">{data.leadScoring?.timeSavedDaily || 0}h</div>
                 <p className="text-xs text-muted-foreground">Daily Time Saved</p>
                 <div className="mt-2">
                   <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">Smart Prioritization Active</span>
                 </div>
                 <div className="mt-2 text-xs text-gray-600">
                   <div className="flex justify-between">
-                    <span>Weekly Savings:</span><span className="font-medium text-blue-600">{(data.leadScoring.timeSavedDaily * 5).toFixed(1)}h</span>
+                    <span>Weekly Savings:</span><span className="font-medium text-blue-600">{(data.leadScoring?.timeSavedDaily || 0 * 5).toFixed(1)}h</span>
                   </div>
                   <div className="flex justify-between">
-                    <span>Monthly Value:</span><span className="font-medium text-green-600">${Math.round(data.leadScoring.timeSavedDaily * 5 * 4.33 * 65).toLocaleString()}</span>
+                    <span>Monthly Value:</span><span className="font-medium text-green-600">${Math.round(data.leadScoring?.timeSavedDaily || 0 * 5 * 4.33 * 65).toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Competitive Edge:</span><span className="font-medium text-purple-600">{data.leadScoring.competitiveAdvantage}</span>
@@ -226,7 +226,7 @@ export default function IntelligencePage() {
                 <DollarSign className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-green-600">${data.leadScoring.monthlyRevenueLift.toLocaleString()}</div>
+                <div className="text-2xl font-bold text-green-600">${data.leadScoring?.monthlyRevenueLift?.toLocaleString() || '0'}</div>
                 <p className="text-xs text-muted-foreground">From intelligent lead prioritization</p>
                 <div className="mt-2 text-xs">
                   <span className="text-green-600 font-medium">Yearly projection: ${(data.leadScoring.monthlyRevenueLift * 12).toLocaleString()}</span>
@@ -254,10 +254,10 @@ export default function IntelligencePage() {
                 <Timer className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-blue-600">{data.leadScoring.timeSavedDaily}h</div>
+                <div className="text-2xl font-bold text-blue-600">{data.leadScoring?.timeSavedDaily || 0}h</div>
                 <p className="text-xs text-muted-foreground">Daily productivity gain</p>
                 <div className="mt-2 text-xs">
-                  <span className="text-blue-600 font-medium">Monthly value: ${Math.round(data.leadScoring.timeSavedDaily * 5 * 4.33 * 65).toLocaleString()}</span>
+                  <span className="text-blue-600 font-medium">Monthly value: ${Math.round(data.leadScoring?.timeSavedDaily || 0 * 5 * 4.33 * 65).toLocaleString()}</span>
                 </div>
               </CardContent>
             </Card>
@@ -293,7 +293,7 @@ export default function IntelligencePage() {
                         <div className="w-3 h-3 bg-red-500 rounded mr-2"></div>
                         <span className="font-medium">Hot Leads</span>
                       </div>
-                      <span className="text-lg font-bold text-green-600">${data.leadScoring.revenuePerHotLead.toLocaleString()}</span>
+                      <span className="text-lg font-bold text-green-600">${data.leadScoring?.revenuePerHotLead?.toLocaleString() || '0'}</span>
                     </div>
                     <p className="text-sm text-gray-600">Average revenue per lead • 35% conversion rate</p>
                     <div className="text-xs text-green-600 mt-1">
@@ -354,10 +354,10 @@ export default function IntelligencePage() {
                   <div className="border rounded-lg p-4 bg-blue-50">
                     <h4 className="font-semibold text-blue-800 mb-2">Operational Excellence</h4>
                     <p className="text-sm text-blue-700 mb-2">
-                      Save <span className="font-bold">{Math.round(data.leadScoring.timeSavedDaily * 5 * 4.33)} hours monthly</span> through smart prioritization
+                      Save <span className="font-bold">{Math.round(data.leadScoring?.timeSavedDaily || 0 * 5 * 4.33)} hours monthly</span> through smart prioritization
                     </p>
                     <div className="text-xs text-blue-600">
-                      • Sales team operates {Math.round(((15 - (data.leadScoring.timeSavedDaily * 60 / data.leadScoring.totalLeads)) / 15) * 100)}% more efficiently
+                      • Sales team operates {Math.round(((15 - (data.leadScoring?.timeSavedDaily || 0 * 60 / data.leadScoring.totalLeads)) / 15) * 100)}% more efficiently
                     </div>
                   </div>
                   
@@ -401,7 +401,7 @@ export default function IntelligencePage() {
                 <div className="space-y-4">
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Revenue per Hot Lead</span>
-                    <span className="text-lg font-bold text-green-600">${data.leadScoring.revenuePerHotLead.toLocaleString()}</span>
+                    <span className="text-lg font-bold text-green-600">${data.leadScoring?.revenuePerHotLead?.toLocaleString() || '0'}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Conversion Rate Boost</span>
@@ -413,14 +413,14 @@ export default function IntelligencePage() {
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-sm font-medium">Daily Time Saved</span>
-                    <span className="text-lg font-bold text-blue-600">{data.leadScoring.timeSavedDaily}h</span>
+                    <span className="text-lg font-bold text-blue-600">{data.leadScoring?.timeSavedDaily || 0}h</span>
                   </div>
                 </div>
                 <div className="mt-4 pt-4 border-t">
                   <div className="text-center">
                     <div className="text-sm text-gray-600 mb-2">Monthly Business Impact</div>
                     <div className="text-xl font-bold text-green-600">
-                      ${data.leadScoring.monthlyRevenueLift.toLocaleString()}
+                      ${data.leadScoring?.monthlyRevenueLift?.toLocaleString() || '0'}
                     </div>
                     <div className="text-xs text-gray-500">in additional revenue potential</div>
                   </div>

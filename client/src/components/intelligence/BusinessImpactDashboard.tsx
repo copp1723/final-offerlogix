@@ -129,12 +129,12 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              ${businessImpact.revenueImpact.monthlyRevenueLift.toLocaleString()}
+              ${businessImpact.revenueImpact?.monthlyRevenueLift?.toLocaleString() || '0'}
             </div>
             <p className="text-xs text-green-700">From intelligent lead prioritization</p>
             <div className="mt-2 text-xs">
               <span className="text-green-600 font-medium">
-                Yearly: ${businessImpact.revenueImpact.yearlyRevenueProjection.toLocaleString()}
+                Yearly: ${businessImpact.revenueImpact?.yearlyRevenueProjection?.toLocaleString() || '0'}
               </span>
             </div>
           </CardContent>
@@ -170,7 +170,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
             <p className="text-xs text-purple-700">Daily productivity gain</p>
             <div className="mt-2 text-xs">
               <span className="text-purple-600 font-medium">
-                Monthly value: ${businessImpact.timeSavings.totalTimeSavingsValue.toLocaleString()}
+                Monthly value: ${businessImpact.timeSavings?.totalTimeSavingsValue?.toLocaleString() || '0'}
               </span>
             </div>
           </CardContent>
@@ -212,7 +212,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
                     <Badge variant="destructive" className="ml-2 text-xs">High Priority</Badge>
                   </div>
                   <span className="text-lg font-bold text-green-600">
-                    ${businessImpact.revenueImpact.revenuePerHotLead.toLocaleString()}
+                    ${businessImpact.revenueImpact?.revenuePerHotLead?.toLocaleString() || '0'}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600">Average revenue per lead • 35% conversion rate</p>
@@ -255,7 +255,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
                 <div className="text-center">
                   <div className="text-sm font-medium text-green-800">Total Revenue Opportunity</div>
                   <div className="text-xl font-bold text-green-600">
-                    ${businessImpact.revenueImpact.totalRevenuePotential.toLocaleString()}
+                    ${businessImpact.revenueImpact?.totalRevenuePotential?.toLocaleString() || '0'}
                   </div>
                   <div className="text-xs text-green-600">Monthly potential from current lead portfolio</div>
                 </div>
@@ -282,7 +282,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
                   Hot leads generate <span className="font-bold">14x more revenue</span> than cold leads
                 </p>
                 <div className="text-xs text-green-600">
-                  • ${businessImpact.revenueImpact.yearlyRevenueProjection.toLocaleString()} projected annual increase
+                  • ${businessImpact.revenueImpact?.yearlyRevenueProjection?.toLocaleString() || '0'} projected annual increase
                   <br />• {businessImpact.revenueImpact.conversionRateAdvantage}% conversion rate improvement
                 </div>
               </div>
@@ -297,7 +297,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
                 </p>
                 <div className="text-xs text-blue-600">
                   • Sales team operates {businessImpact.timeSavings.salesTeamEfficiencyGain}% more efficiently
-                  <br />• ${businessImpact.timeSavings.totalTimeSavingsValue.toLocaleString()} monthly time value savings
+                  <br />• ${businessImpact.timeSavings?.totalTimeSavingsValue?.toLocaleString() || '0'} monthly time value savings
                 </div>
               </div>
               
@@ -321,7 +321,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
                   <AlertTriangle className="h-4 w-4 text-orange-600" />
                 </div>
                 <p className="text-sm text-orange-700 mb-2">
-                  Prevent <span className="font-bold">${businessImpact.missedOpportunityPrevention.monthlyOpportunityValue.toLocaleString()} monthly</span> in missed opportunities
+                  Prevent <span className="font-bold">${businessImpact.missedOpportunityPrevention?.monthlyOpportunityValue?.toLocaleString() || '0'} monthly</span> in missed opportunities
                 </p>
                 <div className="text-xs text-orange-600">
                   • {businessImpact.missedOpportunityPrevention.preventedLostDeals} deals recovered monthly
@@ -355,7 +355,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
             
             <div className="text-center">
               <div className="text-2xl font-bold text-blue-600 mb-1">
-                ${businessImpact.leadScoringROI.netProfitIncrease.toLocaleString()}
+                ${businessImpact.leadScoringROI?.netProfitIncrease?.toLocaleString() || '0'}
               </div>
               <div className="text-sm font-medium text-gray-600">Net Monthly Profit Increase</div>
               <div className="text-xs text-blue-600 mt-1">
@@ -377,7 +377,7 @@ const BusinessImpactDashboard: React.FC<BusinessImpactDashboardProps> = ({ data,
           <div className="mt-6 pt-4 border-t text-center">
             <p className="text-sm text-gray-700 mb-2">
               <span className="font-medium">Bottom Line Impact:</span> Lead scoring delivers measurable business results with 
-              <span className="font-bold text-green-600"> ${businessImpact.revenueImpact.monthlyRevenueLift.toLocaleString()} monthly revenue lift</span>, 
+              <span className="font-bold text-green-600"> ${businessImpact.revenueImpact?.monthlyRevenueLift?.toLocaleString() || '0'} monthly revenue lift</span>, 
               <span className="font-bold text-blue-600"> {businessImpact.timeSavings.salesTeamEfficiencyGain}% efficiency gains</span>, and 
               <span className="font-bold text-purple-600"> market-leading competitive positioning</span>.
             </p>
