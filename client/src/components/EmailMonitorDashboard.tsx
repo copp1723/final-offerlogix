@@ -294,9 +294,15 @@ export function EmailMonitorDashboard() {
                       )}
                     </TableCell>
                     <TableCell className="text-sm">
-                      {rule.conditions.subject && <div>Subject: {rule.conditions.subject}</div>}
-                      {rule.conditions.from && <div>From: {rule.conditions.from}</div>}
-                      {rule.conditions.body && <div>Body: {rule.conditions.body}</div>}
+                        {rule.conditions.subject && (
+                          <div>Subject: {typeof rule.conditions.subject === 'string' ? rule.conditions.subject : String(rule.conditions.subject)}</div>
+                        )}
+                        {rule.conditions.from && (
+                          <div>From: {Array.isArray(rule.conditions.from) ? rule.conditions.from.join(', ') : rule.conditions.from}</div>
+                        )}
+                        {rule.conditions.body && (
+                          <div>Body: {typeof rule.conditions.body === 'string' ? rule.conditions.body : String(rule.conditions.body)}</div>
+                        )}
                     </TableCell>
                     <TableCell className="text-sm">
                       {rule.actions.createLead && <Badge variant="outline" className="mr-1">Create Lead</Badge>}

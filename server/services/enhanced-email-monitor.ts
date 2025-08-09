@@ -637,7 +637,15 @@ This is an automated response. Please do not reply to this email directly.
   }
 
   getTriggerRules(): EmailTriggerRule[] {
-    return [...this.triggerRules];
+    // Return a sanitized copy so RegExp objects are converted to strings for JSON serialization
+    return this.triggerRules.map(r => ({
+      ...r,
+      conditions: {
+        ...r.conditions,
+        subject: r.conditions.subject instanceof RegExp ? r.conditions.subject.source : r.conditions.subject,
+        body: r.conditions.body instanceof RegExp ? r.conditions.body.source : r.conditions.body
+      }
+    }));
   }
 
   getStatus() {
