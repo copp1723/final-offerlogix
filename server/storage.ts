@@ -80,11 +80,14 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const [user] = await db
+    const result = await db
       .insert(users)
       .values(insertUser)
-      .returning();
-    return user;
+      .returning() as User[];
+    if (result.length === 0) {
+      throw new Error('Failed to create user');
+    }
+    return result[0];
   }
 
   async getCampaigns(): Promise<Campaign[]> {
@@ -104,18 +107,22 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
-    const [newCampaign] = await db
+    const result = await db
       .insert(campaigns)
       .values({
         ...campaign,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .returning();
+      .returning() as Campaign[];
+    if (result.length === 0) {
+      throw new Error('Failed to create campaign');
+    }
+    const newCampaign = result[0];
 
     // Store campaign in Supermemory for AI recall
     try {
-      const { MemoryMapper } = await import('../integrations/supermemory');
+      const { MemoryMapper } = await import('./integrations/supermemory');
       await MemoryMapper.writeCampaignSummary({
         type: 'campaign_summary',
         clientId: newCampaign.clientId || 'default',
@@ -202,15 +209,18 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createConversation(conversation: InsertConversation): Promise<Conversation> {
-    const [newConversation] = await db
+    const result = await db
       .insert(conversations)
       .values({
         ...conversation,
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .returning();
-    return newConversation;
+      .returning() as Conversation[];
+    if (result.length === 0) {
+      throw new Error('Failed to create conversation');
+    }
+    return result[0];
   }
 
   async updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation> {
@@ -235,37 +245,46 @@ export class DatabaseStorage implements IStorage {
 
   // Conversation message methods
   async getConversationMessages(conversationId: string, limit?: number): Promise<ConversationMessage[]> {
-    const query = db
+    const baseQuery = db
       .select()
       .from(conversationMessages)
       .where(eq(conversationMessages.conversationId, conversationId))
       .orderBy(desc(conversationMessages.createdAt));
-    return limit ? (await query).slice(0, limit) : await query;
+    
+    if (limit) {
+      return await baseQuery.limit(limit);
+    }
+    
+    return await baseQuery;
   }
 
   async createConversationMessage(message: InsertConversationMessage): Promise<ConversationMessage> {
-    const [newMessage] = await db
+    const result = await db
       .insert(conversationMessages)
       .values({
         ...message,
         createdAt: new Date(),
       })
-      .returning();
+      .returning() as ConversationMessage[];
+    if (result.length === 0) {
+      throw new Error('Failed to create conversation message');
+    }
+    const newMessage = result[0];
 
     // Store human messages in Supermemory for AI recall
-    if (!message.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
+    if (!newMessage.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
       try {
-        const conversation = await this.getConversation(message.conversationId || '');
-        const { MemoryMapper } = await import('../integrations/supermemory');
+        const conversation = await this.getConversation(newMessage.conversationId || '');
+        const { MemoryMapper } = await import('./integrations/supermemory');
         await MemoryMapper.writeLeadMessage({
           type: 'lead_msg',
           clientId: 'default', // TODO: Add clientId to message context
           campaignId: conversation?.campaignId || undefined,
-          leadEmail: message.senderId || undefined,
+          leadEmail: newMessage.senderId || undefined,
           content: newMessage.content,
           meta: {
-            conversationId: message.conversationId,
-            senderId: message.senderId
+            conversationId: newMessage.conversationId,
+            senderId: newMessage.senderId
           }
         });
       } catch (error) {
@@ -290,13 +309,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createLead(lead: InsertLead): Promise<Lead> {
-    const [newLead] = await db.insert(leads).values(lead).returning();
-    return newLead;
+    const result = await db.insert(leads).values(lead).returning() as Lead[];
+    if (result.length === 0) {
+      throw new Error('Failed to create lead');
+    }
+    return result[0];
   }
 
   async createLeads(leadList: InsertLead[]): Promise<Lead[]> {
-    const newLeads = await db.insert(leads).values(leadList).returning();
-    return newLeads;
+    const result = await db.insert(leads).values(leadList).returning();
+    return result as Lead[];
   }
 
   async updateLead(id: string, lead: Partial<InsertLead>): Promise<Lead> {
@@ -355,12 +377,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createAiAgentConfig(config: InsertAiAgentConfig): Promise<AiAgentConfig> {
-    const [newConfig] = await db.insert(aiAgentConfig).values({
+    const result = await db.insert(aiAgentConfig).values({
       ...config,
       createdAt: new Date(),
       updatedAt: new Date(),
-    }).returning();
-    return newConfig;
+    }).returning() as AiAgentConfig[];
+    if (result.length === 0) {
+      throw new Error('Failed to create AI agent config');
+    }
+    return result[0];
   }
 
   async updateAiAgentConfig(id: string, config: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig> {

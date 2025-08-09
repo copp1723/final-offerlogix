@@ -978,7 +978,7 @@ export class CustomerJourneyIntelligenceService {
   private calculateFunnelStages(stageClassifications: Map<string, JourneyStage>): FunnelStage[] {
     const stageCounts = new Map<string, number>();
     
-    for (const stage of stageClassifications.values()) {
+    for (const stage of Array.from(stageClassifications.values())) {
       const count = stageCounts.get(stage.id) || 0;
       stageCounts.set(stage.id, count + 1);
     }

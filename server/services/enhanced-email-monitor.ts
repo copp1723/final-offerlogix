@@ -321,7 +321,7 @@ export class EnhancedEmailMonitor {
       }
 
       if (trigger.actions.scheduleFollowUp && leadData) {
-        await this.scheduleFollowUp(leadData, trigger.followUpDelayHours);
+        await this.scheduleFollowUp(leadData, (trigger as any).followUpDelayHours || 24);
       }
     }
   }

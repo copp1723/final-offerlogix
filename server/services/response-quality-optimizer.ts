@@ -488,7 +488,7 @@ export class ResponseQualityOptimizer {
   }
 
   private findApplicableABTest(context: ConversationContext): ABTestConfiguration | null {
-    for (const test of this.activeABTests.values()) {
+    for (const test of Array.from(this.activeABTests.values())) {
       if (test.status !== 'active') continue;
       
       // Check segmentation criteria

@@ -210,7 +210,7 @@ export default function AiSettingsPage() {
 
   const removeDo = (index: number) => {
     const currentDos = form.getValues("dosList");
-    form.setValue("dosList", currentDos.filter((_, i) => i !== index));
+    form.setValue("dosList", currentDos.filter((_: string, i: number) => i !== index));
   };
 
   const addDont = () => {
@@ -223,7 +223,7 @@ export default function AiSettingsPage() {
 
   const removeDont = (index: number) => {
     const currentDonts = form.getValues("dontsList");
-    form.setValue("dontsList", currentDonts.filter((_, i) => i !== index));
+    form.setValue("dontsList", currentDonts.filter((_: string, i: number) => i !== index));
   };
 
   if (isLoading) {
@@ -273,8 +273,8 @@ export default function AiSettingsPage() {
           </div>
 
       {/* Active Configuration Card */}
-      {activeConfig && (
-        <Card className="mb-6 border-green-200 bg-green-50">{/* Fixed type assertion */}
+      {activeConfig && activeConfig !== null ? (
+        <Card className="mb-6 border-green-200 bg-green-50">
           <CardHeader>
             <div className="flex justify-between items-start">
               <div>
@@ -305,7 +305,7 @@ export default function AiSettingsPage() {
             </div>
           </CardContent>
         </Card>
-      )}
+      ) : null}
 
       {/* Configuration List */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -501,7 +501,7 @@ export default function AiSettingsPage() {
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {form.watch("dosList").map((item, index) => (
+                      {form.watch("dosList").map((item: string, index: number) => (
                         <Badge key={index} variant="secondary" className="cursor-pointer" onClick={() => removeDo(index)}>
                           {item} ×
                         </Badge>
@@ -524,7 +524,7 @@ export default function AiSettingsPage() {
                       </Button>
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {form.watch("dontsList").map((item, index) => (
+                      {form.watch("dontsList").map((item: string, index: number) => (
                         <Badge key={index} variant="destructive" className="cursor-pointer" onClick={() => removeDont(index)}>
                           {item} ×
                         </Badge>

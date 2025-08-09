@@ -394,7 +394,7 @@ Use the conversation history, lead profile, and recent campaign context.
 Offer one clear next step (CTA). Avoid over-promising.`
       }).returning({ id: aiAgentConfigTable.id });
 
-      return defaultConfig[0]?.id || 'default';
+      return (defaultConfig as any[])[0]?.id || 'default';
     } catch (error) {
       console.error('Error creating default agent config:', error);
       return 'default';

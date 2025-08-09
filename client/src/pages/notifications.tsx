@@ -93,10 +93,11 @@ export default function NotificationsPage() {
   });
 
   const handlePreferenceChange = (key: keyof NotificationPreferences, value: boolean) => {
-    if (!preferences?.preferences) return;
+    const prefsData = preferences as any;
+    if (!prefsData?.preferences) return;
     
     const newPreferences = {
-      ...preferences.preferences,
+      ...prefsData.preferences,
       [key]: value,
     };
     updatePreferencesMutation.mutate(newPreferences);
@@ -218,7 +219,7 @@ export default function NotificationsPage() {
                   <p className="text-sm text-gray-600 dark:text-gray-400">{item.description}</p>
                 </div>
                 <Switch
-                  checked={preferences?.preferences?.[item.key] || false}
+                  checked={(preferences as any)?.preferences?.[item.key] || false}
                   onCheckedChange={(checked) => handlePreferenceChange(item.key, checked)}
                   disabled={updatePreferencesMutation.isPending}
                 />
@@ -241,7 +242,7 @@ export default function NotificationsPage() {
         </CardHeader>
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2">
-            {notificationTypes?.notificationTypes?.map((type: NotificationType) => (
+            {(notificationTypes as any)?.notificationTypes?.map((type: NotificationType) => (
               <div key={type.type} className="p-4 border rounded-lg space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="font-medium">{type.name}</h4>
@@ -278,7 +279,7 @@ export default function NotificationsPage() {
                   <SelectValue placeholder="Select notification type to test" />
                 </SelectTrigger>
                 <SelectContent>
-                  {notificationTypes?.notificationTypes?.map((type: NotificationType) => (
+                  {(notificationTypes as any)?.notificationTypes?.map((type: NotificationType) => (
                     <SelectItem key={type.type} value={type.type}>
                       {type.name}
                     </SelectItem>
@@ -294,11 +295,11 @@ export default function NotificationsPage() {
             </Button>
           </div>
           
-          {testNotificationType && notificationTypes?.notificationTypes && (
+          {testNotificationType && (notificationTypes as any)?.notificationTypes && (
             <div className="p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 <strong>Test Preview:</strong>{' '}
-                {notificationTypes.notificationTypes.find((t: NotificationType) => t.type === testNotificationType)?.description}
+                {((notificationTypes as any).notificationTypes as NotificationType[]).find((t: NotificationType) => t.type === testNotificationType)?.description}
               </p>
             </div>
           )}

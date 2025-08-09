@@ -63,8 +63,9 @@ export const tenantMiddleware = async (req: TenantRequest, res: Response, next: 
           .onConflictDoNothing()
           .returning();
 
-        if (inserted.length) {
-          defaultClient = inserted[0];
+        const insertedResult = inserted as any[];
+        if (insertedResult.length) {
+          defaultClient = insertedResult[0];
         } else {
           // Fetch existing row created previously (race-safe)
             [defaultClient] = await db.select().from(clients).where(eq(clients.domain, 'localhost'));

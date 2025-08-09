@@ -16,8 +16,8 @@ export default function Dashboard() {
   });
 
   // Type-safe access to intelligence data
-  const leadScoring = intelligenceData?.leadScoring || { totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0 };
-  const predictiveOpt = intelligenceData?.predictiveOptimization || { recommendationCount: 0, insights: {} };
+  const leadScoring = (intelligenceData as any)?.leadScoring || { totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0 };
+  const predictiveOpt = (intelligenceData as any)?.predictiveOptimization || { recommendationCount: 0, insights: {} };
   
   return (
     <div className="p-6 space-y-8">

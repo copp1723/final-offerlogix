@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { conversationIntelligenceHub } from "../services/conversation-intelligence-hub";
-import { enhancedConversationAI } from "../services/enhanced-conversation-ai";
+import { enhancedConversationAI, type ConversationContext } from "../services/enhanced-conversation-ai";
 import { intelligentResponseRouter } from "../services/intelligent-response-router";
 import { advancedConversationAnalytics } from "../services/advanced-conversation-analytics";
 import { responseQualityOptimizer } from "../services/response-quality-optimizer";
@@ -233,15 +233,17 @@ router.post("/ai/generate-response", async (req, res) => {
     const conversationHistory = await storage.getConversationMessages(conversationId);
     
     // This would use the conversation intelligence hub to build full context
-    const context = {
+    const context: ConversationContext = {
       leadId: conversation.leadId,
       conversationId,
-      leadProfile: lead,
-      conversationHistory,
+      leadProfile: lead as any,
+      conversationHistory: conversationHistory as any,
       currentAnalysis: { 
+        conversationId,
+        leadId: conversation.leadId,
         mood: 'neutral' as const,
         urgency: 'medium' as const,
-        intent: 'information_seeking' as const,
+        intent: 'research' as const,
         buyingSignals: [],
         riskFactors: [],
         recommendedAction: 'continue' as const,
@@ -287,16 +289,18 @@ router.get("/ai/suggestions/:conversationId", async (req, res) => {
       return res.status(404).json({ error: "Conversation not found" });
     }
 
-    const context = {
+    const context: ConversationContext = {
       // Simplified context for suggestions
       conversationId,
       leadId: conversation.leadId,
-      leadProfile: await storage.getLead(conversation.leadId),
-      conversationHistory: await storage.getConversationMessages(conversationId),
+      leadProfile: await storage.getLead(conversation.leadId) as any,
+      conversationHistory: await storage.getConversationMessages(conversationId) as any,
       currentAnalysis: {
+        conversationId,
+        leadId: conversation.leadId,
         mood: 'neutral' as const,
         urgency: 'medium' as const,
-        intent: 'information_seeking' as const,
+        intent: 'research' as const,
         buyingSignals: [],
         riskFactors: [],
         recommendedAction: 'continue' as const,

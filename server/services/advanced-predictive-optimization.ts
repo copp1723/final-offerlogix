@@ -532,7 +532,7 @@ export class AdvancedPredictiveOptimizationService {
     // Group leads by characteristics and generate personalized timing
     const segments = this.groupLeadsByCharacteristics(leads);
     
-    for (const [segment, segmentLeads] of segments) {
+    for (const [segment, segmentLeads] of Array.from(segments)) {
       const optimalTimes = this.calculateSegmentOptimalTimes(segment, segmentLeads);
       personalizedTiming.set(segment, optimalTimes);
     }
@@ -606,7 +606,7 @@ export class AdvancedPredictiveOptimizationService {
 
   private performKMeansClustering(featureVectors: any[], k: number): any[] {
     // Simple K-means implementation (in production, would use a proper ML library)
-    const clusters = [];
+    const clusters: any[][] = [];
     const centroids = this.initializeCentroids(featureVectors, k);
     
     // Simplified clustering - assign each point to nearest centroid
@@ -638,7 +638,7 @@ export class AdvancedPredictiveOptimizationService {
       
       const clusterLeads = cluster.map((c: any) => leads.find(l => l.id === c.leadId)).filter(Boolean);
       const clusterConversations = conversations.filter(conv => 
-        clusterLeads.some(lead => lead.id === conv.leadId)
+        clusterLeads.some((lead: any) => lead.id === conv.leadId)
       );
       
       const characteristics = this.analyzeClusterBehavior(clusterLeads, clusterConversations);
@@ -808,7 +808,7 @@ export class AdvancedPredictiveOptimizationService {
       contextual: {
         seasonality: Math.random(),
         competitorSensitivity: Math.random(),
-        priceSenitivity: Math.random()
+        pricesensitivity: Math.random()
       }
     };
   }
@@ -871,7 +871,7 @@ export class AdvancedPredictiveOptimizationService {
 
   private extractVehiclePreferences(leads: Lead[]): string[] {
     const preferences = leads.map(l => l.vehicleInterest || '').filter(Boolean);
-    return [...new Set(preferences)];
+    return Array.from(new Set(preferences));
   }
 
   private determineFinancialProfile(leads: Lead[], conversations: Conversation[]): 'budget' | 'mid-range' | 'luxury' {

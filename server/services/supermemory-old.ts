@@ -4,7 +4,8 @@
 import { 
   MemoryMapper, 
   searchMemories as newSearchMemories, 
-  isRAGEnabled 
+  isRAGEnabled,
+  supermemory
 } from '../integrations/supermemory';
 
 let _client: ReturnType<typeof supermemory> | null = null;

@@ -326,7 +326,7 @@ export class IntelligentResponseRouter {
     let bestTemplate: ResponseTemplate | null = null;
     let bestScore = 0;
     
-    for (const template of this.responseTemplates.values()) {
+    for (const template of Array.from(this.responseTemplates.values())) {
       const score = this.calculateTemplateMatch(template, context, message);
       if (score > bestScore) {
         bestScore = score;

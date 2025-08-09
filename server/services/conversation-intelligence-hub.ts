@@ -460,7 +460,7 @@ export class ConversationIntelligenceHub {
 
     // Aggregate alerts and opportunities
     const alertsMap = new Map<string, { count: number; examples: string[] }>();
-    for (const processed of this.processedConversations.values()) {
+    for (const processed of Array.from(this.processedConversations.values())) {
       for (const alert of processed.coaching.immediateAlerts) {
         const key = `${alert.type}_${alert.priority}`;
         if (!alertsMap.has(key)) {
