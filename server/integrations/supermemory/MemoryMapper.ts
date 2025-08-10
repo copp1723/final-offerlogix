@@ -10,7 +10,10 @@ export type MemoryWrite =
   | { type: "campaign_summary"; clientId: string; campaignId: string; summary: string; meta?: Record<string, any>; }
   | { type: "oem_doc";     clientId: string; title: string; content: string; meta?: Record<string, any>; }
   | { type: "handover_event"; clientId: string; campaignId?: string; leadEmail?: string; content: string; meta?: Record<string, any>; }
-  | { type: "webhook";     clientId: string; source: "mailgun" | "twilio" | "internal"; content: string; meta?: Record<string, any>; };
+  | { type: "webhook";     clientId: string; source: "mailgun" | "twilio" | "internal"; content: string; meta?: Record<string, any>; }
+  // Newly added granular campaign construction memory events
+  | { type: "campaign_step"; clientId: string; campaignId?: string; stepId: string; content: string; meta?: Record<string, any>; }
+  | { type: "campaign_metric"; clientId: string; campaignId: string; content: string; meta?: Record<string, any>; };
 
 const queue: any[] = [];
 let flushTimer: NodeJS.Timeout | null = null;
@@ -38,6 +41,8 @@ export const MemoryMapper = {
   writeOEMDoc(args: Extract<MemoryWrite, { type: "oem_doc" }>) { return this.write(args); },
   writeHandoverEvent(args: Extract<MemoryWrite, { type: "handover_event" }>) { return this.write(args); },
   writeWebhook(args: Extract<MemoryWrite, { type: "webhook" }>) { return this.write(args); },
+  writeCampaignStep(args: Extract<MemoryWrite, { type: "campaign_step" }>) { return this.write(args); },
+  writeCampaignMetric(args: Extract<MemoryWrite, { type: "campaign_metric" }>) { return this.write(args); },
 
   // Utility to hash emails for consistent lead tagging
   hashEmail,

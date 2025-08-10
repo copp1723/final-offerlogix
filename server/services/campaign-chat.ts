@@ -1,5 +1,6 @@
 import { LLMClient } from './llm-client';
-import { searchForCampaignChat } from '../integrations/supermemory';
+import { searchForCampaignChat, searchForOptimizationComparables } from '../integrations/supermemory';
+import { MemoryMapper } from '../integrations/supermemory';
 
 import * as crypto from 'crypto';
 
@@ -468,7 +469,7 @@ export class CampaignChatService {
       const startMs = Date.now();
       const metrics = { runId, ragHit: 0, preflightBlocks: 0, ackRejected: 0, substantivePassed: 0, llmRetries: 0 };
 
-      // Get relevant past campaign data from Supermemory for context
+  // Get relevant past campaign data from Supermemory for context
       let ragResults: any = null;
       try {
         const clientId = existingData.clientId || 'default';
@@ -484,6 +485,19 @@ export class CampaignChatService {
         console.warn('Failed to retrieve past campaigns from Supermemory:', error);
       }
       const ragContext = this.buildRagContext(ragResults);
+      // Opportunistically fetch optimization comparables once we have context + maybe goals (not blocking)
+      let optimizationHints = '';
+      if (existingData?.context && existingData?.handoverGoals) {
+        searchForOptimizationComparables({
+          clientId: existingData.clientId || 'default',
+          vehicleType: this.extractVehicleKeywords(existingData.context).find(k => ['suv','truck','sedan','crossover','coupe'].includes(k)),
+          goal: (existingData.handoverGoals || '').toLowerCase().includes('test') ? 'test drives' : undefined
+        }).then(res => {
+          if (res?.results?.length) {
+            optimizationHints = res.results.slice(0,2).map((r:any)=> (r.metadata?.title? r.metadata.title+': ':'') + this.compactify(r.content,140)).join('\n');
+          }
+        }).catch(()=>{});
+      }
       if (ragContext) metrics.ragHit++;
 
       const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
@@ -498,7 +512,7 @@ export class CampaignChatService {
       }
 
       // BEFORE accepting the answer, validate substantiveness
-      const substantive = await this.isSubstantiveAnswer(currentStepData, userMessage);
+  const substantive = await this.isSubstantiveAnswer(currentStepData, userMessage);
       if (!substantive) {
         metrics.ackRejected++;
         const retryQuestion = currentStepData.question;
@@ -528,6 +542,17 @@ export class CampaignChatService {
 
       // Process user's substantive response for current step
       const updatedData = { ...existingData };
+      // Write the raw step interaction to Supermemory (fire and forget)
+      try {
+        MemoryMapper.writeCampaignStep?.({
+          type: 'campaign_step',
+          clientId: updatedData.clientId || 'default',
+          campaignId: updatedData.id,
+          stepId: currentStepData.id,
+            content: userMessage,
+          meta: { step: currentStepData.id, ts: Date.now() }
+        });
+      } catch {}
       updatedData[currentStepData.dataField] = userMessage;
       metrics.substantivePassed++;
 
@@ -649,6 +674,29 @@ export class CampaignChatService {
           finalCampaign = await this.generateFinalCampaign(finalCampaign, ragContext);
         }
 
+        // Persist campaign summary + templates into memory graph (non-blocking)
+        try {
+          if (Array.isArray(finalCampaign.templates)) {
+            for (const t of finalCampaign.templates.slice(0, Math.min(8, finalCampaign.templates.length))) {
+              MemoryMapper.writeTemplate?.({
+                type: 'email_template',
+                clientId: finalCampaign.clientId || 'default',
+                campaignId: finalCampaign.id,
+                name: t.subject || 'Template',
+                html: t.content || t.html || '',
+                meta: { subject: t.subject, origin: 'campaign_chat', ts: Date.now() }
+              });
+            }
+          }
+          MemoryMapper.writeCampaignSummary?.({
+            type: 'campaign_summary',
+            clientId: finalCampaign.clientId || 'default',
+            campaignId: finalCampaign.id || 'pending',
+            summary: `Name: ${finalCampaign.name}\nContext: ${finalCampaign.context}\nGoals: ${finalCampaign.handoverGoals}\nAudience: ${finalCampaign.targetAudience}`,
+            meta: { templates: finalCampaign.templates?.length || 0, ts: Date.now() }
+          });
+        } catch {}
+
         // Calculate final progress
         const progress = {
           stepIndex: this.campaignSteps.length,
@@ -754,7 +802,7 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
           ];
         }
       }
-      if (!responseMessage) {
+  if (!responseMessage) {
         try {
           const llmUserPrompt = `You are an automotive campaign creation assistant.
 Collected data so far (JSON): ${JSON.stringify(updatedData)}
@@ -769,7 +817,7 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
           const llm = await LLMClient.generate({
             model: 'openai/gpt-4o-mini',
             system: 'You are a concise, helpful automotive campaign strategist. Keep replies professional and specific to automotive marketing. Never hallucinate data not provided.',
-            user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}` : llmUserPrompt),
+    user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}${optimizationHints?`\nOPTIMIZATION_HINTS:\n${optimizationHints}`:''}` : llmUserPrompt),
             temperature: 0.4,
             maxTokens: 220
           });
