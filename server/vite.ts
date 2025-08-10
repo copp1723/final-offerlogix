@@ -5,11 +5,17 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 import { type Server } from "http";
 import viteConfig from "../vite.config";
-import { nanoid } from "nanoid";
+
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const viteLogger = createLogger();
+
+// Simple dev-only cache buster to avoid pulling nanoid as a prod dependency
+function devCacheBuster(): string {
+  // 8-char base36 random string is sufficient for cache-busting in dev
+  return Math.random().toString(36).slice(2, 10);
+}
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {
@@ -62,7 +68,7 @@ export async function setupVite(app: Express, server: Server) {
       let template = await fs.promises.readFile(clientTemplate, "utf-8");
       template = template.replace(
         `src="/src/main.tsx"`,
-        `src="/src/main.tsx?v=${nanoid()}"`,
+        `src="/src/main.tsx?v=${devCacheBuster()}"`,
       );
       const page = await vite.transformIndexHtml(url, template);
       res.status(200).set({ "Content-Type": "text/html" }).end(page);
