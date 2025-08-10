@@ -94,6 +94,8 @@ export class CampaignChatService {
   content_generation: ["Yes", "Generate now"],
   review_launch: ["Launch now", "Yes launch", "Activate campaign"],
   };
+  // TODO: suggestionsByStep is a static mutable object; in multi-user scenarios this could cause cross-session bleed.
+  // Consider cloning per conversation instance or returning a new array each time to avoid mutation side-effects.
 
   // NEW: Generic acknowledgement / non-substantive responses that should NOT advance the wizard
   private static genericAcks = [
@@ -549,6 +551,8 @@ export class CampaignChatService {
           updatedData._autoGoalsExtracted = true;
         }
         if (!Array.isArray(updatedData._usedOpeners)) updatedData._usedOpeners = [];
+  // TODO: Before persisting campaign data, strip internal underscore-prefixed fields (_rawContextInput, _bootstrapSummary,
+  // _contextConfidence, _autoGoalsExtracted, _usedOpeners) so they do not leak into stored campaign objects or APIs.
       }
 
       if (currentStep === 'goals') {
