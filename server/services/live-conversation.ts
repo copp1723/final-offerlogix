@@ -2,6 +2,9 @@ import { WebSocketServer, WebSocket } from 'ws';
 import { Server } from 'http';
 import { storage } from '../storage';
 import { AutomotivePromptService } from './automotive-prompts';
+import { MemoryMapper } from '../integrations/supermemory';
+import { searchForLeadSignals } from '../integrations/supermemory';
+import { getCampaignChatContext } from './memory-orchestrator';
 
 interface LiveConnection {
   ws: WebSocket;
@@ -106,6 +109,21 @@ export class LiveConversationService {
       isFromAI: 0
     });
 
+    // Fire-and-forget memory write for inbound lead message
+    (async () => {
+      try {
+        const lead = await storage.getLead(leadId);
+        await MemoryMapper.writeLeadMessage({
+          type: 'lead_msg',
+          clientId: lead?.clientId || 'default',
+          campaignId: (lead?.campaignId || undefined) as string | undefined,
+          leadEmail: lead?.email,
+          content: message.content,
+          meta: { conversationId, ts: Date.now() }
+        });
+      } catch {}
+    })();
+
     // Broadcast to other connected agents/admins - add timestamp for ConversationMessage interface
     const messageWithTimestamp = {
       ...messageRecord,
@@ -145,6 +163,34 @@ export class LiveConversationService {
           return;
         }
 
+        // Historical lead intent cues retrieval (RAG) + previous campaign context (if campaign known)
+        let leadSignalsSnippet = '';
+        try {
+          if (lead.email) {
+            const leadHash = MemoryMapper.hashEmail(lead.email);
+            const signals = await searchForLeadSignals({ clientId: lead.clientId || 'default', leadEmailHash: leadHash });
+            if (signals.results?.length) {
+              leadSignalsSnippet = signals.results.slice(0,2).map((r:any)=> (r.metadata?.title? r.metadata.title+': ':'') + (r.content||'').toString().slice(0,120) + ((r.content||'').length>120?'…':'')).join('\n');
+            }
+          }
+        } catch {}
+
+        // Opportunistically reuse campaign orchestrator if this lead is tied to a campaign
+        let campaignHints = '';
+    if (lead.campaignId) {
+          try {
+            const { ragContext, optimizationHints } = await getCampaignChatContext({
+              clientId: lead.clientId || 'default',
+      campaignId: lead.campaignId || undefined,
+      userTurn: incomingMessage.content,
+      context: undefined,
+      goals: undefined,
+              vehicleKeywords: []
+            });
+            campaignHints = [ragContext, optimizationHints].filter(Boolean).join('\n');
+          } catch {}
+        }
+
         // Create automotive context - handle missing name property
         const leadName = (lead.firstName && lead.lastName) ? `${lead.firstName} ${lead.lastName}` : 
                         lead.firstName || lead.lastName || 'Customer';
@@ -160,7 +206,7 @@ export class LiveConversationService {
         const currentSeason = this.getCurrentSeason();
         const brand = this.extractBrandFromMessage(incomingMessage.content, lead.vehicleInterest || undefined);
 
-        const systemPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
+        let systemPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
           config,
           context,
           {
@@ -170,6 +216,10 @@ export class LiveConversationService {
             isReEngagement: recentMessages.length === 0
           }
         );
+
+        if (leadSignalsSnippet || campaignHints) {
+          systemPrompt += `\n\n# MEMORY CONTEXT\n${leadSignalsSnippet ? 'Lead Signals:\n'+leadSignalsSnippet+'\n' : ''}${campaignHints ? 'Campaign Context:\n'+campaignHints : ''}`;
+        }
 
         // Generate AI response (this would use OpenRouter API)
         const aiResponse = await this.callAIService(systemPrompt, incomingMessage.content, context);
@@ -183,6 +233,20 @@ export class LiveConversationService {
             content: aiResponse,
             isFromAI: 1
           });
+
+          // Memory write for AI response (handover / sales intelligence)
+          (async () => {
+            try {
+              await MemoryMapper.writeHandoverEvent({
+                type: 'handover_event',
+                clientId: lead.clientId || 'default',
+                campaignId: (lead.campaignId || undefined) as string | undefined,
+                leadEmail: lead.email,
+                content: aiResponse,
+                meta: { conversationId, role: 'ai_response', ts: Date.now() }
+              });
+            } catch {}
+          })();
 
           // Send AI response to lead
           if (connection.ws.readyState === WebSocket.OPEN) {
