@@ -894,27 +894,20 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
     targetAudience?: string
   ): Promise<string> {
     try {
-      // obtain ragResults locally here to avoid undefined reference
-      let ragResults: any = null;
+      // Obtain RAG + optimization via centralized orchestrator (non-blocking if it fails)
+      let contextSection = '';
       try {
-        ragResults = await searchForCampaignChat({
+        const { ragContext } = await getCampaignChatContext({
           clientId: 'default',
-          campaignId: undefined,
           userTurn: userInput,
-          detectedType: campaignContext,
+          context: campaignContext,
+          goals: campaignGoals,
           vehicleKeywords: this.extractVehicleKeywords(userInput + ' ' + (campaignContext || ''))
         });
-      } catch (e) {
-        // silent fallback
-      }
-      let contextSection = '';
-      if (ragResults && ragResults.results && ragResults.results.length > 0) {
-        const snippets = ragResults.results.map((r: any) => ({
-          title: r.metadata?.name || r.metadata?.title,
-          content: r.content
-        }));
-        contextSection = `\n## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:\n${snippets.map((s: any) => `${s.title ? `${s.title}: ` : ''}${s.content}`).join('\n---\n')}\nUse this historical data to inform your handover criteria generation.\n`;
-      }
+        if (ragContext) {
+          contextSection = `\n## RETRIEVED CONTEXT FROM PAST CAMPAIGNS:\n${ragContext}\nUse this historical data to inform your handover criteria generation.\n`;
+        }
+      } catch {}
 
       const conversionPrompt = `
 # ROLE: Expert Automotive Handover Intelligence Designer
