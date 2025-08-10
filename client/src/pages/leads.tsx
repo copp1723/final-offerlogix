@@ -11,9 +11,53 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target } from "lucide-react";
+import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb } from "lucide-react";
 import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
+import ConversationView from "@/components/conversations/ConversationView";
+import LeadDetailsDrawer from "@/components/leads/LeadDetailsDrawer";
+
+import type { ConversationMessage } from "@shared/schema";
+
+
+// Small button to open conversation/details panel
+function ConversationPreview({ onOpen }: { onOpen: () => void }) {
+  return (
+    <Button variant="ghost" size="sm" onClick={onOpen} className="flex items-center gap-1">
+      <MessageCircle className="h-4 w-4" />
+      View
+    </Button>
+  );
+}
+
+function LeadTwoPane({ lead }: { lead: Lead | null }) {
+  const { data: messages = [] } = useQuery<ConversationMessage[]>({
+    queryKey: ["/api/conversations", lead?.id, "messages"],
+    enabled: !!lead?.id,
+  });
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div>
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-sm">What we know</CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            Add conversation-backed bullets here (e.g., "Asked for April follow-up").
+          </CardContent>
+        </Card>
+      </div>
+      <div>
+        {lead?.id ? (
+          <ConversationView conversationId={lead.id} messages={messages} onSendMessage={() => {}} isLoading={false} />
+        ) : (
+          <Card className="h-96"><CardContent className="p-6">Select a lead to view conversation</CardContent></Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
 
 export default function Leads() {
   const { toast } = useToast();
@@ -22,6 +66,7 @@ export default function Leads() {
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
 
   // Fetch campaigns for filtering
   const { data: campaigns = [] } = useQuery<Campaign[]>({
@@ -64,9 +109,9 @@ export default function Leads() {
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       setCsvFile(null);
-      toast({ 
-        title: "CSV uploaded successfully", 
-        description: `Imported ${data.leads?.length || 0} leads` 
+      toast({
+        title: "CSV uploaded successfully",
+        description: `Imported ${data.leads?.length || 0} leads`
       });
     },
     onError: () => {
@@ -88,7 +133,7 @@ export default function Leads() {
   const handleCreateLead = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
-    const leadData = {
+    const leadData: any = {
       email: formData.get("email"),
       firstName: formData.get("firstName"),
       lastName: formData.get("lastName"),
@@ -107,8 +152,8 @@ export default function Leads() {
     }
   };
 
-  const filteredLeads = Array.isArray(leads) ? leads.filter((lead: Lead) => 
-    !searchTerm || 
+  const filteredLeads = Array.isArray(leads) ? leads.filter((lead: Lead) =>
+    !searchTerm ||
     lead.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     lead.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -138,8 +183,8 @@ export default function Leads() {
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Lead Management</h1>
-          <p className="text-muted-foreground">Manage your automotive leads and track conversions</p>
+          <h1 className="text-3xl font-bold">Smart Lead Management</h1>
+          <p className="text-muted-foreground">Shows who to call, when, and why — based on real conversations</p>
         </div>
         <div className="flex gap-2">
           <LeadCampaignAssignment>
@@ -226,7 +271,7 @@ export default function Leads() {
         </div>
       </div>
 
-      {/* Lead Statistics */}
+      {/* Lead Statistics (kept minimal; no vanity percentages) */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -263,6 +308,21 @@ export default function Leads() {
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{leadStats.qualified}</div>
           </CardContent>
+
+      {/* Actionable Intelligence (no vanity metrics) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-5 w-5" />
+            Recommended Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          When conversation data is available, this section will list concrete next actions
+          like “Call Sarah (asked for April follow‑up)” or “Email Bob (opened last 5 emails, no reply)”.
+        </CardContent>
+      </Card>
+
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -307,8 +367,8 @@ export default function Leads() {
                 ))}
               </SelectContent>
             </Select>
-            <Button 
-              onClick={handleCsvUpload} 
+            <Button
+              onClick={handleCsvUpload}
               disabled={!csvFile || csvUploadMutation.isPending}
             >
               {csvUploadMutation.isPending ? "Uploading..." : "Upload CSV"}
@@ -376,8 +436,9 @@ export default function Leads() {
                 {filteredLeads.map((lead: Lead) => (
                   <TableRow key={lead.id}>
                     <TableCell>
-                      {lead.firstName || lead.lastName 
+                      {lead.firstName || lead.lastName
                         ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim()
+
                         : "—"
                       }
                     </TableCell>
@@ -388,7 +449,7 @@ export default function Leads() {
                     <TableCell>
                       <Select
                         value={lead.status || "new"}
-                        onValueChange={(status) => 
+                        onValueChange={(status) =>
                           updateLeadMutation.mutate({ id: lead.id, status })
                         }
                       >
@@ -407,13 +468,13 @@ export default function Leads() {
                       </Select>
                     </TableCell>
                     <TableCell>
-                      {lead.createdAt 
+                      {lead.createdAt
                         ? new Date(lead.createdAt).toLocaleDateString()
                         : "—"
                       }
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedLead(lead)}>
                         View
                       </Button>
                     </TableCell>
@@ -424,6 +485,8 @@ export default function Leads() {
           )}
         </CardContent>
       </Card>
+      <LeadDetailsDrawer lead={selectedLead} open={!!selectedLead} onOpenChange={(v) => !v && setSelectedLead(null)} />
+
     </div>
   );
 }

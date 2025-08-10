@@ -17,14 +17,9 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   {
-    name: "Dashboard",
+    name: "AI Campaign Agent",
     href: "/",
     icon: BarChart3,
-  },
-  {
-    name: "Campaigns",
-    href: "/campaigns",
-    icon: Target,
   },
   {
     name: "Leads",
@@ -32,24 +27,9 @@ const navigation: NavItem[] = [
     icon: Users,
   },
   {
-    name: "Conversations",
-    href: "/conversations",
-    icon: MessageSquare,
-  },
-  {
-    name: "Intelligence",
-    href: "/intelligence",
-    icon: Brain,
-  },
-  {
-    name: "AI Management",
-    href: "/ai-settings",
-    icon: Zap,
-  },
-  {
-    name: "Email Monitor",
-    href: "/email-monitor",
-    icon: Mail,
+    name: "Reports",
+    href: "/reports",
+    icon: FileText,
   },
   {
     name: "Settings",

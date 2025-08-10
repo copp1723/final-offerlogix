@@ -22,6 +22,14 @@ export default function SettingsPage() {
       bgColor: "bg-purple-50",
     },
     {
+      title: "Email Monitor",
+      description: "Connect IMAP and manage inbound parsing rules",
+      href: "/email-monitor",
+      icon: Bell,
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-50",
+    },
+    {
       title: "Security & Privacy",
       description: "Configure security settings and data privacy",
       href: "#",
@@ -70,12 +78,12 @@ export default function SettingsPage() {
         {settingsCategories.map((category) => {
           const Icon = category.icon;
           const isDisabled = category.disabled;
-          
+
           return isDisabled ? (
             <div key={category.title}>
               <Card className={`h-full transition-all duration-200 ${
-                isDisabled 
-                  ? 'opacity-50 cursor-not-allowed' 
+                isDisabled
+                  ? 'opacity-50 cursor-not-allowed'
                   : 'hover:shadow-lg hover:scale-105 cursor-pointer'
               }`}>
                 <CardHeader className="pb-4">
@@ -145,7 +153,7 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-4">
               <h3 className="font-medium text-gray-900 mb-2">System Health</h3>
@@ -155,7 +163,7 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-4">
               <h3 className="font-medium text-gray-900 mb-2">API Keys</h3>
