@@ -41,12 +41,7 @@ export async function setupVite(app: Express, server: Server) {
     },
     server: {
       ...serverOptions,
-      hmr: {
-        server,
-        host: 'localhost',
-        port: parseInt(process.env.PORT || '5000', 10),
-        clientPort: parseInt(process.env.PORT || '5000', 10),
-      },
+      hmr: false,
     },
     appType: "custom",
   });

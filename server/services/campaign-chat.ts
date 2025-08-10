@@ -1,6 +1,6 @@
 import { LLMClient } from './llm-client';
-import { searchForCampaignChat, searchForOptimizationComparables } from '../integrations/supermemory';
 import { MemoryMapper } from '../integrations/supermemory';
+import { getCampaignChatContext } from './memory-orchestrator';
 
 import * as crypto from 'crypto';
 
@@ -469,35 +469,16 @@ export class CampaignChatService {
       const startMs = Date.now();
       const metrics = { runId, ragHit: 0, preflightBlocks: 0, ackRejected: 0, substantivePassed: 0, llmRetries: 0 };
 
-  // Get relevant past campaign data from Supermemory for context
-      let ragResults: any = null;
-      try {
-        const clientId = existingData.clientId || 'default';
-
-        ragResults = await searchForCampaignChat({
-          clientId,
-          campaignId: existingData.id,
-          userTurn: userMessage,
-          detectedType: existingData.context,
-          vehicleKeywords: this.extractVehicleKeywords(userMessage + ' ' + (existingData.context || ''))
-        });
-      } catch (error) {
-        console.warn('Failed to retrieve past campaigns from Supermemory:', error);
-      }
-      const ragContext = this.buildRagContext(ragResults);
-      // Opportunistically fetch optimization comparables once we have context + maybe goals (not blocking)
-      let optimizationHints = '';
-      if (existingData?.context && existingData?.handoverGoals) {
-        searchForOptimizationComparables({
-          clientId: existingData.clientId || 'default',
-          vehicleType: this.extractVehicleKeywords(existingData.context).find(k => ['suv','truck','sedan','crossover','coupe'].includes(k)),
-          goal: (existingData.handoverGoals || '').toLowerCase().includes('test') ? 'test drives' : undefined
-        }).then(res => {
-          if (res?.results?.length) {
-            optimizationHints = res.results.slice(0,2).map((r:any)=> (r.metadata?.title? r.metadata.title+': ':'') + this.compactify(r.content,140)).join('\n');
-          }
-        }).catch(()=>{});
-      }
+      // Centralized orchestration for RAG + optimization hints
+      const vehicleKeywords = this.extractVehicleKeywords(userMessage + ' ' + (existingData.context || ''));
+      const { ragContext, optimizationHints, raw } = await getCampaignChatContext({
+        clientId: existingData.clientId || 'default',
+        campaignId: existingData.id,
+        userTurn: userMessage,
+        context: existingData.context,
+        goals: existingData.handoverGoals,
+        vehicleKeywords
+      });
       if (ragContext) metrics.ragHit++;
 
       const stepIndex = this.campaignSteps.findIndex(step => step.id === currentStep);
@@ -670,7 +651,7 @@ export class CampaignChatService {
       if (isCompleted) {
         // Ensure final campaign has templates/content
         let finalCampaign = { ...updatedData } as any;
-        if (!finalCampaign.templates || finalCampaign.templates.length === 0) {
+  if (!finalCampaign.templates || finalCampaign.templates.length === 0) {
           finalCampaign = await this.generateFinalCampaign(finalCampaign, ragContext);
         }
 

@@ -508,7 +508,7 @@ export default function Leads() {
           )}
         </CardContent>
       </Card>
-      <LeadDetailsDrawer lead={selectedLead} open={!!selectedLead} onOpenChange={(v) => !v && setSelectedLead(null)} />
+      <LeadDetailsDrawer lead={selectedLead as any} isOpen={!!selectedLead} onClose={() => setSelectedLead(null)} />
 
     </div>
   );
