@@ -39,15 +39,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/branding", async (req, res) => {
     try {
       const domain = req.query.domain as string || req.get('host') || 'localhost';
-      
+
       // Try to find client by domain
       let [client] = await db.select().from(clients).where(eq(clients.domain, domain));
-      
+
       // Fall back to default client
       if (!client) {
         [client] = await db.select().from(clients).where(eq(clients.name, 'Default Client'));
       }
-      
+
       if (client) {
         res.json(client);
       } else {
@@ -100,11 +100,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ ...clientData, updatedAt: new Date() })
         .where(eq(clients.id, req.params.id))
         .returning();
-      
+
       if (!client) {
         return res.status(404).json({ message: "Client not found" });
       }
-      
+
       res.json(client);
     } catch (error) {
       res.status(400).json({ message: "Invalid client data" });
@@ -356,7 +356,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const { emailWatchdog } = await import('./services/email-validator');
       const validation = await emailWatchdog.validateOutboundEmail(emailData);
-      
+
       res.json(validation);
     } catch (error) {
       console.error('Email content validation error:', error);
@@ -394,17 +394,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         message,          // { role: 'agent' | 'lead', content: string }
         customCriteria
       );
-      
+
       // If handover is triggered and email is requested, process the handover
       if (evaluation.shouldHandover && sendEmail) {
         // Get additional data for handover email
         const allLeads = await storage.getLeads();
         const lead = conversation.leadId ? allLeads.find(l => l.id === conversation.leadId) : null;
-        
+
         const allCampaigns = await storage.getCampaigns();
-        const campaign = conversation.campaignId ? 
+        const campaign = conversation.campaignId ?
           allCampaigns.find(c => c.id === conversation.campaignId) : null;
-        
+
         await HandoverService.processHandover(
           id,
           evaluation,
@@ -416,7 +416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         );
       }
-      
+
       res.json(evaluation);
     } catch (error) {
       console.error('Handover evaluation error:', error);
@@ -440,13 +440,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/generate-prompt", async (req, res) => {
     try {
       const { dealershipConfig, conversationContext } = req.body;
-      
+
       const { AutomotivePromptService } = await import('./services/automotive-prompts');
       const systemPrompt = AutomotivePromptService.generateSystemPrompt(
         dealershipConfig || AutomotivePromptService.getDefaultDealershipConfig(),
         conversationContext
       );
-      
+
       res.json({ systemPrompt });
     } catch (error) {
       console.error('Prompt generation error:', error);
@@ -458,17 +458,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/analyze-conversation", async (req, res) => {
     try {
       const { messageContent, leadName, vehicleInterest, previousMessages } = req.body;
-      
+
       const { AutomotivePromptService } = await import('./services/automotive-prompts');
       const context = AutomotivePromptService.createConversationContext(
         leadName,
-        vehicleInterest, 
+        vehicleInterest,
         messageContent,
         previousMessages
       );
-      
+
       const guidelines = AutomotivePromptService.generateResponseGuidelines(context);
-      
+
       res.json({ context, guidelines });
     } catch (error) {
       console.error('Conversation analysis error:', error);
@@ -480,10 +480,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/campaign-prompt", async (req, res) => {
     try {
       const { userInput, campaignType, urgency } = req.body;
-      
+
       const { CampaignPromptService } = await import('./services/campaign-prompts');
       const prompt = CampaignPromptService.generateContextualPrompt(userInput, campaignType, urgency);
-      
+
       res.json({ prompt });
     } catch (error) {
       console.error('Campaign prompt generation error:', error);
@@ -495,11 +495,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/analyze-campaign-intent", async (req, res) => {
     try {
       const { message } = req.body;
-      
+
       const { CampaignPromptService } = await import('./services/campaign-prompts');
       const intent = CampaignPromptService.parseUserIntent(message);
       const guidance = CampaignPromptService.generateResponseGuidance(intent);
-      
+
       res.json({ intent, guidance });
     } catch (error) {
       console.error('Campaign intent analysis error:', error);
@@ -510,28 +510,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate enhanced system prompt with conversation enhancers
   app.post("/api/ai/enhanced-system-prompt", async (req, res) => {
     try {
-      const { 
-        messageContent, 
-        leadName, 
-        vehicleInterest, 
-        previousMessages, 
-        season, 
-        brand, 
-        isReEngagement, 
-        useStraightTalkingStyle 
+      const {
+        messageContent,
+        leadName,
+        vehicleInterest,
+        previousMessages,
+        season,
+        brand,
+        isReEngagement,
+        useStraightTalkingStyle
       } = req.body;
-      
+
       const { AutomotivePromptService } = await import('./services/automotive-prompts');
-      
+
       const context = AutomotivePromptService.createConversationContext(
         leadName,
         vehicleInterest,
         messageContent,
         previousMessages
       );
-      
+
       const config = AutomotivePromptService.getDefaultDealershipConfig();
-      
+
       const enhancedPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
         config,
         context,
@@ -542,7 +542,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           useStraightTalkingStyle
         }
       );
-      
+
       res.json({ prompt: enhancedPrompt, context });
     } catch (error) {
       console.error('Enhanced system prompt generation error:', error);
@@ -554,22 +554,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/conversation-enhancers", async (req, res) => {
     try {
       const { messageContent, leadName, vehicleInterest, season, brand, isReEngagement } = req.body;
-      
+
       const { AutomotivePromptService } = await import('./services/automotive-prompts');
-      
+
       const context = AutomotivePromptService.createConversationContext(
         leadName,
         vehicleInterest,
         messageContent
       );
-      
+
       const enhancers = AutomotivePromptService.applyConversationEnhancers(
         context,
         season,
         brand,
         isReEngagement
       );
-      
+
       res.json({ enhancers, context });
     } catch (error) {
       console.error('Conversation enhancers error:', error);
@@ -578,7 +578,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV upload configuration (enhanced version available in lead management section)
-  const basicUpload = multer({ 
+  const basicUpload = multer({
     storage: multer.memoryStorage(),
     limits: { fileSize: 5 * 1024 * 1024 } // 5MB limit
   });
@@ -631,14 +631,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const createdLeads = await storage.createLeads(leads);
-      
+
       // Broadcast new leads via WebSocket
       createdLeads.forEach(lead => {
         webSocketService.broadcastNewLead(lead);
       });
 
-      res.json({ 
-        message: "CSV uploaded successfully", 
+      res.json({
+        message: "CSV uploaded successfully",
         leads: createdLeads,
         errors: errors.length > 0 ? errors : null
       });
@@ -893,10 +893,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const campaignId = req.params.id;
       const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
-      
+
       const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
       const campaignOrchestrator = new CampaignOrchestrator();
-      
+
       const executionOptions = {
         campaignId,
         testMode,
@@ -906,12 +906,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
 
       const result = await campaignOrchestrator.executeCampaign(executionOptions);
-      
+
       res.json(result);
 
     } catch (error) {
       console.error('Campaign execution error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         message: "Failed to execute campaign",
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -923,7 +923,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const campaignId = req.params.id;
       const { templateIndex = 1, leadIds } = req.body;
-      
+
       const campaign = await storage.getCampaign(campaignId);
       if (!campaign) {
         return res.status(404).json({ message: "Campaign not found" });
@@ -987,7 +987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/campaigns/:id/analytics", async (req, res) => {
     try {
       const campaignId = req.params.id;
-      
+
       const campaign = await storage.getCampaign(campaignId);
       if (!campaign) {
         return res.status(404).json({ message: "Campaign not found" });
@@ -996,7 +996,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get campaign-related data
       const allLeads = await storage.getLeads();
       const campaignLeads = allLeads.filter(lead => lead.campaignId === campaignId);
-      
+
       const conversations = await storage.getConversations();
       const campaignConversations = conversations.filter(conv => conv.campaignId === campaignId);
 
@@ -1059,7 +1059,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!role || !["admin", "manager", "user"].includes(role)) {
         return res.status(400).json({ message: "Valid role is required" });
       }
-      
+
       const user = await storage.updateUserRole(req.params.id, role);
       res.json(user);
     } catch (error) {
@@ -1128,10 +1128,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         conversationId: req.params.id,
       });
       const message = await storage.createConversationMessage(messageData);
-      
+
       // Update conversation timestamp
       await storage.updateConversation(req.params.id, { status: "active" });
-      
+
       res.json(message);
     } catch (error) {
       res.status(400).json({ message: "Invalid message data" });
@@ -1142,18 +1142,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/ai/chat-campaign", async (req, res) => {
     try {
       const { message, currentStep, campaignData } = req.body;
-      
+
       if (!message) {
         return res.status(400).json({ message: "Message is required" });
       }
-      
+
       const { CampaignChatService } = await import('./services/campaign-chat');
       const response = await CampaignChatService.processCampaignChat(
-        message, 
-        currentStep || 'context', 
+        message,
+        currentStep || 'context',
         campaignData || {}
       );
-      
+
       // If campaign is completed, create it in storage
       if (response.completed && response.data) {
         const campaignToCreate = insertCampaignSchema.parse({
@@ -1172,7 +1172,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const createdCampaign = await storage.createCampaign(campaignToCreate);
         response.data.id = createdCampaign.id;
       }
-      
+
       res.json({
         message: response.message,
         nextStep: response.nextStep,
@@ -1190,7 +1190,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Lead management routes
   // Configure multer for CSV uploads with security validation
-  const upload = multer({ 
+  const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
       fileSize: 10 * 1024 * 1024, // 10MB limit
@@ -1297,6 +1297,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+
+  // Lead conversations (support Lead Details drawer)
+  app.get("/api/leads/:id/conversations", async (req, res) => {
+    try {
+      const convs = await storage.getConversationsByLead(req.params.id);
+      res.json(convs || []);
+    } catch (error) {
+      console.error('Lead conversations fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch lead conversations" });
+    }
+  });
+
+  app.get("/api/leads/:id/conversations/latest/messages", async (req, res) => {
+    try {
+      const convs = await storage.getConversationsByLead(req.params.id);
+      if (!convs || convs.length === 0) return res.json([]);
+      const messages = await storage.getConversationMessages(convs[0].id);
+      res.json(messages || []);
+    } catch (error) {
+      console.error('Lead latest messages fetch error:', error);
+      res.status(500).json({ message: "Failed to fetch conversation messages" });
+    }
+  });
+
   // Delete a lead
   app.delete("/api/leads/:id", async (req, res) => {
     try {
@@ -1313,9 +1337,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/leads/upload-csv", upload.single('file'), async (req: TenantRequest, res) => {
     try {
       if (!req.file) {
-        return res.status(400).json({ 
+        return res.status(400).json({
           success: false,
-          message: "No file uploaded" 
+          message: "No file uploaded"
         });
       }
 
@@ -1370,7 +1394,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error('CSV upload error:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         success: false,
         message: "Failed to process CSV upload",
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -1523,11 +1547,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/deliverability', deliverabilityRoutes);
   app.use('/api/ai', aiConversationRoutes);
-  
+
   // Health check routes
   const healthRoutes = await import('./routes/health');
   app.use('/api/health', healthRoutes.default);
-  
+
   // IMAP health check
   const imapHealthRoutes = await import('./routes/health-imap');
   app.use('/api/health', imapHealthRoutes.default);
@@ -1577,7 +1601,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/campaigns/:id/schedule", async (req, res) => {
     try {
       const { scheduleType, scheduledStart, recurringPattern, recurringDays, recurringTime } = req.body;
-      
+
       const scheduleConfig = {
         scheduleType,
         scheduledStart: scheduledStart ? new Date(scheduledStart) : undefined,
@@ -1625,13 +1649,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Intelligence System API Routes
-  
+
   // Lead Scoring Routes
   app.get("/api/intelligence/lead-scoring/:leadId", async (req: TenantRequest, res) => {
     try {
       const { leadId } = req.params;
       const { profileId } = req.query;
-      
+
       const score = await leadScoringService.calculateLeadScore(leadId, profileId as string);
       res.json(score);
     } catch (error) {
@@ -1643,7 +1667,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/intelligence/lead-scoring/bulk", async (req: TenantRequest, res) => {
     try {
       const { profileId } = req.body;
-      
+
       const scores = await leadScoringService.bulkScoreLeads(profileId);
       res.json(scores);
     } catch (error) {
@@ -1689,7 +1713,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/intelligence/predictive/recommendations", async (req: TenantRequest, res) => {
     try {
       const { campaignId } = req.query;
-      
+
       const recommendations = await predictiveOptimizationService.generateOptimizationRecommendations(campaignId as string);
       res.json(recommendations);
     } catch (error) {
@@ -1712,7 +1736,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/intelligence/conversation/:conversationId/analysis", async (req: TenantRequest, res) => {
     try {
       const { conversationId } = req.params;
-      
+
       const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
       res.json(analysis);
     } catch (error) {
@@ -1789,7 +1813,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(enhancedDashboard);
     } catch (error) {
       console.error('Enhanced intelligence dashboard error:', error);
-      
+
       // Fallback to basic dashboard structure if enhanced service fails
       const basicDashboard = {
         leadScoring: { totalLeads: 0, hotLeads: 0, warmLeads: 0, coldLeads: 0, averageScore: 0 },
@@ -1801,7 +1825,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priorityRecommendations: [],
         overallSystemHealth: { score: 0, status: 'needs_attention', lastUpdated: new Date() }
       };
-      
+
       res.json(basicDashboard);
     }
   });
@@ -1830,7 +1854,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { leadId } = req.params;
       const { profileId } = req.query;
-      
+
       const score = await advancedLeadScoringService.calculatePredictiveLeadScore(leadId, profileId as string);
       res.json(score);
     } catch (error) {
@@ -1842,7 +1866,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/intelligence/advanced-lead-scoring/bulk", async (req: TenantRequest, res) => {
     try {
       const { profileId } = req.body;
-      
+
       const scores = await advancedLeadScoringService.bulkCalculatePredictiveScores(profileId);
       res.json(scores);
     } catch (error) {
@@ -1855,7 +1879,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/intelligence/ml-optimization/insights", async (req: TenantRequest, res) => {
     try {
       const { campaignId } = req.query;
-      
+
       const insights = await advancedPredictiveOptimizationService.generateMLOptimizationInsights(campaignId as string);
       res.json(insights);
     } catch (error) {
@@ -1913,7 +1937,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { testId } = req.params;
       const { leadId, eventType, value } = req.body;
-      
+
       await abTestingFramework.recordEvent(leadId, testId, eventType, value);
       res.json({ message: "Event recorded successfully" });
     } catch (error) {
@@ -2030,13 +2054,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { LightweightDashboardIntelligence } = await import('./services/lightweight-dashboard-intelligence');
       const intel = new LightweightDashboardIntelligence();
-      
+
       // Map leads to UI format
       const leads = await intel.mapLeads(50);
-      
+
       // Compute intelligence insights
       const intelligence = intel.computeIntelligence(leads);
-      
+
       // Mock agent data for suggestions and recent activity
       const agentData = {
         suggestions: [
@@ -2052,7 +2076,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           "Competitor mention detected in recent conversations"
         ]
       };
-      
+
       // Format response for Phase 1/2 dashboard
       const dashboardData = {
         leads,
@@ -2064,7 +2088,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           expiringOpportunities: intelligence.expiringOpportunities.slice(0, 5)
         }
       };
-      
+
       res.json(dashboardData);
     } catch (error) {
       console.error('Dashboard API error:', error);
@@ -2120,10 +2144,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Helper function for data completeness calculation
   function calculateDataCompleteness(leads: any[]): number {
     if (leads.length === 0) return 0;
-    
+
     let totalFields = 0;
     let completeFields = 0;
-    
+
     leads.forEach(lead => {
       const fields = ['email', 'firstName', 'lastName', 'phone', 'vehicleInterest', 'leadSource'];
       totalFields += fields.length;
@@ -2131,25 +2155,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (lead[field]) completeFields++;
       });
     });
-    
+
     return totalFields > 0 ? Math.round((completeFields / totalFields) * 100) : 0;
   }
 
   // Helper function for data freshness calculation
   function calculateDataFreshness(leads: any[]): number {
     if (leads.length === 0) return 0;
-    
+
     const now = new Date();
     const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
+
     const recentLeads = leads.filter(l => new Date(l.createdAt) > oneWeekAgo).length;
     const freshnessRatio = recentLeads / leads.length;
-    
+
     return Math.round(freshnessRatio * 100);
   }
 
   const httpServer = createServer(app);
-  
+
   // Initialize WebSocket server
   webSocketService.initialize(httpServer);
 

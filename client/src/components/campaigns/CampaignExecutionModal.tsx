@@ -33,8 +33,9 @@ import {
 
 import type { Campaign as ServerCampaign } from "@shared/schema";
 
-interface CampaignLike extends Pick<ServerCampaign, 'id' | 'name' | 'status' | 'templates' | 'createdAt'> {
+interface CampaignLike extends Pick<ServerCampaign, 'id' | 'name' | 'status' | 'templates' | 'subjectLines' | 'createdAt'> {
   templates: string; // normalized to string for this modal
+  subjectLines: string; // normalized to string for this modal
   emailsSent?: number;
   lastExecuted?: Date;
 }
@@ -59,6 +60,13 @@ export default function CampaignExecutionModal({ campaign, children }: CampaignE
     templates = JSON.parse(campaign.templates || '[]');
   } catch (error) {
     templates = [];
+  }
+
+  let subjectLines: any[] = [];
+  try {
+    subjectLines = JSON.parse(campaign.subjectLines || '[]');
+  } catch (error) {
+    subjectLines = [];
   }
 
   const executeCampaignMutation = useMutation({
