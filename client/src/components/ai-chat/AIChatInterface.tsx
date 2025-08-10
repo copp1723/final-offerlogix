@@ -13,6 +13,7 @@ interface ChatMessage {
   content: string;
   isFromAI: boolean;
   timestamp: Date;
+  memoryInfluence?: { rag: boolean; optimization: boolean; summary?: string };
 }
 
 interface CampaignData {
@@ -79,11 +80,12 @@ export default function AIChatInterface() {
       return response.json();
     },
     onSuccess: (response: any) => {
-      const aiMessage: ChatMessage = {
-        id: Date.now().toString(),
-        content: response.message || "I understand. Let me help you with that.",
-        isFromAI: true,
-        timestamp: new Date(),
+        const aiMessage: ChatMessage = {
+          id: Date.now().toString(),
+          content: response.message || "I understand. Let me help you with that.",
+          isFromAI: true,
+          timestamp: new Date(),
+          memoryInfluence: response.memoryInfluence
       };
       
       setMessages(prev => [...prev, aiMessage]);
@@ -249,6 +251,14 @@ export default function AIChatInterface() {
                     }`}
                   >
                     <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.isFromAI && message.memoryInfluence && (
+                      <div className="mt-1 flex items-center space-x-1 text-[10px] uppercase tracking-wide">
+                        <span className={`px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 font-medium`}>Memory</span>
+                        {message.memoryInfluence.summary && (
+                          <span className="text-gray-500 normal-case">{message.memoryInfluence.summary}</span>
+                        )}
+                      </div>
+                    )}
                     <p className="text-xs mt-1 opacity-70">
                       {message.timestamp.toLocaleTimeString()}
                     </p>

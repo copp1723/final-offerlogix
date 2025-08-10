@@ -12,6 +12,7 @@ interface CampaignChatResponse {
   actions?: string[];
   suggestions?: string[];
   progress?: { stepIndex: number; total: number; percent: number };
+  memoryInfluence?: { rag: boolean; optimization: boolean; summary?: string };
 }
 
 interface CampaignStep {
@@ -515,7 +516,8 @@ export class CampaignChatService {
             stepIndex: stepIndex, // unchanged
             total: this.campaignSteps.length,
             percent: Math.round((stepIndex / this.campaignSteps.length) * 100)
-          }
+          },
+          memoryInfluence: { rag: !!ragContext, optimization: false, summary: !!ragContext ? 'Past campaign knowledge referenced' : undefined }
         };
         console.log('[campaign-chat]', { runId, stage: 'coach', step: currentStepData.id, metrics, durationMs: Date.now() - startMs });
         return response;
@@ -696,7 +698,8 @@ export class CampaignChatService {
           data: finalCampaign,
             actions: ['create_campaign', 'ready_to_launch'],
           progress,
-          suggestions: this.suggestionsByStep['review_launch'] || []
+          suggestions: this.suggestionsByStep['review_launch'] || [],
+          memoryInfluence: { rag: !!ragContext, optimization: false, summary: !!ragContext ? 'Past campaign knowledge referenced' : undefined }
         };
       }
       // nextStep already defined
@@ -838,7 +841,12 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
         data: updatedData,
         actions: ["continue"],
         suggestions: this.suggestionsByStep[nextStep.id] || [],
-        progress
+        progress,
+        memoryInfluence: {
+          rag: !!ragContext,
+          optimization: !!optimizationHints,
+          summary: (ragContext && optimizationHints) ? 'Past campaigns + performance hints applied' : (ragContext ? 'Past campaign knowledge applied' : (optimizationHints ? 'Performance hints applied' : undefined))
+        }
       };
 
     } catch (error) {
