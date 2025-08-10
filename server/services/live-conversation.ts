@@ -117,7 +117,9 @@ export class LiveConversationService {
     });
 
     // Trigger AI response if enabled
-    await this.generateAIResponse(connection, messageRecord);
+    // messageRecord is a DB record lacking 'timestamp'; we wrapped it when broadcasting.
+    // For AI generation, we only need the DB record shape.
+    await this.generateAIResponse(connection, messageRecord as any);
   }
 
   private async generateAIResponse(connection: LiveConnection, incomingMessage: ConversationMessage) {

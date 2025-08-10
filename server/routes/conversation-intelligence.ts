@@ -225,22 +225,27 @@ router.post("/ai/generate-response", async (req, res) => {
       return res.status(404).json({ error: "Conversation not found" });
     }
 
-    const lead = await storage.getLead(conversation.leadId);
+    if (!conversation.leadId) {
+      return res.status(400).json({ error: "Conversation has no associated lead" });
+    }
+
+    const leadId = conversation.leadId || undefined;
+    const lead = leadId ? await storage.getLead(leadId) : null;
     if (!lead) {
       return res.status(404).json({ error: "Lead not found" });
     }
 
     const conversationHistory = await storage.getConversationMessages(conversationId);
-    
+
     // This would use the conversation intelligence hub to build full context
     const context: ConversationContext = {
-      leadId: conversation.leadId,
+      leadId: leadId!, // non-null since we verified lead exists
       conversationId,
       leadProfile: lead as any,
       conversationHistory: conversationHistory as any,
-      currentAnalysis: { 
+      currentAnalysis: {
         conversationId,
-        leadId: conversation.leadId,
+        leadId: leadId!,
         mood: 'neutral' as const,
         urgency: 'medium' as const,
         intent: 'research' as const,
@@ -287,6 +292,10 @@ router.get("/ai/suggestions/:conversationId", async (req, res) => {
     const conversation = await storage.getConversation(conversationId);
     if (!conversation) {
       return res.status(404).json({ error: "Conversation not found" });
+    }
+
+    if (!conversation.leadId) {
+      return res.status(400).json({ error: "Conversation has no associated lead" });
     }
 
     const context: ConversationContext = {

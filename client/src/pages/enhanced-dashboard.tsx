@@ -8,7 +8,7 @@ import { useBranding } from "@/contexts/ClientContext";
 
 type TabValue = 'agent' | 'leads' | 'insights';
 
-export default function Dashboard() {
+export function EnhancedDashboard() {
   const [activeTab, setActiveTab] = useState<TabValue>('agent');
   const { data, isLoading, error } = useDashboard();
   const branding = useBranding();
@@ -265,3 +265,5 @@ export default function Dashboard() {
     </div>
   );
 }
+
+export default EnhancedDashboard;

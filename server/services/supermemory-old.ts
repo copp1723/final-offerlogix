@@ -8,18 +8,9 @@ import {
   supermemory
 } from '../integrations/supermemory';
 
-let _client: ReturnType<typeof supermemory> | null = null;
-
 export function getSupermemory() {
-  if (!_client) {
-    const apiKey = process.env.SUPERMEMORY_API_KEY;
-    if (!apiKey) {
-      console.warn('SUPERMEMORY_API_KEY is not set - memory features disabled');
-      return null;
-    }
-    _client = supermemory({ apiKey });
-  }
-  return _client;
+  // Use the exported singleton client which internally mocks when API key is missing
+  return supermemory;
 }
 
 export async function addMemory({

@@ -121,7 +121,7 @@ export class WebhookHandler {
       await mailgunService.sendCampaignEmail(
         lead.email,
         campaign.name,
-        templateId || campaign.emailTemplate,
+        templateId || (Array.isArray(campaign.templates) ? (campaign.templates[0]?.content || '') : ''),
         {
           leadName: `${lead.firstName || ''} ${lead.lastName || ''}`.trim() || 'Customer',
           vehicleInterest: lead.vehicleInterest,

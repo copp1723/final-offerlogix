@@ -13,6 +13,16 @@ export default function UserManagementPage() {
   const { toast } = useToast();
   
   // Mock user data for demo - in real app this would come from API
+  const basePrefs = {
+    emailNotifications: true,
+    campaignAlerts: true,
+    leadAlerts: true,
+    systemAlerts: true,
+    monthlyReports: true,
+    highEngagementAlerts: true,
+    quotaWarnings: true
+  } as const;
+
   const mockUsers: User[] = [
     {
       id: "1",
@@ -22,33 +32,37 @@ export default function UserManagementPage() {
       email: "admin@dealership.com",
       createdAt: new Date("2024-01-15"),
       clientId: null,
+      notificationPreferences: basePrefs as unknown as any
     },
     {
-      id: "2", 
+      id: "2",
       username: "sales_manager",
       password: "***",
       role: "manager",
       email: "manager@dealership.com",
       createdAt: new Date("2024-02-10"),
       clientId: null,
+      notificationPreferences: basePrefs as unknown as any
     },
     {
       id: "3",
       username: "sales_rep1",
-      password: "***", 
+      password: "***",
       role: "user",
       email: "rep1@dealership.com",
       createdAt: new Date("2024-03-05"),
       clientId: null,
+      notificationPreferences: basePrefs as unknown as any
     },
     {
       id: "4",
       username: "sales_rep2",
       password: "***",
-      role: "user", 
+      role: "user",
       email: "rep2@dealership.com",
       createdAt: new Date("2024-03-12"),
       clientId: null,
+      notificationPreferences: basePrefs as unknown as any
     },
   ];
 

@@ -161,16 +161,19 @@ export class ResponseQualityOptimizer {
   /**
    * Create and start a new A/B test for response optimization
    */
-  async createABTest(config: Omit<ABTestConfiguration, 'id' | 'status' | 'startDate'>): Promise<string> {
+  // Accept variants without performanceMetrics; we will initialize those internally
+  async createABTest(config: Omit<ABTestConfiguration, 'id' | 'status' | 'startDate'> & {
+    variants: Array<Omit<ABTestVariant, 'performanceMetrics'>>;
+  }): Promise<string> {
     const testId = `ab_test_${Date.now()}`;
-    
+
     const abTest: ABTestConfiguration = {
-      ...config,
+      ...(config as any),
       id: testId,
       status: 'draft',
       startDate: new Date(),
-      variants: config.variants.map(v => ({
-        ...v,
+      variants: (config.variants as Array<Omit<ABTestVariant, 'performanceMetrics'>>).map(v => ({
+        ...(v as any),
         performanceMetrics: {
           impressions: 0,
           responses: 0,
@@ -181,12 +184,12 @@ export class ResponseQualityOptimizer {
         }
       }))
     };
-    
+
     // Validate test configuration
     this.validateABTestConfiguration(abTest);
-    
+
     this.activeABTests.set(testId, abTest);
-    
+
     console.log(`Created A/B test: ${testId} - ${config.name}`);
     return testId;
   }
@@ -624,13 +627,13 @@ export class ResponseQualityOptimizer {
     const options = {
       responseType: this.determineOptimalResponseType(context),
       urgency: context.currentAnalysis.urgency,
-      tone: personalization?.optimizations.toneAdjustments.default || 'professional' as const,
+      tone: (personalization?.optimizations.toneAdjustments.default as any) || 'professional',
       personalizationLevel: this.determineOptimalPersonalizationLevel(context, personalization),
       maxResponseLength: 250,
       includeVehicleDetails: true,
       includeFinancingOptions: context.currentAnalysis.intent === 'price_focused',
       includeIncentives: context.priority === 'hot'
-    };
+    } as const;
     
     const response = await enhancedConversationAI.generateContextAwareResponse(
       context,

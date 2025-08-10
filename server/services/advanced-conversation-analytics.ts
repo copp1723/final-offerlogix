@@ -288,11 +288,12 @@ export class AdvancedConversationAnalytics {
 
     const messages = await storage.getConversationMessages(conversationId);
     const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-    const lead = await storage.getLead(conversation.leadId);
+    const leadId = conversation.leadId || undefined;
+    const lead = leadId ? await storage.getLead(leadId) : null;
     
     // Analyze factors that impact conversion
-    const factors = await this.analyzeConversionFactors(messages, analysis, lead);
-    const predictions = this.calculateOutcomePredictions(factors, analysis, lead);
+    const factors = await this.analyzeConversionFactors(messages, analysis, (lead ?? null) as any);
+    const predictions = this.calculateOutcomePredictions(factors, analysis, (lead ?? null) as any);
     const scenarios = this.generateScenarioAnalysis(factors, predictions);
     const confidence = this.calculatePredictionConfidence(factors, messages.length);
 

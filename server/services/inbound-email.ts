@@ -167,12 +167,12 @@ export class InboundEmailService {
     }
 
     // Create new conversation
+    // storage.insertConversation schema does not include assignedAgentId; omit it.
     return await storage.createConversation({
       leadId,
       subject: subject || 'Email Conversation',
-      status: 'active',
-      assignedAgentId: null
-    });
+      status: 'active'
+    } as any);
   }
 
   private static async processAutoResponse(leadId: string, conversationId: string, incomingMessage: any): Promise<string | null> {

@@ -98,7 +98,7 @@ export class DynamicResponseIntelligenceService {
     const leadMessages = messages.filter(m => !m.isFromAI);
     
     if (leadMessages.length === 0) {
-      return this.createDefaultAnalysis(conversationId, conversation.leadId);
+      return this.createDefaultAnalysis(conversationId, conversation.leadId!);
     }
 
     const analysis = await this.performDeepAnalysis(conversation, leadMessages);

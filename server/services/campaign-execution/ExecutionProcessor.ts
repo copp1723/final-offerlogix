@@ -96,23 +96,25 @@ export class ExecutionProcessor {
         const batch = batches[batchIndex];
         
         console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads) - Template: ${template.title || 'Untitled'}`);
-        
-        const batchResultsSettled = await Promise.allSettled(
-          this.runWithConcurrency(batch, BATCH_CONCURRENCY, (lead) => this.sendEmailToLead(campaign, lead, template, testMode))
+
+        // Run the batch with concurrency limiter and await concrete results
+        const batchResults = await this.runWithConcurrency(
+          batch,
+          BATCH_CONCURRENCY,
+          (lead) => this.sendEmailToLead(campaign, lead, template, testMode)
         );
-        const batchResults = batchResultsSettled as PromiseSettledResult<{ success: boolean; error?: string }>[];
 
         // Process batch results
         for (let i = 0; i < batchResults.length; i++) {
           const result = batchResults[i];
           const lead = batch[i];
 
-          if (result.status === 'fulfilled' && result.value.success) {
+          if (result && (result as any).success) {
             emailsSent++;
-            
+
             // Update lead status
             try {
-              await storage.updateLead(lead.id, { 
+              await storage.updateLead(lead.id, {
                 status: 'contacted'
               });
             } catch (updateError) {
@@ -120,9 +122,7 @@ export class ExecutionProcessor {
             }
           } else {
             emailsFailed++;
-            const errorMessage = result.status === 'rejected' 
-              ? result.reason 
-              : result.value.error || 'Unknown error';
+            const errorMessage = (result as any)?.error || 'Unknown error';
             errors.push(`Failed to send email to ${lead.email}: ${errorMessage}`);
           }
         }

@@ -2025,6 +2025,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard Intelligence Route (Phase 1/2 Integration)
+  app.get("/api/dashboard", async (req: TenantRequest, res) => {
+    try {
+      const { LightweightDashboardIntelligence } = await import('./services/lightweight-dashboard-intelligence');
+      const intel = new LightweightDashboardIntelligence();
+      
+      // Map leads to UI format
+      const leads = await intel.mapLeads(50);
+      
+      // Compute intelligence insights
+      const intelligence = intel.computeIntelligence(leads);
+      
+      // Mock agent data for suggestions and recent activity
+      const agentData = {
+        suggestions: [
+          "Create a tax season financing campaign for leads mentioning refunds",
+          "Launch lease-end promotion for leads with expiring leases",
+          "Send inventory update to leads interested in SUVs",
+          "Follow up with hot leads who haven't been contacted in 7+ days"
+        ],
+        recentActivity: [
+          "Campaign 'Spring Sales Event' launched successfully",
+          "3 new hot leads identified in the past hour",
+          "AI optimization improved open rates by 12%",
+          "Competitor mention detected in recent conversations"
+        ]
+      };
+      
+      // Format response for Phase 1/2 dashboard
+      const dashboardData = {
+        leads,
+        intelligence,
+        agent: agentData,
+        summary: {
+          hotLeadsNeedingAttention: intelligence.hotLeadsNeedingAttention,
+          competitorMentions: intelligence.competitorMentions.slice(0, 5),
+          expiringOpportunities: intelligence.expiringOpportunities.slice(0, 5)
+        }
+      };
+      
+      res.json(dashboardData);
+    } catch (error) {
+      console.error('Dashboard API error:', error);
+      res.status(500).json({ message: "Failed to load dashboard data" });
+    }
+  });
+
   // Data Intelligence Platform Routes
   app.get("/api/intelligence/data-quality/report", async (req: TenantRequest, res) => {
     try {

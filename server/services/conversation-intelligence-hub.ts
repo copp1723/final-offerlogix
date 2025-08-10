@@ -168,7 +168,7 @@ export class ConversationIntelligenceHub {
       const result: ConversationProcessingResult = {
         response: {
           content: responseResult.response,
-          confidence: responseResult.confidence || 75,
+          confidence: (responseResult as any).confidence ?? 75,
           responseType: routingResult.routingDecision.routingType,
           qualityScore: responseResult.qualityScore || 70
         },
@@ -218,10 +218,11 @@ export class ConversationIntelligenceHub {
       throw new Error(`Conversation ${conversationId} not found`);
     }
 
-    const lead = await storage.getLead(conversation.leadId);
+    const leadId = conversation.leadId || undefined;
+    const lead = leadId ? await storage.getLead(leadId) : null;
     const messages = await storage.getConversationMessages(conversationId);
     const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-    const leadScore = await leadScoringService.calculateLeadScore(conversation.leadId);
+    const leadScore = await leadScoringService.calculateLeadScore(leadId!);
     const qualityMetrics = await advancedConversationAnalytics.calculateConversationQuality(conversationId);
     const outcomesPrediction = await advancedConversationAnalytics.predictConversationOutcome(conversationId);
 
@@ -236,7 +237,7 @@ export class ConversationIntelligenceHub {
       leadProfile: {
         score: leadScore.totalScore,
         priority: leadScore.priority,
-        segment: this.determineLeadSegment(lead),
+        segment: this.determineLeadSegment(lead ?? null),
         buyingReadiness: this.calculateBuyingReadiness(analysis),
         keyIndicators: leadScore.factors
       },
@@ -288,7 +289,8 @@ export class ConversationIntelligenceHub {
         }
         
         // Would check actual conversions from lead status
-        const lead = await storage.getLead(conversation.leadId);
+        const leadId = conversation.leadId || undefined;
+        const lead = leadId ? await storage.getLead(leadId) : null;
         if (lead?.status === 'converted') {
           conversionsCount++;
         }
@@ -448,7 +450,7 @@ export class ConversationIntelligenceHub {
     for (const conversation of recentConversations) {
       const processed = this.processedConversations.get(conversation.id);
       if (processed) {
-        const leadScore = await leadScoringService.calculateLeadScore(conversation.leadId);
+        const leadScore = await leadScoringService.calculateLeadScore((conversation.leadId || undefined)!);
         topPerforming.push({
           conversationId: conversation.id,
           qualityScore: processed.response.qualityScore,

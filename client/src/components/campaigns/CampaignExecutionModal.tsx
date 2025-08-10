@@ -31,15 +31,15 @@ import {
   Send
 } from "lucide-react";
 
-interface Campaign {
-  id: string;
-  name: string;
-  status: string;
-  templates: string;
+import type { Campaign as ServerCampaign } from "@shared/schema";
+
+interface CampaignLike extends Pick<ServerCampaign, 'id' | 'name' | 'status' | 'templates' | 'createdAt'> {
+  templates: string; // normalized to string for this modal
   emailsSent?: number;
-  createdAt: Date;
   lastExecuted?: Date;
 }
+
+type Campaign = CampaignLike;
 
 interface CampaignExecutionModalProps {
   campaign: Campaign;

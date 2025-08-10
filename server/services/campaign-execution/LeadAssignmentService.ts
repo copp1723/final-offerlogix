@@ -289,10 +289,12 @@ export class LeadAssignmentService {
     }
 
     // Look for timeframe-specific campaigns
-    if (lead.timeframe) {
-      const timeframeCampaign = activeCampaigns.find(c => 
-        c.context?.toLowerCase().includes(lead.timeframe!.toLowerCase()) ||
-        c.name.toLowerCase().includes(lead.timeframe!.toLowerCase())
+    const timeframe = (lead as any)?.timeframe as string | undefined;
+    if (timeframe) {
+      const tf = timeframe.toLowerCase();
+      const timeframeCampaign = activeCampaigns.find(c =>
+        c.context?.toLowerCase().includes(tf) ||
+        c.name.toLowerCase().includes(tf)
       );
       if (timeframeCampaign) return timeframeCampaign;
     }

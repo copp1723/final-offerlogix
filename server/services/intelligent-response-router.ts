@@ -131,15 +131,16 @@ export class IntelligentResponseRouter {
       throw new Error(`Conversation ${conversationId} not found`);
     }
 
-    const leadProfile = await storage.getLead(conversation.leadId);
+    const leadId = conversation.leadId || undefined;
+    const leadProfile = leadId ? await storage.getLead(leadId) : null;
     if (!leadProfile) {
       throw new Error(`Lead ${conversation.leadId} not found`);
     }
 
     const conversationHistory = await storage.getConversationMessages(conversationId);
     const currentAnalysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-    const leadScoreResult = await leadScoringService.calculateLeadScore(conversation.leadId);
-    
+    const leadScoreResult = await leadScoringService.calculateLeadScore(leadId!);
+
     // Get previous AI responses for context
     const previousResponses = conversationHistory
       .filter(m => m.isFromAI)
@@ -147,7 +148,7 @@ export class IntelligentResponseRouter {
       .slice(-3); // Last 3 AI responses
 
     return {
-      leadId: conversation.leadId,
+      leadId: leadId!,
       conversationId,
       leadProfile,
       conversationHistory,
