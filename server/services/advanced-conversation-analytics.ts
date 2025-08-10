@@ -294,6 +294,9 @@ export class AdvancedConversationAnalytics {
     }
     
     const lead = await storage.getLead(conversation.leadId);
+    if (!lead) {
+      throw new Error('Lead not found');
+    }
     
     // Analyze factors that impact conversion
     const factors = await this.analyzeConversionFactors(messages, analysis, lead);

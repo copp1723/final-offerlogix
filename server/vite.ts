@@ -39,7 +39,14 @@ export async function setupVite(app: Express, server: Server) {
         process.exit(1);
       },
     },
-    server: serverOptions,
+    server: {
+      ...serverOptions,
+      hmr: {
+        server,
+        // Ensure the client knows which port to use for HMR WS in custom dev server
+        clientPort: parseInt(process.env.PORT || '5000', 10),
+      },
+    },
     appType: "custom",
   });
 

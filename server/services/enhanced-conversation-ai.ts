@@ -95,7 +95,7 @@ export class EnhancedConversationAI {
     const memoryContext = await this.retrieveRelevantMemories(
       conversationContext.leadId, 
       newMessage,
-      conversationContext.leadProfile?.vehicleInterest
+      conversationContext.leadProfile?.vehicleInterest || undefined
     );
     
     // Generate the response using advanced prompting

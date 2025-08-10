@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { ChevronRight, Clock, Zap, TrendingUp, AlertTriangle, Star, Mail, Phone, Calendar } from 'lucide-react';
 import type { Lead } from '@/types/api';
-import { LeadDetailsDrawer } from './LeadDetailsDrawer';
+import { LeadDetailsDrawer } from './LeadDetailsDrawerAdapter';
 
 interface LeadListProps {
   leads: Lead[];

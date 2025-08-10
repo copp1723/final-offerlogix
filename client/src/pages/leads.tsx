@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -15,7 +15,7 @@ import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, M
 import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
 import ConversationView from "@/components/conversations/ConversationView";
-import LeadDetailsDrawer from "@/components/leads/LeadDetailsDrawer";
+import LeadDetailsDrawer from "@/components/LeadDetailsDrawerAdapter";
 
 import type { ConversationMessage } from "@shared/schema";
 
@@ -203,6 +203,7 @@ export default function Leads() {
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Create New Lead</DialogTitle>
+                <DialogDescription>Add a new lead to your system with their contact information</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateLead} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -429,6 +430,7 @@ export default function Leads() {
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
+                  <TableHead>Priority</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -474,7 +476,28 @@ export default function Leads() {
                       }
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedLead(lead)}>
+                      {/* Priority badge based on simple heuristics: recent question or 3+ msgs no reply or vehicle interest */}
+                      {(() => {
+                        const recent = (lead as any).lastInboundText?.toLowerCase?.() || "";
+                        const hasQuestion = recent.includes("?") || recent.includes("price") || recent.includes("when") || recent.includes("available");
+                        const highEngagement = ((lead as any).messageCount || 0) >= 3;
+                        const vehicle = !!lead.vehicleInterest;
+                        const priority = hasQuestion || highEngagement || vehicle;
+                        return priority ? (
+                          <span className="text-xs px-2 py-1 rounded border bg-amber-50 text-amber-800 border-amber-200">Priority outreach</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        );
+                      })()}
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onMouseEnter={() => setSelectedLead(lead)}
+                        onFocus={() => setSelectedLead(lead)}
+                        onClick={() => setSelectedLead(lead)}
+                      >
                         View
                       </Button>
                     </TableCell>

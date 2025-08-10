@@ -40,7 +40,7 @@ export class CampaignScheduler {
     const [after] = await db.select({ id: campaigns.id, nextExecution: campaigns.nextExecution })
       .from(campaigns)
       .where(eq(campaigns.id, campaignId));
-    return !!after && after.nextExecution && after.nextExecution.getTime() >= leaseUntil.getTime();
+    return !!(after && after.nextExecution && after.nextExecution.getTime() >= leaseUntil.getTime());
   }
 
   private computeNextFromRecurring(pattern: ScheduleConfig['recurringPattern'], days: number[] | undefined, timeStr: string | undefined, from: Date): Date {

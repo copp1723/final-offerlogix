@@ -251,8 +251,8 @@ export class EmailMonitorService {
     try {
       // Create automotive context
       const context = AutomotivePromptService.createConversationContext(
-        lead.name || 'Customer',
-        lead.vehicleInterest,
+        [lead.firstName, lead.lastName].filter(Boolean).join(" ") || lead.email || 'Customer',
+        lead.vehicleInterest || undefined,
         incomingMessage.content,
         []
       );
@@ -434,7 +434,6 @@ export class EmailMonitorService {
       leadSource: 'email',
       status: 'new',
       vehicleInterest: data.vehicleInterest,
-      qualificationScore: 0,
       // metadata field removed from leads schema
     });
   }

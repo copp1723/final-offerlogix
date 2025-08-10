@@ -100,6 +100,107 @@ export class CampaignChatService {
     'ok','okay','k','kk','great','thanks','thank you','cool','yes','yep','sure','awesome','now what','what now','what next','next','continue','go on','fine','good','roger','understood','got it','sounds good','alright'
   ];
 
+  /**
+   * Parse an initial rich context message to extract campaign name, normalized context, audience hints, etc.
+   */
+  private static parseInitialContext(input: string): {
+    name?: string;
+    normalizedContext?: string;
+    targetAudience?: string;
+    audienceSegments?: string[];
+    summaryLine?: string;
+  confidence?: number;
+  } {
+    if (!input) return {};
+    const raw = input.trim();
+    const out: any = {};
+    // Extract a campaign name marker
+    const nameMatch = raw.match(/campaign name\s*[:\-]*\s*(\*\*|"|“)?([^\n*"”]{3,80})(\*\*|"|”)?/i);
+    if (nameMatch) {
+      out.name = nameMatch[2].trim();
+    } else {
+      // Try quoted phrase at start
+      const quoted = raw.match(/^"([^"\n]{3,80})"/);
+      if (quoted) out.name = quoted[1].trim();
+    }
+    // Normalize context: remove labeled prefixes
+    let contextSection = raw;
+    contextSection = contextSection.replace(/campaign name[^\n]*\n?/i, '');
+    contextSection = contextSection.replace(/context\s*&?\s*strategy\s*[:\-]*/i, '');
+    contextSection = contextSection.replace(/context\s*[:\-]*/i, '');
+    contextSection = contextSection.replace(/strategy\s*[:\-]*/i, '');
+    contextSection = contextSection.replace(/\*\*/g, '');
+    contextSection = contextSection.replace(/\s{2,}/g, ' ').trim();
+    if (contextSection) out.normalizedContext = contextSection;
+
+    // Audience extraction heuristics
+    const audienceHints: string[] = [];
+    const lower = raw.toLowerCase();
+    const audienceMap: Record<string,string> = {
+      'student': 'students',
+      'first-time': 'first-time buyers',
+      'first time': 'first-time buyers',
+      'commuter': 'commuter buyers',
+      'rideshare': 'ride-share drivers'
+    };
+    for (const k of Object.keys(audienceMap)) {
+      if (lower.includes(k)) audienceHints.push(audienceMap[k]);
+    }
+    if (audienceHints.length) {
+      out.targetAudience = Array.from(new Set(audienceHints)).join(', ');
+      out.audienceSegments = Array.from(new Set(audienceHints));
+    }
+
+    // Build summary line
+    if (out.name || out.normalizedContext) {
+      const ctxShort = this.compactify(out.normalizedContext || '', 120);
+      out.summaryLine = `${out.name ? out.name + ' — ' : ''}${ctxShort}`.trim();
+    }
+  // Confidence heuristic: name (0.3) + audience (0.3) + angle cues (0.2) + length richness (0.2 / 0.1)
+  let conf = 0;
+  if (out.name) conf += 0.3;
+  if (out.targetAudience) conf += 0.3;
+  const lowerAll = raw.toLowerCase();
+  if (/(flash|overstock|liquidation|clearance|trade|finance|urgent|limited|inventory)/.test(lowerAll)) conf += 0.2;
+  if (raw.length > 140) conf += 0.2; else if (raw.length > 70) conf += 0.1;
+  out.confidence = Math.min(1, conf);
+    return out;
+  }
+
+  /** Compact text preserving semantic cues */
+  private static compactify(text: string, max = 160): string {
+    if (!text) return '';
+    const t = text.replace(/\s+/g, ' ').trim();
+    if (t.length <= max) return t;
+    return t.slice(0, max - 1).replace(/[ ,;:-]+$/,'') + '…';
+  }
+
+  /** Extract goal statements with numeric targets from freeform text */
+  private static extractGoals(text: string): { category: string; value: number; text: string }[] {
+    if (!text) return [];
+    const goals: { category: string; value: number; text: string }[] = [];
+    const patterns: { re: RegExp; category: string }[] = [
+      { re: /(move|sell)\s+(\d{1,4})\s+(units|cars|sedans|vehicles)/i, category: 'units' },
+      { re: /(book|schedule)\s+(\d{1,4})\s+(test[- ]?drives?)/i, category: 'test_drives' },
+      { re: /(generate|get|capture)\s+(\d{1,4})\s+(leads)/i, category: 'leads' },
+      { re: /(secure|generate|get)\s+(\d{1,4})\s+(finance|credit)\s+(apps|applications)/i, category: 'finance_apps' },
+      { re: /(capture|get|generate)\s+(\d{1,4})\s+(trade[- ]?in|tradein|trade)\s+(appraisals?|valuations?)/i, category: 'trade_ins' }
+    ];
+    for (const { re, category } of patterns) {
+      let m: RegExpExecArray | null;
+      while ((m = re.exec(text)) !== null) {
+        const value = parseInt(m[2], 10);
+        if (!isNaN(value)) goals.push({ category, value, text: m[0].trim() });
+      }
+    }
+    // Deduplicate by category keep highest value (assumption)
+    const dedup: Record<string, { category: string; value: number; text: string }> = {};
+    for (const g of goals) {
+      if (!dedup[g.category] || dedup[g.category].value < g.value) dedup[g.category] = g;
+    }
+    return Object.values(dedup);
+  }
+
     // Parse template count from digits or number words (supports 1–30)
     private static parseTemplateCount(input: string): number | null {
       if (!input) return null;
@@ -428,6 +529,28 @@ export class CampaignChatService {
       updatedData[currentStepData.dataField] = userMessage;
       metrics.substantivePassed++;
 
+      // SPECIAL: Enhanced parsing & bootstrap when the first (context) step is answered
+      if (currentStep === 'context') {
+        const parsed = this.parseInitialContext(userMessage);
+        if (parsed.name && !updatedData.name) updatedData.name = parsed.name;
+        if (parsed.normalizedContext) updatedData.context = parsed.normalizedContext; // replace raw with normalized
+        if (parsed.targetAudience && !updatedData.targetAudience) updatedData.targetAudience = parsed.targetAudience;
+        if (parsed.audienceSegments?.length && !updatedData.segments) updatedData.segments = parsed.audienceSegments.map(a => ({ name: a }));
+        // Keep raw for reference
+        updatedData._rawContextInput = userMessage;
+        updatedData._bootstrapSummary = parsed.summaryLine;
+        updatedData._contextConfidence = parsed.confidence;
+        // Auto goal extraction
+        const detectedGoals = this.extractGoals(userMessage);
+        if (detectedGoals.length) {
+          const goalSentence = detectedGoals.map(g => g.text).join('; ');
+          updatedData.handoverGoals = goalSentence;
+          updatedData.campaignGoals = goalSentence;
+          updatedData._autoGoalsExtracted = true;
+        }
+        if (!Array.isArray(updatedData._usedOpeners)) updatedData._usedOpeners = [];
+      }
+
       if (currentStep === 'goals') {
         updatedData.campaignGoals = userMessage;
         updatedData.handoverGoals = userMessage; // legacy alias for compatibility
@@ -501,7 +624,17 @@ export class CampaignChatService {
       const isLaunchCommand = currentStep === 'review_launch';
 
       // Determine next step
-      const nextStepIndex = stepIndex + 1;
+      // Determine next step index with optional goals skipping
+      let nextStepIndex = stepIndex + 1;
+      let skippingGoals = false;
+      if (currentStep === 'context' && (updatedData as any)._autoGoalsExtracted) {
+        // If the very next step is goals, skip it
+        const nextCandidate = this.campaignSteps[nextStepIndex];
+        if (nextCandidate && nextCandidate.id === 'goals') {
+          nextStepIndex++;
+          skippingGoals = true;
+        }
+      }
       const nextStep = this.campaignSteps[nextStepIndex];
       const isCompleted = isLaunchCommand || nextStepIndex >= this.campaignSteps.length;
 
@@ -537,8 +670,89 @@ export class CampaignChatService {
 
       // NEW: attempt dynamic LLM-generated conversational response instead of always using static followUp
       let responseMessage: string | null = null;
-      try {
-        const llmUserPrompt = `You are an automotive campaign creation assistant.
+
+      // If we are advancing FROM the context step to goals, we want a deterministic, high-signal coaching style message.
+  if (currentStep === 'context' && (nextStep?.id === 'goals' || skippingGoals)) {
+        const nm = updatedData.name || 'Your Campaign';
+        const audience = updatedData.targetAudience ? updatedData.targetAudience : (Array.isArray(updatedData.segments) && updatedData.segments.length ? updatedData.segments.map((s: any) => s.name).join(', ') : 'target buyers');
+        // Build an angle descriptor from context heuristics
+        const angleBits: string[] = [];
+        const ctxLower = (updatedData.context || '').toLowerCase();
+        if (/overstock|too many|excess|inventory|stack(ed)?/.test(ctxLower)) angleBits.push('overstock inversion');
+        if (/flash|limited|urgent|hurry|clock|until/i.test(ctxLower)) angleBits.push('flash urgency');
+        if (/he paid too much|paid too much|overpaid/.test(ctxLower)) angleBits.push('“he overpaid so you save” angle');
+        if (/sedan|suv|truck|coupe|crossover/.test(ctxLower)) {
+          const m = ctxLower.match(/sedan|suv|truck|coupe|crossover/);
+          if (m) angleBits.push(`${m[0]} focus`);
+        }
+        const angle = angleBits.length ? angleBits.join(' + ') : 'value + urgency positioning';
+
+        // Goal prompt with options
+        const goalQuestion = `${nextStep.question}`; // verbatim for whichever step we landed on
+        // Attempt LLM-generated conversational confirmation for higher variability & intelligence
+        try {
+          const llmUser = `You are an expert automotive campaign strategist.
+We have just parsed the user's initial raw context for a campaign.
+Return ONE short conversational confirmation (55-85 words) that:
+1) Naturally paraphrases what they're trying to do (campaign name, angle, audience) WITHOUT sounding robotic
+2) Softly checks understanding (vary language; avoid previously used openers: ${(updatedData._usedOpeners || []).join(' | ') || 'NONE'})
+3) ${(skippingGoals ? 'Briefly affirms inferred goals and transitions forward. Offer a lightweight chance to refine.' : 'Coaches them to give 1–3 concrete outcome goals with target numbers')}
+4) Ends EXACTLY with the next step question verbatim: ${goalQuestion}
+5) ${(skippingGoals ? 'If refining goals, include a parenthetical like (Adjust goals if needed: Move 25 sedans; Book 40 test drives).' : 'Include 3–5 example goal snippets in parentheses separated by semicolons (e.g., Move 25 sedans; Book 40 test drives; Generate 150 leads) but DO NOT number them.')}
+6) No markdown, no quotes.
+
+DATA:
+CampaignName: ${nm}
+Audience: ${audience}
+Angle: ${angle}
+RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.context || '', 220)}
+ AutoGoals: ${(updatedData as any)._autoGoalsExtracted ? (updatedData.handoverGoals || '') : 'NONE'}
+ ContextConfidence: ${(updatedData as any)._contextConfidence ?? 'n/a'}
+`; 
+          const gen = await LLMClient.generate({
+            model: 'openai/gpt-4o-mini',
+            system: 'You produce concise, varied, authentic automotive marketing assistant replies. Keep it human, strategic, and focused. No markdown.',
+            user: llmUser,
+            temperature: 0.8,
+            maxTokens: 260
+          });
+          const txt = (gen.content || '').trim();
+          if (txt && txt.toLowerCase().includes(goalQuestion.substring(0, 10).toLowerCase())) {
+            responseMessage = txt;
+          }
+        } catch (e) {
+          // swallow and fallback
+        }
+        if (!responseMessage) {
+          if (skippingGoals) {
+            responseMessage = `Let me reflect this back: \"${nm}\" — ${this.compactify(updatedData.context, 160)} aimed at ${audience} with a ${angle} angle. Pulled initial goals: ${updatedData.handoverGoals}. Tweak if needed. ${goalQuestion}`;
+          } else {
+            responseMessage = `Alright, I think I see what you're going for: \"${nm}\" — ${this.compactify(updatedData.context, 160)} Targeting ${audience} with a ${angle} play. Did I read that right? If so, spell out the concrete outcomes you want (e.g., Move 25 sedans; Book 40 test drives; Generate 150 leads). ${goalQuestion}`;
+          }
+        }
+        const openerSample = responseMessage.split(/\s+/).slice(0,6).join(' ');
+        if (!updatedData._usedOpeners.includes(openerSample)) updatedData._usedOpeners.push(openerSample);
+
+        // Override goal suggestions dynamically to more numeric, outcome-based examples
+        if (!skippingGoals) {
+          this.suggestionsByStep.goals = [
+            'Move 25 sedans',
+            'Book 40 test drives',
+            'Generate 150 leads',
+            'Secure 30 finance apps',
+            'Capture 20 trade-in appraisals'
+          ];
+        } else {
+          this.suggestionsByStep.target_audience = [
+            'Students & first-time buyers',
+            'Budget commuters',
+            'Credit rebuild shoppers'
+          ];
+        }
+      }
+      if (!responseMessage) {
+        try {
+          const llmUserPrompt = `You are an automotive campaign creation assistant.
 Collected data so far (JSON): ${JSON.stringify(updatedData)}
 User just answered the step "${currentStepData.id}" with: "${userMessage}".
 Next step id: ${nextStep.id}
@@ -548,20 +762,21 @@ Return ONLY a short (<=60 words) natural conversational reply that:
 2) (If applicable) briefly adds one helpful insight or suggestion
 3) Ends by asking exactly the next step question verbatim: ${nextStep.question}
 Do NOT wrap in quotes. No JSON. No markdown.`;
-        const llm = await LLMClient.generate({
-          model: 'openai/gpt-4o-mini',
-          system: 'You are a concise, helpful automotive campaign strategist. Keep replies professional and specific to automotive marketing. Never hallucinate data not provided.',
-          user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}` : llmUserPrompt),
-          temperature: 0.4,
-          maxTokens: 220
-        });
-        responseMessage = llm.content?.trim();
-        // Basic guard: ensure it includes the next step question; else fallback
-        if (!responseMessage || !responseMessage.toLowerCase().includes(nextStep.question.substring(0, 8).toLowerCase())) {
-          responseMessage = null;
+          const llm = await LLMClient.generate({
+            model: 'openai/gpt-4o-mini',
+            system: 'You are a concise, helpful automotive campaign strategist. Keep replies professional and specific to automotive marketing. Never hallucinate data not provided.',
+            user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}` : llmUserPrompt),
+            temperature: 0.4,
+            maxTokens: 220
+          });
+          responseMessage = llm.content?.trim();
+          // Basic guard: ensure it includes the next step question; else fallback
+          if (!responseMessage || !responseMessage.toLowerCase().includes(nextStep.question.substring(0, 8).toLowerCase())) {
+            responseMessage = null;
+          }
+        } catch (e) {
+          console.warn('Dynamic step LLM response failed, falling back to template:', e);
         }
-      } catch (e) {
-        console.warn('Dynamic step LLM response failed, falling back to template:', e);
       }
 
       if (!responseMessage) {

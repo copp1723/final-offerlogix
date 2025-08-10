@@ -1117,7 +1117,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messages = await storage.getConversationMessages(req.params.id);
       res.json(messages);
     } catch (error) {
-      res.status(500).json({ message: "Failed to fetch messages" });
+      console.error(`Failed to fetch messages for conversation ${req.params.id}:`, error);
+      res.status(500).json({ 
+        message: "Failed to fetch messages",
+        conversationId: req.params.id,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1134,7 +1139,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       res.json(message);
     } catch (error) {
-      res.status(400).json({ message: "Invalid message data" });
+      console.error(`Failed to create message for conversation ${req.params.id}:`, error);
+      const statusCode = error instanceof Error && error.message.includes("validation") ? 400 : 500;
+      res.status(statusCode).json({ 
+        message: statusCode === 400 ? "Invalid message data" : "Failed to create message",
+        conversationId: req.params.id,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 
@@ -1316,8 +1327,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const messages = await storage.getConversationMessages(convs[0].id);
       res.json(messages || []);
     } catch (error) {
-      console.error('Lead latest messages fetch error:', error);
-      res.status(500).json({ message: "Failed to fetch conversation messages" });
+      console.error(`Failed to fetch latest messages for lead ${req.params.id}:`, error);
+      res.status(500).json({ 
+        message: "Failed to fetch conversation messages",
+        leadId: req.params.id,
+        error: error instanceof Error ? error.message : "Unknown error"
+      });
     }
   });
 

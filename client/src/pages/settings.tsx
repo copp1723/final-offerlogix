@@ -1,10 +1,18 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Car, Shield, Bell, Database, Palette } from "lucide-react";
+import { Users, Car, Shield, Bell, Database, Palette, Brain } from "lucide-react";
 
 export default function SettingsPage() {
   const settingsCategories = [
+    {
+      title: "AI Agent Settings",
+      description: "Configure AI agent behavior and responses",
+      href: "/ai-settings",
+      icon: Brain,
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
+    },
     {
       title: "User Management",
       description: "Manage users, roles, and permissions",
@@ -17,9 +25,9 @@ export default function SettingsPage() {
       title: "White Label Settings",
       description: "Customize branding and client configurations",
       href: "/white-label",
-      icon: Car,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
+      icon: Palette,
+      color: "text-indigo-600",
+      bgColor: "bg-indigo-50",
     },
     {
       title: "Email Monitor",
@@ -54,15 +62,6 @@ export default function SettingsPage() {
       icon: Database,
       color: "text-red-600",
       bgColor: "bg-red-50",
-      disabled: true,
-    },
-    {
-      title: "Theme & Appearance",
-      description: "Customize the look and feel of your dashboard",
-      href: "#",
-      icon: Palette,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50",
       disabled: true,
     },
   ];

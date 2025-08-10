@@ -223,6 +223,10 @@ export class ConversationIntelligenceHub {
     }
     
     const lead = await storage.getLead(conversation.leadId);
+    if (!lead) {
+      throw new Error(`Lead ${conversation.leadId} not found`);
+    }
+    
     const messages = await storage.getConversationMessages(conversationId);
     const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
     const leadScore = await leadScoringService.calculateLeadScore(conversation.leadId);
@@ -298,6 +302,7 @@ export class ConversationIntelligenceHub {
             conversionsCount++;
           }
         }
+      }
     }
 
     const averageQualityScore = validMetricsCount > 0 ? totalQualityScore / validMetricsCount : 70;
@@ -317,7 +322,7 @@ export class ConversationIntelligenceHub {
       customerSatisfactionScore: 4.2, // Would be calculated from actual feedback
       optimizationImpact: 8.5, // Percentage improvement from optimizations
       trends
-    };
+    }
   }
 
   /**
@@ -402,7 +407,14 @@ export class ConversationIntelligenceHub {
         weight: v.weight,
         responseStrategy: {
           type: 'ai_generated' as const,
-          parameters: v.responseParameters
+          parameters: {
+            tone: v.responseParameters?.tone || 'professional',
+            personalizationLevel: v.responseParameters?.personalizationLevel || 'moderate',
+            responseLength: v.responseParameters?.responseLength || 'moderate',
+            includeOffers: v.responseParameters?.includeOffers || false,
+            urgencyLevel: v.responseParameters?.urgencyLevel || 'medium'
+          },
+          templateOverrides: v.responseParameters?.templateOverrides || {}
         }
       })),
       targetMetrics: ['response_rate', 'conversion_rate', 'quality_score'],
@@ -411,7 +423,7 @@ export class ConversationIntelligenceHub {
       confidenceLevel: 95
     };
 
-    return await responseQualityOptimizer.createABTest(testConfig);
+    return await responseQualityOptimizer.createABTest(testConfig as any);
   }
 
   /**

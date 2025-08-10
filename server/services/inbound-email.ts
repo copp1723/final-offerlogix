@@ -194,8 +194,8 @@ export class InboundEmailService {
 
       // Create automotive context
       const context = AutomotivePromptService.createConversationContext(
-        lead.name,
-        lead.vehicleInterest,
+        [lead.firstName, lead.lastName].filter(Boolean).join(" ") || lead.email,
+        lead.vehicleInterest || undefined,
         incomingMessage.content,
         recentMessages.map(m => m.content)
       );
