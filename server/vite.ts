@@ -43,7 +43,8 @@ export async function setupVite(app: Express, server: Server) {
       ...serverOptions,
       hmr: {
         server,
-        // Ensure the client knows which port to use for HMR WS in custom dev server
+        host: 'localhost',
+        port: parseInt(process.env.PORT || '5000', 10),
         clientPort: parseInt(process.env.PORT || '5000', 10),
       },
     },
