@@ -218,11 +218,14 @@ export class ConversationIntelligenceHub {
       throw new Error(`Conversation ${conversationId} not found`);
     }
 
-    const leadId = conversation.leadId || undefined;
-    const lead = leadId ? await storage.getLead(leadId) : null;
+    if (!conversation.leadId) {
+      throw new Error(`Conversation ${conversationId} has no associated lead`);
+    }
+    
+    const lead = await storage.getLead(conversation.leadId);
     const messages = await storage.getConversationMessages(conversationId);
     const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-    const leadScore = await leadScoringService.calculateLeadScore(leadId!);
+    const leadScore = await leadScoringService.calculateLeadScore(conversation.leadId);
     const qualityMetrics = await advancedConversationAnalytics.calculateConversationQuality(conversationId);
     const outcomesPrediction = await advancedConversationAnalytics.predictConversationOutcome(conversationId);
 
@@ -237,7 +240,7 @@ export class ConversationIntelligenceHub {
       leadProfile: {
         score: leadScore.totalScore,
         priority: leadScore.priority,
-        segment: this.determineLeadSegment(lead ?? null),
+        segment: this.determineLeadSegment(lead),
         buyingReadiness: this.calculateBuyingReadiness(analysis),
         keyIndicators: leadScore.factors
       },
@@ -289,12 +292,12 @@ export class ConversationIntelligenceHub {
         }
         
         // Would check actual conversions from lead status
-        const leadId = conversation.leadId || undefined;
-        const lead = leadId ? await storage.getLead(leadId) : null;
-        if (lead?.status === 'converted') {
-          conversionsCount++;
+        if (conversation.leadId) {
+          const lead = await storage.getLead(conversation.leadId);
+          if (lead?.status === 'converted') {
+            conversionsCount++;
+          }
         }
-      }
     }
 
     const averageQualityScore = validMetricsCount > 0 ? totalQualityScore / validMetricsCount : 70;
@@ -449,8 +452,8 @@ export class ConversationIntelligenceHub {
     const topPerforming = [];
     for (const conversation of recentConversations) {
       const processed = this.processedConversations.get(conversation.id);
-      if (processed) {
-        const leadScore = await leadScoringService.calculateLeadScore((conversation.leadId || undefined)!);
+      if (processed && conversation.leadId) {
+        const leadScore = await leadScoringService.calculateLeadScore(conversation.leadId);
         topPerforming.push({
           conversationId: conversation.id,
           qualityScore: processed.response.qualityScore,
@@ -511,6 +514,10 @@ export class ConversationIntelligenceHub {
       throw new Error(`Conversation ${conversationId} not found`);
     }
 
+    if (!conversation.leadId) {
+      throw new Error(`Conversation ${conversationId} has no associated lead`);
+    }
+    
     const leadProfile = await storage.getLead(conversation.leadId);
     if (!leadProfile) {
       throw new Error(`Lead ${conversation.leadId} not found`);

@@ -166,10 +166,13 @@ export default function CampaignsPage() {
                 
                 <div className="flex gap-2">
                   <CampaignExecutionModal campaign={{
-                    ...campaign,
+                    id: campaign.id,
+                    name: campaign.name,
+                    status: campaign.status,
+                    createdAt: campaign.createdAt,
                     templates: typeof campaign.templates === 'string' ? campaign.templates : JSON.stringify(campaign.templates ?? []),
                     subjectLines: typeof campaign.subjectLines === 'string' ? campaign.subjectLines : JSON.stringify(campaign.subjectLines ?? [])
-                  } as unknown as Campaign}>
+                  }}>
                     <Button size="sm" className="flex-1">
                       <Play className="h-4 w-4 mr-1" />
                       Execute

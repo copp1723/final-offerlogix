@@ -288,12 +288,16 @@ export class AdvancedConversationAnalytics {
 
     const messages = await storage.getConversationMessages(conversationId);
     const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-    const leadId = conversation.leadId || undefined;
-    const lead = leadId ? await storage.getLead(leadId) : null;
+    
+    if (!conversation.leadId) {
+      throw new Error('Conversation has no associated lead');
+    }
+    
+    const lead = await storage.getLead(conversation.leadId);
     
     // Analyze factors that impact conversion
-    const factors = await this.analyzeConversionFactors(messages, analysis, (lead ?? null) as any);
-    const predictions = this.calculateOutcomePredictions(factors, analysis, (lead ?? null) as any);
+    const factors = await this.analyzeConversionFactors(messages, analysis, lead);
+    const predictions = this.calculateOutcomePredictions(factors, analysis, lead);
     const scenarios = this.generateScenarioAnalysis(factors, predictions);
     const confidence = this.calculatePredictionConfidence(factors, messages.length);
 
@@ -1002,8 +1006,9 @@ export class AdvancedConversationAnalytics {
 
   private async calculatePersonalizationScore(messages: ConversationMessage[], conversationId: string): Promise<number> {
     const conversation = await storage.getConversation(conversationId);
-    const lead = conversation ? await storage.getLead(conversation.leadId) : null;
+    if (!conversation?.leadId) return 30;
     
+    const lead = await storage.getLead(conversation.leadId);
     if (!lead) return 30;
     
     const agentMessages = messages.filter(m => m.isFromAI);

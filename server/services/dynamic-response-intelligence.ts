@@ -98,7 +98,10 @@ export class DynamicResponseIntelligenceService {
     const leadMessages = messages.filter(m => !m.isFromAI);
     
     if (leadMessages.length === 0) {
-      return this.createDefaultAnalysis(conversationId, conversation.leadId!);
+      if (!conversation.leadId) {
+        throw new Error('Conversation has no associated lead');
+      }
+      return this.createDefaultAnalysis(conversationId, conversation.leadId);
     }
 
     const analysis = await this.performDeepAnalysis(conversation, leadMessages);
@@ -166,6 +169,10 @@ export class DynamicResponseIntelligenceService {
     // Calculate confidence
     const confidence = this.calculateConfidence(leadMessages.length, buyingSignals.length);
 
+    if (!conversation.leadId) {
+      throw new Error('Conversation has no associated lead');
+    }
+    
     return {
       conversationId: conversation.id,
       leadId: conversation.leadId,
