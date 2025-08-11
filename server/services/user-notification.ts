@@ -373,12 +373,14 @@ export class UserNotificationService {
       const content = template(data);
       
       // Send email notification using campaign email service
+      const { storage } = await import('../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const success = await sendCampaignEmail(
         user.email,
         content.subject,
         content.html,
         {},
-        { isAutoResponse: false }
+        { isAutoResponse: false, domainOverride: (activeCfg as any)?.agentEmailDomain }
       );
 
       if (success) {

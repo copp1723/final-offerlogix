@@ -34,10 +34,14 @@ export class HandoverEmailService {
       const emailContent = this.generateHandoverEmail(data);
       
       // Send email via Mailgun
+      const { storage } = await import('../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const success = await sendCampaignEmail(
         recipientEmail,
         `🚨 Urgent Handover Required - ${lead?.firstName || 'Customer'} Ready to Purchase`,
-        emailContent
+        emailContent,
+        {},
+        { domainOverride: (activeCfg as any)?.agentEmailDomain }
       );
       
       console.log(`Handover email sent: ${success ? 'SUCCESS' : 'FAILED'}`);

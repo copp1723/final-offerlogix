@@ -98,11 +98,16 @@ export async function sendCampaignEmail(
   subject: string,
   content: string,
   variables: Record<string, any> = {},
-  options: { isAutoResponse?: boolean } = {}
+  options: { isAutoResponse?: boolean; domainOverride?: string } = {}
 ): Promise<boolean> {
   try {
     const apiKey = process.env.MAILGUN_API_KEY;
-    const domain = process.env.MAILGUN_DOMAIN;
+    // For agent auto-responses, a per-agent subdomain is REQUIRED
+    if (options.isAutoResponse && !options.domainOverride) {
+      console.error('Agent email blocked: agentEmailDomain (Mailgun subdomain) is not configured on the active AI Agent Configuration.');
+      return false;
+    }
+    const domain = options.domainOverride || process.env.MAILGUN_DOMAIN;
     if (!apiKey || !domain) {
       console.warn('Mailgun not configured - email not sent');
       return false;

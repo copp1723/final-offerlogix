@@ -99,11 +99,13 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   tonality: text("tonality").notNull().default("professional"), // professional, friendly, casual, enthusiastic
   personality: text("personality"), // Description of agent personality
   dosList: jsonb("dos_list").default([]).notNull(), // Array of do's
-  dontsList: jsonb("donts_list").default([]).notNull(), // Array of don'ts  
+  dontsList: jsonb("donts_list").default([]).notNull(), // Array of don'ts
   industry: varchar("industry").default("automotive"), // Industry specialization
   responseStyle: text("response_style").default("helpful"), // helpful, consultative, direct
   model: text("model").default("openai/gpt-5-chat"), // Default model updated to GPT-5 Chat
   systemPrompt: text("system_prompt"), // Custom system prompt override
+  // Agent outbound email Mailgun subdomain override (e.g., mg.dealership.com)
+  agentEmailDomain: varchar("agent_email_domain"),
   isActive: boolean("is_active").default(false).notNull(), // Whether this config is currently active
   clientId: uuid("client_id").references(() => clients.id), // Multi-tenant scoping
   createdAt: timestamp("created_at").defaultNow().notNull(),

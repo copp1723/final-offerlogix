@@ -141,6 +141,7 @@ async function applyLegacyPatches() {
     await addColumnTo('ai_agent_config', 'system_prompt', `ALTER TABLE ai_agent_config ADD COLUMN system_prompt text`);
     await addColumnTo('ai_agent_config', 'client_id', `ALTER TABLE ai_agent_config ADD COLUMN client_id uuid`);
     await addColumnTo('ai_agent_config', 'is_active', `ALTER TABLE ai_agent_config ADD COLUMN is_active boolean DEFAULT false`);
+    await addColumnTo('ai_agent_config', 'agent_email_domain', `ALTER TABLE ai_agent_config ADD COLUMN agent_email_domain varchar`);
 
     try {
       await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-chat'`);
