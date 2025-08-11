@@ -23,6 +23,130 @@ interface CampaignStep {
 }
 
 export class CampaignChatService {
+  // Fields required to consider campaign specification complete (pre content generation)
+  private static REQUIRED_FIELDS = [
+    'context',
+    'handoverGoals',
+    'targetAudience',
+    'name',
+    'handoverCriteria',
+    'numberOfTemplates',
+    'daysBetweenMessages'
+  ];
+
+  /** LLM-first extraction flow (experimental) */
+  private static async llmFirstProcess(
+    userMessage: string,
+    existingData: any
+  ): Promise<CampaignChatResponse> {
+    const data = { ...existingData };
+    if (!Array.isArray(data._history)) data._history = [];
+    data._history.push({ role: 'user', content: userMessage, ts: Date.now() });
+
+    // Build extraction prompt with currently known fields
+    const missing = this.REQUIRED_FIELDS.filter(f => data[f] === undefined || data[f] === null || (typeof data[f] === 'string' && data[f].trim() === ''));
+    const extractionPrompt = `You are an advanced automotive campaign architect. Extract any campaign fields from the latest user message.
+Return STRICT JSON ONLY with shape:
+{
+  "extracted": { optional present fields },
+  "reasoning": "short professional explanation",
+  "follow_up_question": "ONE clarifying question for the next MOST IMPORTANT missing field (verbatim question) OR empty string if none",
+  "confidence": 0-1
+}
+Required Fields: ${this.REQUIRED_FIELDS.join(', ')}
+Already Known (JSON): ${JSON.stringify(this.sanitizeForLLM(data))}
+User Message: ${userMessage}`;
+
+    let llmJson: any = null;
+    try {
+  const { content } = await LLMClient.generateAutomotiveContent(extractionPrompt);
+      llmJson = this.coerceJson(content, {} as any);
+    } catch (e) {
+      console.warn('[campaign-chat][llm-first] extraction failed, fallback to heuristic path', e);
+    }
+
+    if (llmJson?.extracted && typeof llmJson.extracted === 'object') {
+      for (const [k, v] of Object.entries(llmJson.extracted)) {
+        if (v && (data[k] === undefined || data[k] === null || data[k] === '')) {
+          data[k] = v;
+        }
+      }
+    }
+
+    // Normalize numeric template count & cadence if present
+    if (typeof data.numberOfTemplates === 'string') {
+      const n = parseInt(data.numberOfTemplates, 10); if (!isNaN(n)) data.numberOfTemplates = Math.min(Math.max(n,1),30);
+    }
+    if (typeof data.daysBetweenMessages === 'string') {
+      const n = parseInt(data.daysBetweenMessages, 10); if (!isNaN(n)) data.daysBetweenMessages = Math.min(Math.max(n,1),30);
+    }
+
+    const stillMissing = this.REQUIRED_FIELDS.filter(f => data[f] === undefined || data[f] === null || (typeof data[f] === 'string' && data[f].trim() === ''));
+    let follow = llmJson?.follow_up_question || '';
+    if (!follow && stillMissing.length) {
+      const mapQuestions: Record<string,string> = {
+        context: 'What type of automotive campaign would you like to create?',
+        handoverGoals: 'What are your main goals for this campaign (desired outcomes)?',
+        targetAudience: 'Who is the target audience for this campaign?',
+        name: 'What would you like to name this campaign?',
+        handoverCriteria: 'When should a lead be handed to sales? Describe the triggers.',
+        numberOfTemplates: 'How many email templates would you like (1-30)?',
+        daysBetweenMessages: 'How many days between each email send (1-30)?'
+      };
+      follow = mapQuestions[stillMissing[0]] || 'Any remaining details to fill?';
+    }
+
+    // If all specification fields ready and no templates yet, auto-generate content prompt suggestion
+    let completed = false;
+    if (stillMissing.length === 0) {
+      // Trigger generation phase using existing path for consistency
+      try {
+        if (!data.templates || data.templates.length === 0) {
+          const gen = await this.generateFinalCampaign({ ...data });
+          data.templates = gen.templates;
+          data.subjectLines = gen.subjectLines;
+          data.numberOfTemplates = gen.numberOfTemplates;
+        }
+        completed = true;
+      } catch (e) {
+        console.warn('[campaign-chat][llm-first] generation failed', e);
+      }
+    }
+
+    const summaryParts: string[] = [];
+    for (const f of this.REQUIRED_FIELDS) {
+      if (data[f]) summaryParts.push(`${f}: ${typeof data[f] === 'string' ? this.compactify(data[f], 40) : data[f]}`);
+    }
+    const summaryLine = summaryParts.join(' | ');
+
+    const message = completed
+      ? `Campaign spec locked: ${summaryLine}. Type "Launch" when ready or ask to adjust any field.`
+      : `${llmJson?.reasoning ? this.compactify(llmJson.reasoning, 160) + '\n' : ''}${summaryLine}${follow ? `\n${follow}` : ''}`.trim();
+
+    return {
+      message,
+      nextStep: completed ? 'review_launch' : (follow ? 'await_input' : 'await_input'),
+      data,
+      completed: false,
+      suggestions: completed ? ['Launch', 'Adjust goals', 'Change cadence'] : (follow ? [follow] : []),
+      progress: {
+        stepIndex: this.REQUIRED_FIELDS.length - stillMissing.length,
+        total: this.REQUIRED_FIELDS.length,
+        percent: Math.round(((this.REQUIRED_FIELDS.length - stillMissing.length) / this.REQUIRED_FIELDS.length) * 100)
+      }
+    };
+  }
+
+  /** Remove volatile internal keys before sending to LLM */
+  private static sanitizeForLLM(data: any) {
+    const clone: any = {};
+    for (const k of Object.keys(data || {})) {
+      if (k.startsWith('_')) continue;
+      if (['templates','subjectLines','leadList'].includes(k)) continue; // omit heavy arrays for extraction prompt
+      clone[k] = data[k];
+    }
+    return clone;
+  }
   private static campaignSteps: CampaignStep[] = [
     {
       id: 'context',
@@ -487,6 +611,10 @@ export class CampaignChatService {
     existingData: any = {}
   ): Promise<CampaignChatResponse> {
     try {
+      // Experimental LLM-first unified extraction mode
+      if (process.env.CAMPAIGN_CHAT_MODE === 'llm_first') {
+        return await this.llmFirstProcess(userMessage, existingData);
+      }
       const runId = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
       const startMs = Date.now();
       const metrics = { runId, ragHit: 0, preflightBlocks: 0, ackRejected: 0, substantivePassed: 0, llmRetries: 0 };
