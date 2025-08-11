@@ -510,7 +510,7 @@ This is an automated response. Please do not reply to this email directly.
 
   private async sendWelcomeEmail(leadData: any, campaignId: string) {
     try {
-      const campaign = await storage.getCampaign(campaignId);
+      const campaign = await (await import('../storage')).storage.getCampaign(campaignId);
       if (!campaign) {
         console.error(`Campaign not found for welcome email: ${campaignId}`);
         return;
@@ -527,10 +527,14 @@ This is an automated response. Please do not reply to this email directly.
         <p>Best regards,<br>OneKeel Swarm Team</p>
       `;
       
+      const { storage } = await import('../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const sent = await sendCampaignEmail(
         leadData.email,
         `Welcome to OneKeel Swarm - ${leadData.firstName || 'Valued Customer'}`,
-        welcomeContent
+        welcomeContent,
+        {},
+        { domainOverride: (activeCfg as any)?.agentEmailDomain }
       );
       
       if (sent) {

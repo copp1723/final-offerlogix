@@ -194,10 +194,13 @@ export class ExecutionProcessor {
       };
 
       // Retry mail send on transient failures
+      const { storage } = await import('../../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const success = await this.sendWithRetries(
         emailData.to,
         emailData.subject,
-        emailData.html
+        emailData.html,
+        (activeCfg as any)?.agentEmailDomain
       );
       
       const result = { success, error: success ? undefined : 'Failed to send email' };
@@ -281,13 +284,13 @@ export class ExecutionProcessor {
   }
 
   // Retry wrapper for mail sends
-  private async sendWithRetries(to: string, subject: string, html: string): Promise<boolean> {
+  private async sendWithRetries(to: string, subject: string, html: string, domainOverride?: string): Promise<boolean> {
     const { sendCampaignEmail } = await import('../mailgun');
     let attempt = 0;
     while (true) {
       attempt++;
       try {
-        const ok = await sendCampaignEmail(to, subject, html);
+        const ok = await sendCampaignEmail(to, subject, html, {}, { domainOverride });
         if (ok) return true;
         if (attempt >= MAILGUN_MAX_RETRIES) return false;
       } catch (err) {
