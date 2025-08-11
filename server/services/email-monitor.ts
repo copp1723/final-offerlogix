@@ -321,12 +321,15 @@ export class EmailMonitorService {
   private async sendEmailResponse(toEmail: string, content: string, subject: string) {
     try {
       const mailgunService = await import('./mailgun');
+      // Use active agent config to override Mailgun domain if configured
+      const { storage } = await import('../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       await mailgunService.sendCampaignEmail(
         toEmail,
         subject,
         content,
         {},
-        { isAutoResponse: true }
+        { isAutoResponse: true, domainOverride: (activeCfg as any)?.agentEmailDomain }
       );
     } catch (error) {
       console.error('Error sending email response:', error);

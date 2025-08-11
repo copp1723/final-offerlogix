@@ -54,6 +54,7 @@ interface ActiveAgentConfig {
   industry?: string;
   model?: ModelId;
   systemPrompt?: string;
+  agentEmailDomain?: string;
 }
 
 export class AgentRuntime {
@@ -130,8 +131,9 @@ export class AgentRuntime {
         dosList: Array.isArray(r.dosList) ? r.dosList : [],
         dontsList: Array.isArray(r.dontsList) ? r.dontsList : [],
         industry: r.industry ?? 'automotive',
-  model: r.model || 'openai/gpt-5-chat',
-        systemPrompt: r.systemPrompt ?? undefined
+        model: r.model || 'openai/gpt-5-chat',
+        systemPrompt: r.systemPrompt ?? undefined,
+        agentEmailDomain: r.agentEmailDomain ?? undefined
       };
     } catch (error) {
       console.error('Error loading agent config:', error);

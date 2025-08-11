@@ -59,6 +59,7 @@ import { insertAiAgentConfigSchema } from "@shared/schema";
 const formSchema = insertAiAgentConfigSchema.extend({
   dosList: z.array(z.string()).default([]),
   dontsList: z.array(z.string()).default([]),
+  agentEmailDomain: z.string().min(3, 'Mailgun subdomain is required'),
 });
 
 export default function AiSettingsPage() {
@@ -87,6 +88,7 @@ export default function AiSettingsPage() {
       dontsList: [],
       industry: "automotive",
       responseStyle: "helpful",
+      agentEmailDomain: '',
       isActive: false,
     },
   });
@@ -188,6 +190,7 @@ export default function AiSettingsPage() {
         dontsList: (config.dontsList as string[]) || [],
         industry: config.industry || "automotive",
         responseStyle: config.responseStyle || "helpful",
+        agentEmailDomain: (config as any).agentEmailDomain || "",
         isActive: config.isActive,
       });
     } else {
@@ -339,12 +342,12 @@ export default function AiSettingsPage() {
                   <div><strong>Do's:</strong> {(config.dosList as string[])?.length || 0} rules</div>
                   <div><strong>Don'ts:</strong> {(config.dontsList as string[])?.length || 0} rules</div>
                 </div>
-                
+
                 <div className="flex gap-2">
                   {!config.isActive && (
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
+                    <Button
+                      variant="outline"
+                      size="sm"
                       className="flex-1"
                       onClick={() => activateMutation.mutate(config.id)}
                       disabled={activateMutation.isPending}
@@ -353,9 +356,9 @@ export default function AiSettingsPage() {
                       Activate
                     </Button>
                   )}
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     className="flex-1"
                     onClick={() => handleEdit(config)}
                   >
@@ -465,8 +468,25 @@ export default function AiSettingsPage() {
                           </Select>
                           <FormMessage />
                         </FormItem>
-                      )}
-                    />
+                      )} />
+
+                  {/* Agents Mailgun Subdomain */}
+                  <FormField
+                    control={form.control}
+                    name="agentEmailDomain"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Agents Email Subdomain (Mailgun)</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., mg.dealership.com" value={field.value || ''} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref} />
+                        </FormControl>
+                        <FormDescription>
+                          Used as the domain for AI agent auto-replies (overrides default MAILGUN_DOMAIN).
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   </div>
 
                   <FormField
@@ -476,7 +496,7 @@ export default function AiSettingsPage() {
                       <FormItem>
                         <FormLabel>Personality Description</FormLabel>
                         <FormControl>
-                          <Textarea 
+                          <Textarea
                             placeholder="Describe the agent's personality and approach..."
                             {...field}
                             value={field.value || ''}
@@ -498,7 +518,7 @@ export default function AiSettingsPage() {
                         placeholder="Add a do..."
                         value={newDo}
                         onChange={(e) => setNewDo(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDo())}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDo())}
                       />
                       <Button type="button" onClick={addDo} size="sm">
                         Add
@@ -521,7 +541,7 @@ export default function AiSettingsPage() {
                         placeholder="Add a don't..."
                         value={newDont}
                         onChange={(e) => setNewDont(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDont())}
+                        onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addDont())}
                       />
                       <Button type="button" onClick={addDont} size="sm">
                         Add
@@ -548,7 +568,7 @@ export default function AiSettingsPage() {
                       type="submit"
                       disabled={createMutation.isPending || updateMutation.isPending}
                     >
-                      {selectedConfig 
+                      {selectedConfig
                         ? (updateMutation.isPending ? "Updating..." : "Update Configuration")
                         : (createMutation.isPending ? "Creating..." : "Create Configuration")
                       }

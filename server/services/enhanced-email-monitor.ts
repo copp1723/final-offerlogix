@@ -443,12 +443,14 @@ export class EnhancedEmailMonitor {
       
       // Send actual auto-response via Mailgun
       const { sendCampaignEmail } = await import('./mailgun');
+      const { storage } = await import('../storage');
+      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const sent = await sendCampaignEmail(
         emailData.from,
         responseContent.subject,
         responseContent.content,
         {},
-        { isAutoResponse: true }
+        { isAutoResponse: true, domainOverride: (activeCfg as any)?.agentEmailDomain }
       );
       
       if (sent) {
