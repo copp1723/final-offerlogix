@@ -500,7 +500,7 @@ export class CampaignChatService {
         const retryQuestion = currentStepData.question;
         const coaching: Record<string,string> = {
           context: 'Please give a descriptive automotive campaign type with purpose or scenario (e.g., "Labor Day weekend clearance focused on trade-ins and same‑day financing").',
-          goals: 'List 1-3 concrete business outcomes (e.g., "book 40 test drives", "increase trade-in appraisals", "revive inactive SUV leads").',
+          goals: 'List 1-3 concrete business outcomes (e.g., "increase test drives", "increase trade-in appraisals", "revive inactive SUV leads").',
           target_audience: 'Describe who you want to reach (segments, demographics, intent signals, ownership stage, etc.).',
           name: 'Provide a short, branded campaign name you would present internally or to leadership.',
           handover_criteria: 'Describe the exact conversational signals that mean a sales rep should take over (pricing pressure, scheduling requests, urgency, financing readiness, trade-in specifics, etc.).',
@@ -725,6 +725,11 @@ export class CampaignChatService {
 
         // Goal prompt with options
         const goalQuestion = `${nextStep.question}`; // verbatim for whichever step we landed on
+        // Determine a vehicle-aware units noun for examples (e.g., trucks, SUVs, sedans)
+        const unitsNoun = this.pickUnitsNoun(vehicleKeywords, ctxLower);
+        const exampleLine = (skippingGoals
+          ? `If refining goals, include a parenthetical like (Adjust goals if needed: Move more ${unitsNoun}; Book more test drives).`
+          : `Include 3–5 example goal snippets in parentheses separated by semicolons (e.g., Move more ${unitsNoun}; Book more test drives; Generate more leads) but DO NOT number them.`);
         // Attempt LLM-generated conversational confirmation for higher variability & intelligence
         try {
           const llmUser = `You are an expert automotive campaign strategist.
@@ -734,7 +739,7 @@ Return ONE short conversational confirmation (55-85 words) that:
 2) Softly checks understanding (vary language; avoid previously used openers: ${(updatedData._usedOpeners || []).join(' | ') || 'NONE'})
 3) ${(skippingGoals ? 'Briefly affirms inferred goals and transitions forward. Offer a lightweight chance to refine.' : 'Coaches them to give 1–3 concrete outcome goals with target numbers')}
 4) Ends EXACTLY with the next step question verbatim: ${goalQuestion}
-5) ${(skippingGoals ? 'If refining goals, include a parenthetical like (Adjust goals if needed: Move 25 sedans; Book 40 test drives).' : 'Include 3–5 example goal snippets in parentheses separated by semicolons (e.g., Move 25 sedans; Book 40 test drives; Generate 150 leads) but DO NOT number them.')}
+5) ${exampleLine}
 6) No markdown, no quotes.
 
 DATA:
@@ -744,7 +749,7 @@ Angle: ${angle}
 RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.context || '', 220)}
  AutoGoals: ${(updatedData as any)._autoGoalsExtracted ? (updatedData.handoverGoals || '') : 'NONE'}
  ContextConfidence: ${(updatedData as any)._contextConfidence ?? 'n/a'}
-`; 
+`;
           const gen = await LLMClient.generate({
             model: 'openai/gpt-4o-mini',
             system: 'You produce concise, varied, authentic automotive marketing assistant replies. Keep it human, strategic, and focused. No markdown.',
@@ -763,7 +768,7 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
           if (skippingGoals) {
             responseMessage = `Let me reflect this back: \"${nm}\" — ${this.compactify(updatedData.context, 160)} aimed at ${audience} with a ${angle} angle. Pulled initial goals: ${updatedData.handoverGoals}. Tweak if needed. ${goalQuestion}`;
           } else {
-            responseMessage = `Alright, I think I see what you're going for: \"${nm}\" — ${this.compactify(updatedData.context, 160)} Targeting ${audience} with a ${angle} play. Did I read that right? If so, spell out the concrete outcomes you want (e.g., Move 25 sedans; Book 40 test drives; Generate 150 leads). ${goalQuestion}`;
+            responseMessage = `Alright, I think I see what you're going for: \"${nm}\" — ${this.compactify(updatedData.context, 160)} Targeting ${audience} with a ${angle} play. Did I read that right? If so, spell out the concrete outcomes you want (e.g., Move more ${unitsNoun}; Book more test drives; Generate more leads). ${goalQuestion}`;
           }
         }
         const openerSample = responseMessage.split(/\s+/).slice(0,6).join(' ');
@@ -772,18 +777,15 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
         // Override goal suggestions dynamically to more numeric, outcome-based examples
         if (!skippingGoals) {
           this.suggestionsByStep.goals = [
-            'Move 25 sedans',
-            'Book 40 test drives',
-            'Generate 150 leads',
-            'Secure 30 finance apps',
-            'Capture 20 trade-in appraisals'
+            `Move more ${unitsNoun}`,
+            'Book more test drives',
+            'Generate more leads',
+            'Secure more finance apps',
+            'Capture more trade-in appraisals'
           ];
         } else {
-          this.suggestionsByStep.target_audience = [
-            'Students & first-time buyers',
-            'Budget commuters',
-            'Credit rebuild shoppers'
-          ];
+          // Build audience suggestions dynamically from context/keywords
+          this.suggestionsByStep.target_audience = this.buildAudienceSuggestions(vehicleKeywords, ctxLower);
         }
       }
   if (!responseMessage) {
@@ -1118,6 +1120,53 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
 
 **HANDOVER TRIGGER**: Execute handover when score ≥ 80 OR any immediate trigger is detected.`;
   }
+
+  /**
+   * Pick a vehicle-aware noun for unit-based examples (trucks, SUVs, sedans, vehicles)
+   */
+  private static pickUnitsNoun(vehicleKeywords: string[], ctxLower: string): string {
+    const has = (k: string) => (ctxLower.includes(k) || vehicleKeywords.includes(k));
+    if (has('truck')) return 'trucks';
+    if (has('suv')) return 'SUVs';
+    if (has('sedan')) return 'sedans';
+    return 'vehicles';
+  }
+
+  /**
+   * Build target audience quick suggestions based on detected vehicle focus
+   */
+  private static buildAudienceSuggestions(vehicleKeywords: string[], ctxLower: string): string[] {
+    const has = (k: string) => (ctxLower.includes(k) || vehicleKeywords.includes(k));
+    if (has('truck')) {
+      return [
+        'Contractors & trades',
+        'Fleet & small business',
+        'Towing/hauling needs',
+        'Outdoor & utility buyers'
+      ];
+    }
+    if (has('suv')) {
+      return [
+        'Families & carpoolers',
+        'Weekend adventurers',
+        'Safety & space seekers',
+        'Upgrade intenders from compact cars'
+      ];
+    }
+    if (has('sedan')) {
+      return [
+        'Commuters & first-time buyers',
+        'Budget-focused shoppers',
+        'Credit rebuild shoppers'
+      ];
+    }
+    return [
+      'New prospects',
+      'Current owners',
+      'Leads with recent site activity'
+    ];
+  }
+
 
   /**
    * Get current campaign creation progress
