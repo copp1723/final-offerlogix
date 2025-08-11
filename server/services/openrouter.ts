@@ -71,7 +71,7 @@ export async function generateContent(prompt: string): Promise<string> {
         'X-Title': 'OneKeel Swarm',
       },
       body: JSON.stringify({
-        model: 'openai/gpt-5-mini',
+  model: 'openai/gpt-5-chat',
         messages: [
           {
             role: 'system',

@@ -113,7 +113,10 @@ export class EnhancedEmailMonitor {
       this.connection = await imaps.connect(config);
       await this.connection.openBox('INBOX');
       this.isRunning = true;
-      console.log('Enhanced email monitor connected and listening');
+      console.log('✅ Enhanced email monitor connected successfully');
+      console.log('   IMAP Host:', process.env.IMAP_HOST);
+      console.log('   IMAP User:', process.env.IMAP_USER);
+      console.log('   Self-signed certs allowed:', process.env.EMAIL_ALLOW_SELF_SIGNED_IMAP === 'true' ? 'Yes' : 'No');
       
       // Start periodic checking for new emails
       this.startPeriodicCheck();
@@ -124,10 +127,27 @@ export class EnhancedEmailMonitor {
           this.handleNewMail(numNewMails);
         });
       }
-    } catch (error) {
-      console.error('Failed to start enhanced email monitor:', error);
+    } catch (error: any) {
+      // Check if it's a self-signed certificate error
+      if (error.message && error.message.includes('self-signed certificate')) {
+        console.log('⚠️  IMAP connection failed due to self-signed certificate');
+        console.log('   To fix: Set EMAIL_ALLOW_SELF_SIGNED_IMAP=true in your .env file');
+        console.log('   This has been automatically added to your .env file.');
+        console.log('   Please restart the server for changes to take effect.');
+      } else if (error.code === 'EAUTH' || error.message?.includes('Authentication')) {
+        console.log('⚠️  IMAP authentication failed');
+        console.log('   Please check your IMAP_USER and IMAP_PASSWORD in .env');
+      } else if (error.code === 'ETIMEDOUT' || error.code === 'ECONNREFUSED') {
+        console.log('⚠️  IMAP connection timeout or refused');
+        console.log('   Please check IMAP_HOST and IMAP_PORT in .env');
+      } else {
+        console.log('⚠️  Enhanced email monitor could not start');
+        console.log('   Error:', error.message || error);
+      }
+      
       // Don't throw error to prevent server startup failure
-      console.log('Continuing without email monitoring...');
+      console.log('   📧 Email monitoring disabled - server will continue without it');
+      console.log('   To enable: Configure IMAP settings in your .env file');
     }
   }
 

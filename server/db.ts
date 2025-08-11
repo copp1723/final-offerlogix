@@ -128,7 +128,7 @@ async function applyLegacyPatches() {
         donts_list jsonb DEFAULT '[]',
         industry varchar DEFAULT 'automotive',
         response_style text DEFAULT 'helpful',
-        model text DEFAULT 'openai/gpt-5-mini',
+    model text DEFAULT 'openai/gpt-5-chat',
         system_prompt text,
         is_active boolean DEFAULT false,
         client_id uuid,
@@ -137,14 +137,22 @@ async function applyLegacyPatches() {
       )`);
     }
 
-    await addColumnTo('ai_agent_config', 'model', `ALTER TABLE ai_agent_config ADD COLUMN model text DEFAULT 'openai/gpt-5-mini'`);
+  await addColumnTo('ai_agent_config', 'model', `ALTER TABLE ai_agent_config ADD COLUMN model text DEFAULT 'openai/gpt-5-chat'`);
     await addColumnTo('ai_agent_config', 'system_prompt', `ALTER TABLE ai_agent_config ADD COLUMN system_prompt text`);
     await addColumnTo('ai_agent_config', 'client_id', `ALTER TABLE ai_agent_config ADD COLUMN client_id uuid`);
     await addColumnTo('ai_agent_config', 'is_active', `ALTER TABLE ai_agent_config ADD COLUMN is_active boolean DEFAULT false`);
 
     try {
-      await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-mini'`);
-      await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-mini' WHERE model IS NULL OR model=''`);
+      await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-chat'`);
+      await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-chat' 
+        WHERE model IS NULL 
+           OR model='' 
+           OR model ILIKE 'openai/gpt-5-mini' 
+           OR model ILIKE 'gpt-5-mini' 
+           OR model ILIKE 'openai/gpt-4o-mini' 
+           OR model ILIKE 'gpt-4o-mini' 
+           OR model ILIKE 'openai/gpt-4o' 
+           OR model ILIKE 'gpt-4o'`);
     } catch (e) {
       console.warn('[DB Patch] model default update warning:', (e as Error).message);
     }

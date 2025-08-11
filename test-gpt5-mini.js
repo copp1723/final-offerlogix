@@ -1,12 +1,12 @@
-// Test GPT-5 Mini integration through OpenRouter
+// Test GPT-5 Chat integration through OpenRouter
 const API_BASE = 'http://localhost:5000/api';
 
-async function testGPT5Mini() {
-  console.log('🚀 TESTING GPT-5 MINI INTEGRATION VIA OPENROUTER\n');
+async function testGPT5Chat() {
+  console.log('🚀 TESTING GPT-5 CHAT INTEGRATION VIA OPENROUTER\n');
 
   try {
     // Test enhanced handover criteria conversion with GPT-5 mini
-    console.log('🎯 Testing Enhanced Handover Intelligence with GPT-5 Mini...');
+  console.log('🎯 Testing Enhanced Handover Intelligence with GPT-5 Chat...');
     
     // Build campaign context first
     let campaignData = {};
@@ -37,7 +37,7 @@ async function testGPT5Mini() {
     }
 
     // Test sophisticated handover criteria with full campaign context
-    console.log('\n🧠 Testing GPT-5 Mini Handover Intelligence...');
+  console.log('\n🧠 Testing GPT-5 Chat Handover Intelligence...');
     
     const handoverResponse = await fetch(`${API_BASE}/ai/chat-campaign`, {
       method: 'POST',
@@ -51,10 +51,10 @@ async function testGPT5Mini() {
 
     if (handoverResponse.ok) {
       const handoverResult = await handoverResponse.json();
-      console.log('🎉 GPT-5 Mini handover processing successful!');
+  console.log('🎉 GPT-5 Chat handover processing successful!');
       
       if (handoverResult.data?.handoverPrompt) {
-        console.log('\n🤖 GPT-5 Mini Generated Intelligence Preview:');
+  console.log('\n🤖 GPT-5 Chat Generated Intelligence Preview:');
         console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
         const preview = handoverResult.data.handoverPrompt.substring(0, 300);
         console.log(preview + '...');
@@ -69,7 +69,7 @@ async function testGPT5Mini() {
           'decision matrix'
         ].some(feature => prompt.toLowerCase().includes(feature));
         
-        console.log('\n📊 GPT-5 Mini Intelligence Analysis:');
+  console.log('\n📊 GPT-5 Chat Intelligence Analysis:');
         console.log(`✅ Advanced Features Detected: ${hasAdvancedFeatures ? 'YES' : 'NO'}`);
         console.log(`✅ Prompt Length: ${prompt.length} characters`);
         console.log(`✅ Campaign-Specific Context: ${prompt.includes('Tesla') || prompt.includes('electric') ? 'YES' : 'NO'}`);
@@ -82,7 +82,7 @@ async function testGPT5Mini() {
     }
 
     // Test AI template generation with new model
-    console.log('\n📧 Testing GPT-5 Mini Template Generation...');
+  console.log('\n📧 Testing GPT-5 Chat Template Generation...');
     
     const templateResponse = await fetch(`${API_BASE}/ai/enhance-campaign`, {
       method: 'POST',
@@ -96,14 +96,14 @@ async function testGPT5Mini() {
 
     if (templateResponse.ok) {
       const templates = await templateResponse.json();
-      console.log(`✅ GPT-5 Mini generated ${templates.templates?.length || 0} email templates`);
+  console.log(`✅ GPT-5 Chat generated ${templates.templates?.length || 0} email templates`);
     } else {
       console.log('❌ Template generation test skipped (separate API endpoint)');
     }
 
-    console.log('\n🏆 GPT-5 MINI INTEGRATION TEST COMPLETE');
+  console.log('\n🏆 GPT-5 CHAT INTEGRATION TEST COMPLETE');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('✅ Model: openai/gpt-5-mini via OpenRouter');
+  console.log('✅ Model: openai/gpt-5-chat via OpenRouter');
     console.log('✅ Latest AI technology integration');
     console.log('✅ Enhanced handover intelligence generation');
     console.log('✅ Campaign-specific contextual processing');
@@ -111,8 +111,7 @@ async function testGPT5Mini() {
     console.log('✅ Advanced behavioral analysis capabilities');
 
   } catch (error) {
-    console.error('❌ GPT-5 Mini test error:', error.message);
+  console.error('❌ GPT-5 Chat test error:', error.message);
   }
 }
-
-testGPT5Mini();
+testGPT5Chat();

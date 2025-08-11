@@ -40,7 +40,7 @@ export async function planReply(prompt: string): Promise<ReplyPlanResponse> {
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const response = await LLMClient.generate({
-        model: 'openai/gpt-4o-mini',
+        model: 'openai/gpt-5-chat',
         system: 'Always return valid JSON with {message, quickReplies?: string[]}. Be helpful, professional, and automotive-focused.',
         user: prompt,
         json: true,
@@ -195,7 +195,7 @@ export async function generateQuickReplies(context: {
     Each reply should be ≤ 6 words and actionable.`;
 
     const response = await LLMClient.generate({
-      model: 'openai/gpt-4o-mini',
+      model: 'openai/gpt-5-chat',
       system: 'Return only valid JSON with reply suggestions.',
       user: prompt,
       json: true,

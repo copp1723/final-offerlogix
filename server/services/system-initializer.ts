@@ -74,7 +74,8 @@ export async function startEnhancedEmailMonitor() {
     const { enhancedEmailMonitor } = await import('./enhanced-email-monitor');
     return enhancedEmailMonitor.start();
   } catch (error) {
-    console.error('Enhanced email monitor failed:', error);
-    throw error;
+    console.error('Enhanced email monitor import failed:', error);
+    // Don't throw - let the server continue without email monitoring
+    return Promise.resolve();
   }
 }

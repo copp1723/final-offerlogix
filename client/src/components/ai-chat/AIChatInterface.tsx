@@ -184,6 +184,21 @@ export default function AIChatInterface() {
     chatMutation.mutate(suggestion);
   };
 
+  // Direct immediate send bypassing state race (used for programmatic buttons)
+  const sendDirect = (text: string) => {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    setCurrentMessage("");
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: trimmed,
+      isFromAI: false,
+      timestamp: new Date(),
+    };
+    setMessages(prev => [...prev, userMessage]);
+    chatMutation.mutate(trimmed);
+  };
+
   const getStepIndicator = () => {
     const steps = [
       "context",
@@ -191,6 +206,7 @@ export default function AIChatInterface() {
       "target_audience",
       "name",
       "handover_criteria",
+  "handover_recipients",
       "email_templates",
       "lead_upload",
       "email_cadence",
@@ -419,10 +435,7 @@ export default function AIChatInterface() {
               <p className="text-sm text-gray-600">Ready to generate full email content now.</p>
               <div className="flex space-x-2">
                 <Button
-                  onClick={() => {
-                    setCurrentMessage('Yes');
-                    handleSendMessage({ preventDefault: () => {} } as any);
-                  }}
+                  onClick={() => sendDirect('Yes')}
                   disabled={chatMutation.isPending}
                   className="flex items-center"
                 >
@@ -465,10 +478,7 @@ export default function AIChatInterface() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        setCurrentMessage('Generate now');
-                        handleSendMessage({ preventDefault: () => {} } as any);
-                      }}
+                      onClick={() => sendDirect('Generate now')}
                       disabled={chatMutation.isPending}
                     >Regenerate</Button>
                     <Button
@@ -482,10 +492,7 @@ export default function AIChatInterface() {
 
               <div className="flex space-x-2">
                 <Button
-                  onClick={() => {
-                    setCurrentMessage('Launch');
-                    handleSendMessage({ preventDefault: () => {} } as any);
-                  }}
+                  onClick={() => sendDirect('Launch')}
                   disabled={chatMutation.isPending || (!campaignData.templates || campaignData.templates.length === 0)}
                 >Launch Campaign</Button>
                 {campaignData.templates && campaignData.templates.length > 0 && (

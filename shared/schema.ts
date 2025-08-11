@@ -102,7 +102,7 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   dontsList: jsonb("donts_list").default([]).notNull(), // Array of don'ts  
   industry: varchar("industry").default("automotive"), // Industry specialization
   responseStyle: text("response_style").default("helpful"), // helpful, consultative, direct
-  model: text("model").default("openai/gpt-5-mini"), // Default model updated to GPT-5 Mini
+  model: text("model").default("openai/gpt-5-chat"), // Default model updated to GPT-5 Chat
   systemPrompt: text("system_prompt"), // Custom system prompt override
   isActive: boolean("is_active").default(false).notNull(), // Whether this config is currently active
   clientId: uuid("client_id").references(() => clients.id), // Multi-tenant scoping

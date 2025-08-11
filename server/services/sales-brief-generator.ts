@@ -12,13 +12,13 @@ export interface ConversationContext {
 
 export class SalesBriefGenerator {
   /**
-   * Generate conversion-ready sales brief using GPT-5 Mini with strict JSON validation
+  * Generate conversion-ready sales brief using GPT-5 Chat with strict JSON validation
    */
   static async generateSalesBrief(context: ConversationContext): Promise<SalesBrief | null> {
     try {
       const prompt = this.createSalesBriefPrompt(context);
       
-      // Call GPT-5 Mini with strict JSON formatting
+  // Call GPT-5 Chat with strict JSON formatting
       const response = await this.callLLMWithJsonGuardrails(prompt);
       
       // Validate against schema
@@ -110,7 +110,7 @@ CRITICAL REQUIREMENTS:
           'X-Title': 'OneKeel Swarm Sales Brief',
         },
         body: JSON.stringify({
-          model: 'openai/gpt-5-mini',
+          model: 'openai/gpt-5-chat',
           messages: [
             {
               role: 'system',

@@ -121,7 +121,7 @@ router.get('/ai', async (_req, res) => {
         
         // Test AI with simple query
         const testResponse = await LLMClient.generate({
-          model: 'openai/gpt-5-mini',
+          model: 'openai/gpt-5-chat',
           system: 'Respond with exactly: "OK"',
           user: 'Test',
           maxTokens: 10
@@ -132,7 +132,7 @@ router.get('/ai', async (_req, res) => {
           details: {
             status: 'healthy',
             provider: 'OpenRouter',
-            model: 'gpt-5-mini',
+            model: 'gpt-5-chat',
             responseTime: 'normal'
           }
         };

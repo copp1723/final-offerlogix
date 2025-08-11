@@ -52,12 +52,13 @@ export async function planReply(input: ReplyPlannerInput): Promise<string> {
 
     // 2) Build grounded prompt
     const systemPrompt = [
-      "You're an automotive sales assistant. Be concise, helpful, and human.",
+      "You're an automotive sales assistant. Be concise, helpful, human, and easy to skim.",
       "Never invent facts. If uncertain, ask one clarifying question.",
-      "Reference relevant prior interactions naturally (no citations in the message)."
+      "Reference relevant prior interactions naturally (no citations in the message).",
+      "Formatting rules: 1) Start with a single warm sentence. 2) Provide 2–3 bullet lines (start each with '-' no numbering) highlighting value or answers. 3) End with ONE clear CTA on its own line starting with 'Next:' or a question inviting action. 4) Keep total ≤ 120 words. 5) Avoid repeating the customer's message verbatim. 6) No markdown headers, no asterisks beyond bullets."
     ].join('\n');
 
-    const userPrompt = `
+  const userPrompt = `
 Customer said: "${input.lastUserMsg}"
 
 Lead profile:
@@ -67,17 +68,17 @@ Lead profile:
 Grounding (do NOT quote verbatim, just use to personalize):
 ${contextBlocks || '(no extra context found)'}
 
-Compose a helpful, natural reply (≤ 120 words) with exactly one clear CTA.
-If price asked: offer ballpark, invite to share budget, and suggest test drive.
+Return ONLY the reply text following the formatting rules. Do not add labels like Opening/Bullets/CTA.
+If price asked: offer ballpark range, invite budget context, suggest a test drive.
 `;
 
-    const response = await LLMClient.generate({
-      model: 'openai/gpt-4o-mini',
+  const response = await LLMClient.generate({
+      model: 'openai/gpt-5-chat',
       system: systemPrompt,
       user: userPrompt,
       maxTokens: 350
     });
-    return response.content.trim();
+  return formatReply(response.content.trim());
 
   } catch (error) {
     console.error('Reply planner failed:', error);
@@ -92,13 +93,85 @@ Respond helpfully and professionally. Keep to 2-3 sentences with one clear next 
 `;
 
     const response = await LLMClient.generate({
-      model: 'openai/gpt-4o-mini',
+      model: 'openai/gpt-5-chat',
       system: 'You are a helpful automotive sales assistant.',
       user: fallbackPrompt,
       maxTokens: 200
     });
-    return response.content;
+    return formatReply(response.content);
   }
+}
+
+/**
+ * Post-process / normalize formatting for readability & skimmability.
+ * Ensures: opening line, 2–3 bullets, standalone CTA line.
+ */
+function formatReply(raw: string): string {
+  let text = raw.trim();
+
+  // Strip accidental leading labels or markdown artifacts
+  text = text.replace(/^\s*(Opening:|Bullets?:|CTA:)/gi, '');
+
+  // Split into lines; if it's a single paragraph, create soft splits
+  const hasBullets = /\n-\s|^-\s/m.test(text);
+  if (!hasBullets) {
+    // Try to identify sentences and convert middle ones to bullets
+    const sentences = text
+      .replace(/\s+/g, ' ')
+      .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+      .filter(s => s.trim().length > 0);
+    if (sentences.length >= 3) {
+      const opening = sentences.shift()!;
+      const last = sentences.pop()!;
+      const bulletCandidates = sentences.slice(0, 3);
+      text = [
+        opening,
+        ...bulletCandidates.map(s => '- ' + s.replace(/^-\s*/, '').trim()),
+        last
+      ].join('\n');
+    }
+  }
+
+  // Ensure bullets are single-line and trimmed
+  text = text
+    .split('\n')
+    .map(l => l.startsWith('-') ? ('- ' + l.replace(/^[-*]\s*/, '').trim()) : l.trim())
+    .join('\n');
+
+  // Extract or create CTA: last non-bullet line becomes CTA if not already formatted
+  const lines = text.split('\n').filter(l => l.trim().length);
+  let ctaIndex = -1;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!lines[i].startsWith('-')) { ctaIndex = i; break; }
+  }
+  if (ctaIndex !== -1) {
+    let cta = lines[ctaIndex];
+    if (!/^Next:|Would you|Can we|Shall we|Ready to|Interested in/i.test(cta)) {
+      cta = 'Next: ' + cta.replace(/^(So|Great|Okay|Alright)[,\s-]*/i, '').trim();
+    }
+    // Move CTA to end and ensure blank line separation
+    lines.splice(ctaIndex, 1);
+    // Keep only first 3 bullet lines max for brevity
+    const bulletLines = lines.filter(l => l.startsWith('-')).slice(0, 3);
+    const opening = lines.find(l => !l.startsWith('-')) || '';
+    const rest = lines.filter(l => l !== opening && !bulletLines.includes(l) && !l.startsWith('-'));
+    const rebuilt = [
+      opening,
+      ...bulletLines,
+      ...rest.filter(Boolean),
+      '',
+      cta
+    ].filter(Boolean);
+    text = rebuilt.join('\n');
+  }
+
+  // Word cap safeguard
+  const words = text.split(/\s+/);
+  if (words.length > 130) {
+    text = words.slice(0, 130).join(' ');
+  }
+
+  return text.trim();
 }
 
 /**
@@ -143,7 +216,7 @@ Each ≤ 7 words. No punctuation unless needed.
 Return JSON: {"replies": ["...","...","..."]}`;
 
     const response = await LLMClient.generate({
-      model: 'openai/gpt-4o-mini',
+      model: 'openai/gpt-5-chat',
       system: 'Return valid JSON only.',
       user: prompt,
       json: true,

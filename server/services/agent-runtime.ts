@@ -24,7 +24,7 @@ function sanitizeUserMsg(s: string): string {
   return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim();
 }
 
-type ModelId = 'openai/gpt-5-mini' | 'openai/gpt-4o' | 'anthropic/claude-3-5-sonnet' | string;
+type ModelId = 'openai/gpt-5-chat' | 'openai/gpt-4o' | 'anthropic/claude-3-5-sonnet' | string;
 
 export interface AgentRuntimeReplyInput {
   clientId: string;
@@ -130,7 +130,7 @@ export class AgentRuntime {
         dosList: Array.isArray(r.dosList) ? r.dosList : [],
         dontsList: Array.isArray(r.dontsList) ? r.dontsList : [],
         industry: r.industry ?? 'automotive',
-        model: r.model || 'openai/gpt-5-mini',
+  model: r.model || 'openai/gpt-5-chat',
         systemPrompt: r.systemPrompt ?? undefined
       };
     } catch (error) {
@@ -222,7 +222,7 @@ export class AgentRuntime {
       dontsList: [],
       personality: 'professional',
       industry: 'automotive',
-      model: 'openai/gpt-5-mini' as ModelId
+  model: 'openai/gpt-5-chat' as ModelId
     };
 
     const system = this.buildSystemPrompt(cfg);
@@ -293,7 +293,7 @@ export class AgentRuntime {
             'X-Title': 'OneKeel Swarm - Agent Runtime'
           },
           body: JSON.stringify({
-            model: input.model || cfg.model || 'openai/gpt-5-mini',
+            model: input.model || cfg.model || 'openai/gpt-5-chat',
             messages: [
               { role: 'system', content: system },
               { role: 'user', content: userPrompt }
@@ -387,7 +387,7 @@ export class AgentRuntime {
           'Claim to be human'
         ],
         industry: 'automotive',
-        model: process.env.AGENT_MODEL || 'openai/gpt-5-mini',
+  model: process.env.AGENT_MODEL || 'openai/gpt-5-chat',
         isActive: true,
         systemPrompt: `You are an automotive sales assistant. Be concise, honest, and specific. 
 Use the conversation history, lead profile, and recent campaign context. 

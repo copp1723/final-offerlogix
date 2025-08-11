@@ -4,8 +4,17 @@
 import { 
   MemoryMapper, 
   searchMemories as newSearchMemories, 
-  isRAGEnabled 
+  isRAGEnabled,
+  searchForLeadSignals
 } from '../integrations/supermemory';
+import { storage } from '../storage';
+
+// Lightweight interface for campaigns pulled from storage to enable safe optional template access
+interface StoredCampaign {
+  id: string;
+  templates?: any[];
+  [key: string]: any;
+}
 
 // Supermemory service for persistent AI memory
 class SupermemoryService {
@@ -139,6 +148,44 @@ Campaign: ${message.campaignId || 'none'}`;
       console.warn('Failed to search Supermemory:', error);
       return [];
     }
+  }
+}
+
+// Express-style handler outside the class
+export async function getLeadMemorySummary(req: any, res: any) {
+  try {
+    const leadId = req.params.id;
+    const lead = await storage.getLead(leadId);
+    if (!lead) return res.status(404).json({ error: 'Lead not found' });
+    const clientId = (lead as any).clientId || 'default';
+    const email = (lead as any).email as string | undefined;
+    let leadSignals: string[] = [];
+    if (email) {
+      try {
+        const hash = MemoryMapper.hashEmail(email);
+        const sig = await searchForLeadSignals({ clientId, leadEmailHash: hash });
+        if (sig.results?.length) {
+          leadSignals = sig.results.slice(0,4).map((r:any)=> (r.metadata?.title||'Signal') + ': ' + String(r.content||'').slice(0,90));
+        }
+      } catch {}
+    }
+    let priorCampaign: any = null;
+    if ((lead as any).campaignId) {
+      try {
+        const camp = await storage.getCampaign((lead as any).campaignId) as StoredCampaign | undefined;
+        if (camp) {
+          const tLen = Array.isArray(camp.templates) ? camp.templates.length : 0;
+          priorCampaign = { id: camp.id, performance: `Templates: ${tLen}` };
+        }
+      } catch {}
+    }
+    let optimizationHint: string | undefined;
+    if (leadSignals.length) {
+      optimizationHint = 'Lead has prior engagement signals; prioritize timely personalized follow-up.';
+    }
+    return res.json({ leadSignals, priorCampaign, optimizationHint });
+  } catch (e:any) {
+    return res.status(500).json({ error: 'Failed to build memory summary', detail: e.message });
   }
 }
 

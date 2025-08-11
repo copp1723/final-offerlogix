@@ -122,7 +122,7 @@ async function applyTargetedPatches(client: any) {
       donts_list jsonb DEFAULT '[]',
       industry varchar DEFAULT 'automotive',
       response_style text DEFAULT 'helpful',
-      model text DEFAULT 'openai/gpt-5-mini',
+  model text DEFAULT 'openai/gpt-5-chat',
       system_prompt text,
       is_active boolean DEFAULT false,
       client_id uuid,
@@ -133,7 +133,7 @@ async function applyTargetedPatches(client: any) {
 
   // ai_agent_config columns & FK
   const agentCols: Array<[string, string]> = [
-    ['model', "ALTER TABLE ai_agent_config ADD COLUMN IF NOT EXISTS model text DEFAULT 'openai/gpt-5-mini'"],
+  ['model', "ALTER TABLE ai_agent_config ADD COLUMN IF NOT EXISTS model text DEFAULT 'openai/gpt-5-chat'"],
     ['system_prompt', 'ALTER TABLE ai_agent_config ADD COLUMN IF NOT EXISTS system_prompt text'],
     ['client_id', 'ALTER TABLE ai_agent_config ADD COLUMN IF NOT EXISTS client_id uuid'],
     ['is_active', 'ALTER TABLE ai_agent_config ADD COLUMN IF NOT EXISTS is_active boolean DEFAULT false'],
