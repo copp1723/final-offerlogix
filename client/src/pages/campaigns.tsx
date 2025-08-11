@@ -25,9 +25,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { Copy, Edit, Trash2, Plus, Eye, Play } from "lucide-react";
+import { Copy, Edit, Trash2, Plus, Eye, Play, FileText } from "lucide-react";
 import CampaignExecutionModal from "@/components/campaigns/CampaignExecutionModal";
 import type { Campaign } from "@shared/schema";
+import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
 
 export default function CampaignsPage() {
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
@@ -39,6 +40,9 @@ export default function CampaignsPage() {
   const { data: campaigns, isLoading } = useQuery({
     queryKey: ["/api/campaigns"],
   });
+
+  const [reviewOpen, setReviewOpen] = useState(false);
+  const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
 
   const cloneMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name?: string }) => {
@@ -164,7 +168,7 @@ export default function CampaignsPage() {
                   )}
                 </div>
                 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap">
                   <CampaignExecutionModal campaign={{
                     id: campaign.id,
                     name: campaign.name,
@@ -178,6 +182,15 @@ export default function CampaignsPage() {
                       Execute
                     </Button>
                   </CampaignExecutionModal>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => { setReviewCampaign(campaign); setReviewOpen(true); }}
+                  >
+                    <FileText className="h-4 w-4 mr-1" />
+                    Review
+                  </Button>
                   <Button variant="outline" size="sm" className="flex-1">
                     <Eye className="h-4 w-4 mr-1" />
                     View
@@ -260,6 +273,31 @@ export default function CampaignsPage() {
           </div>
         </DialogContent>
       </Dialog>
+      {reviewCampaign && (
+        <TemplateReviewModal
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          campaignId={reviewCampaign.id}
+          initialTemplates={(() => {
+            const t = reviewCampaign.templates as any;
+            if (Array.isArray(t)) return t as any;
+            if (typeof t === 'string') { try { return JSON.parse(t); } catch { return []; } }
+            return [];
+          })()}
+          initialSubjectLines={(() => {
+            const s = reviewCampaign.subjectLines as any;
+            if (Array.isArray(s)) return s as any;
+            if (typeof s === 'string') { try { return JSON.parse(s); } catch { return []; } }
+            return [];
+          })()}
+          numberOfTemplates={reviewCampaign.numberOfTemplates as any}
+          daysBetweenMessages={reviewCampaign.daysBetweenMessages as any}
+          onSaved={() => {
+            // invalidate cache to refresh list
+            queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
+          }}
+        />
+      )}
     </div>
   );
 }
