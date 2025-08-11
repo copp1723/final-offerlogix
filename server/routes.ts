@@ -1167,21 +1167,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // If campaign is completed, create it in storage
       if (response.completed && response.data) {
+        // Sanitize fields before DB insert to avoid invalid jsonb errors
+        const sanitizeArray = (val: any, fallback: any[] = []) => {
+          if (Array.isArray(val)) return val;
+          if (typeof val === 'string') {
+            try {
+              const parsed = JSON.parse(val);
+              return Array.isArray(parsed) ? parsed : fallback;
+            } catch { return fallback; }
+          }
+          return fallback;
+        };
+        const toInt = (val: any, def: number, min?: number, max?: number) => {
+          const n = typeof val === 'string' ? parseInt(val, 10) : typeof val === 'number' ? val : def;
+          if (Number.isNaN(n)) return def;
+          const clampedMin = min ?? n;
+          const clampedMax = max ?? n;
+          return Math.min(Math.max(n, clampedMin), clampedMax);
+        };
+
+        // templates: ensure array of objects { subject, content }
+        let templates = sanitizeArray(response.data.templates, []);
+        if (templates.length && typeof templates[0] === 'string') {
+          templates = (templates as string[]).map((s) => ({ subject: String(s).slice(0, 80), content: String(s) }));
+        }
+        if (templates.length && typeof templates[0] === 'object' && !('content' in templates[0]) && 'html' in templates[0]) {
+          templates = (templates as any[]).map((t) => ({ subject: String(t.subject || 'Template'), content: String(t.html || '') }));
+        }
+
+        // subjectLines: ensure array of strings
+        let subjectLines = sanitizeArray(response.data.subjectLines, []);
+        if (subjectLines.length && typeof subjectLines[0] === 'object' && 'subject' in subjectLines[0]) {
+          subjectLines = (subjectLines as any[]).map((t) => String(t.subject || ''));
+        }
+
         const campaignToCreate = insertCampaignSchema.parse({
           name: response.data.name,
           context: response.data.context,
           handoverGoals: response.data.handoverGoals,
           targetAudience: response.data.targetAudience,
           handoverPrompt: response.data.handoverPrompt,
-          numberOfTemplates: response.data.numberOfTemplates || 5,
-          daysBetweenMessages: response.data.daysBetweenMessages || 3,
-          templates: response.data.templates || [],
-          subjectLines: response.data.subjectLines || [],
+          numberOfTemplates: toInt(response.data.numberOfTemplates, 5, 1, 30),
+          daysBetweenMessages: toInt(response.data.daysBetweenMessages, 3, 1, 30),
+          templates: templates,
+          subjectLines: subjectLines,
           status: 'draft'
         });
 
-        const createdCampaign = await storage.createCampaign(campaignToCreate);
-        response.data.id = createdCampaign.id;
+        try {
+          const createdCampaign = await storage.createCampaign(campaignToCreate);
+          response.data.id = createdCampaign.id;
+        } catch (e) {
+          console.error('Failed to create campaign from chat (sanitized insert failed):', e);
+          // Do not hard fail the chat flow; return response without persisting
+        }
       }
 
       res.json({
@@ -1191,7 +1230,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isComplete: response.completed,
         actions: response.actions,
         suggestions: response.suggestions,
-        progress: response.progress
+        progress: response.progress,
+        // Expose structured JSON reply only when feature flag is set and payload exists
+        ...(process.env.STRUCTURED_REPLY_JSON === 'true' && (response as any).structuredReply
+          ? { structuredReply: (response as any).structuredReply }
+          : {})
       });
     } catch (error) {
       console.error('AI chat campaign error:', error);
@@ -1246,6 +1289,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(lead);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch lead" });
+    }
+  });
+
+  // Lead memory summary (lightweight RAG-derived context for Lead Details drawer)
+  app.get("/api/leads/:id/memory-summary", async (req, res) => {
+    try {
+      const { getLeadMemorySummary } = await import('./services/supermemory');
+      return getLeadMemorySummary(req, res);
+    } catch (e) {
+      return res.status(500).json({ error: 'Failed to load memory summary' });
     }
   });
 

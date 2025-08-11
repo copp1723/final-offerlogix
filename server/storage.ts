@@ -28,6 +28,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserRole(id: string, role: string): Promise<User>;
+  getUsers(limit?: number): Promise<User[]>; // New: list users for handover recipient suggestions
 
   // Campaign methods
   getCampaigns(): Promise<Campaign[]>;
@@ -79,6 +80,11 @@ export class DatabaseStorage implements IStorage {
     return user || undefined;
   }
 
+  async getUsers(limit: number = 10): Promise<User[]> {
+    // Basic list for suggestions (could scope by clientId later)
+    return await db.select().from(users).orderBy(desc(users.createdAt)).limit(limit);
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const result = await db
       .insert(users)
@@ -107,10 +113,30 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCampaign(campaign: InsertCampaign): Promise<Campaign> {
+    // Lightweight hardening: sanitize JSONB-bound fields to avoid 22P02 errors
+    const safeArray = (val: any): any[] => {
+      if (Array.isArray(val)) return val;
+      if (typeof val === 'string') {
+        try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+      }
+      return [];
+    };
+    const sanitizedTemplates = safeArray((campaign as any).templates)
+      .filter(t => t && typeof t === 'object')
+      .map(t => ({
+        subject: typeof (t as any).subject === 'string' ? (t as any).subject.slice(0, 140) : 'Untitled',
+        content: typeof (t as any).content === 'string' ? (t as any).content : ((t as any).html || '')
+      }));
+    const sanitizedSubjects = safeArray((campaign as any).subjectLines)
+      .filter(s => typeof s === 'string' && s.trim())
+      .map(s => s.slice(0, 140));
+
     const result = await db
       .insert(campaigns)
       .values({
         ...campaign,
+        templates: sanitizedTemplates,
+        subjectLines: sanitizedSubjects,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

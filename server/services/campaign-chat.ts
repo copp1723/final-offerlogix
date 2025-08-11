@@ -30,6 +30,7 @@ export class CampaignChatService {
     'targetAudience',
     'name',
     'handoverCriteria',
+  'handoverRecipients',
     'numberOfTemplates',
     'daysBetweenMessages'
   ];
@@ -90,7 +91,8 @@ User Message: ${userMessage}`;
         targetAudience: 'Who is the target audience for this campaign?',
         name: 'What would you like to name this campaign?',
         handoverCriteria: 'When should a lead be handed to sales? Describe the triggers.',
-        numberOfTemplates: 'How many email templates would you like (1-30)?',
+        handoverRecipients: 'Who should receive the handover notifications? List 2–3 names or roles.',
+        numberOfTemplates: 'How many email templates would you like (you can adjust later)?',
         daysBetweenMessages: 'How many days between each email send (1-30)?'
       };
       follow = mapQuestions[stillMissing[0]] || 'Any remaining details to fill?';
@@ -179,8 +181,14 @@ User Message: ${userMessage}`;
       followUp: 'Perfect! I\'ll create smart handover rules based on what you described and your campaign goals.'
     },
     {
+      id: 'handover_recipients',
+      question: 'Who should receive the handover notifications? (Choose 2–3 primary reps by name or role)',
+      dataField: 'handoverRecipients',
+      followUp: 'Locked in. We will notify those recipients when a qualified handover triggers.'
+    },
+    {
       id: 'email_templates',
-      question: "How many email templates would you like in your sequence? (1-30 templates)",
+      question: "How many email templates would you like in your sequence? (Enter a number – you can fine‑tune later)",
       dataField: 'numberOfTemplates'
     },
     {
@@ -214,6 +222,7 @@ User Message: ${userMessage}`;
     context: ["New vehicle launch", "Service reminders", "Test drive follow-up"],
     goals: ["Book test drives", "Book service", "Get trade-in leads"],
     target_audience: ["New prospects", "Current owners", "Leads with SUV interest"],
+  handover_recipients: ["Primary Sales Rep", "BDC Manager", "Floor Lead"],
   email_templates: ["3", "5", "7"],
   lead_upload: ["Uploaded", "Lead list ready", "Here it is"],
   email_cadence: ["3", "5", "7"],
@@ -563,6 +572,12 @@ User Message: ${userMessage}`;
       return n !== null && n >= 1 && n <= 30;
     }
 
+    if (step.id === 'handover_recipients') {
+      // Accept 1–6 tokens separated by commas/newlines with letters (names or roles)
+      const parts = userMessage.split(/[\n,]/).map(p => p.trim()).filter(Boolean);
+      if (parts.length >= 1 && parts.length <= 6 && parts.every(p => /[a-z]/i.test(p))) return true;
+    }
+
     if (step.id === 'content_generation') {
       return /(yes|generate|go|start|do it|create)/i.test(msg);
     }
@@ -578,6 +593,7 @@ User Message: ${userMessage}`;
       target_audience: ['customer','prospect','buyer','owner','audience','demographic','shopper','segment'],
       name: ['campaign','drive','event','sale','offer'],
       handover_criteria: ['when','if','after','criteria','trigger','signal','ask','schedule','pricing','price','finance','test'],
+  handover_recipients: ['sales','rep','manager','lead','team','alex','jamie','mike','floor','bdc']
     };
 
     const expected = expectations[step.id];
@@ -591,7 +607,7 @@ User Message: ${userMessage}`;
 
     try {
       const cls = await LLMClient.generate({
-        model: 'openai/gpt-4o-mini',
+    model: 'openai/gpt-5-chat',
         system: 'You classify if a user answer provides meaningful, campaign-specific information for a step. Reply with ONLY yes or no.',
         user: `Step: ${step.id} (expects ${step.dataField}). User answer: "${userMessage}". Is this a substantive, campaign-informative answer (not just acknowledgement)?`,
         temperature: 0
@@ -650,10 +666,10 @@ User Message: ${userMessage}`;
         const coaching: Record<string,string> = {
           context: 'Please give a descriptive automotive campaign type with purpose or scenario (e.g., "Labor Day weekend clearance focused on trade-ins and same‑day financing").',
           goals: 'List 1-3 concrete business outcomes (e.g., "increase test drives", "increase trade-in appraisals", "revive inactive SUV leads").',
-          target_audience: 'Describe who you want to reach (segments, demographics, intent signals, ownership stage, etc.).',
           name: 'Provide a short, branded campaign name you would present internally or to leadership.',
           handover_criteria: 'Describe the exact conversational signals that mean a sales rep should take over (pricing pressure, scheduling requests, urgency, financing readiness, trade-in specifics, etc.).',
-          email_templates: 'Enter a number 1–30 indicating how many emails you want in the sequence.'
+          handover_recipients: 'List 2–3 names or roles (e.g., Alex, Jamie, BDC Manager) who should get notified immediately when a handover triggers.',
+          email_templates: 'Enter a number indicating how many emails you want in the sequence (you can refine later).'
         };
         const response = {
           message: `I need a bit more detail before we move on. ${coaching[currentStepData.id] || ''}\n\n${retryQuestion}`.trim(),
@@ -742,6 +758,10 @@ User Message: ${userMessage}`;
         );
         updatedData.handoverPrompt = handoverPrompt;
       }
+      if (currentStep === 'handover_recipients') {
+        const raw = userMessage.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
+        updatedData.handoverRecipients = raw.slice(0, 7);
+      }
 
       // Special processing for template count
       if (currentStep === 'email_templates') {
@@ -818,12 +838,28 @@ User Message: ${userMessage}`;
       const nextStep = this.campaignSteps[nextStepIndex];
       const isCompleted = isLaunchCommand || nextStepIndex >= this.campaignSteps.length;
 
+      // Dynamic suggestion enrichment for handover_recipients (pull actual users)
+      if (nextStep && nextStep.id === 'handover_recipients') {
+        try {
+          const { storage } = await import('../storage');
+          const users = await storage.getUsers(6);
+          if (Array.isArray(users) && users.length) {
+            this.suggestionsByStep.handover_recipients = users.slice(0,3).map(u => u.username || u.email || u.id).filter(Boolean);
+          }
+        } catch (e) {
+          // keep defaults
+        }
+      }
+
       if (isCompleted) {
         // Ensure final campaign has templates/content
         let finalCampaign = { ...updatedData } as any;
   if (!finalCampaign.templates || finalCampaign.templates.length === 0) {
           finalCampaign = await this.generateFinalCampaign(finalCampaign, ragContext);
         }
+
+  // Strip internal / transient keys before persistence or API exposure
+  finalCampaign = this.stripInternal(finalCampaign);
 
         // Persist campaign summary + templates into memory graph (non-blocking)
         try {
@@ -919,7 +955,7 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
  ContextConfidence: ${(updatedData as any)._contextConfidence ?? 'n/a'}
 `;
           const gen = await LLMClient.generate({
-            model: 'openai/gpt-4o-mini',
+            model: 'openai/gpt-5-chat',
             system: 'You produce concise, varied, authentic automotive marketing assistant replies. Keep it human, strategic, and focused. No markdown.',
             user: llmUser,
             temperature: 0.8,
@@ -984,7 +1020,7 @@ Return ONLY a short (<=60 words) natural conversational reply that:
 3) Ends by asking exactly the next step question verbatim: ${nextStep.question}
 Do NOT wrap in quotes. No JSON. No markdown.`;
           const llm = await LLMClient.generate({
-            model: 'openai/gpt-4o-mini',
+            model: 'openai/gpt-5-chat',
             system: 'You are a concise, helpful automotive campaign strategist. Keep replies professional and specific to automotive marketing. Never hallucinate data not provided.',
     user: (ragContext ? `${llmUserPrompt}\n\nRAG_CONTEXT:\n${ragContext}${optimizationHints?`\nOPTIMIZATION_HINTS:\n${optimizationHints}`:''}` : llmUserPrompt),
             temperature: 0.4,
@@ -1020,6 +1056,23 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
       this.broadcastProgress(null, nextStepIndex, this.campaignSteps.length, progress.percent);
 
       console.log('[campaign-chat]', { runId, stage: 'advance', nextStep: nextStep.id, metrics, durationMs: Date.now() - startMs });
+
+      // Optional: attach structured JSON companion for downstream automation
+      let structuredReply: any = undefined;
+      if (process.env.STRUCTURED_REPLY_JSON === 'true') {
+        try {
+          structuredReply = await LLMClient.generateStructuredCustomerReply(userMessage, {
+            step: nextStep.id,
+            campaign: {
+              name: updatedData.name,
+              context: updatedData.context,
+              audience: updatedData.targetAudience,
+              goals: updatedData.handoverGoals || updatedData.campaignGoals
+            }
+          });
+        } catch {}
+      }
+
       return {
         message: responseMessage,
         nextStep: nextStep.id,
@@ -1031,7 +1084,9 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
           rag: !!ragContext,
           optimization: !!optimizationHints,
           summary: (ragContext && optimizationHints) ? 'Past campaigns + performance hints applied' : (ragContext ? 'Past campaign knowledge applied' : (optimizationHints ? 'Performance hints applied' : undefined))
-        }
+        },
+        // Not serialized in the REST route yet, but available to callers using the service directly
+        ...(structuredReply ? { structuredReply } : {})
       };
 
     } catch (error) {
@@ -1387,5 +1442,36 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
     for (const s of saleSignals) if (lower.includes(s)) keywords.push(s);
 
     return Array.from(new Set(keywords));
+  }
+  /**
+   * Remove internal / non-persistable keys (leading underscore or known transient flags)
+   * and normalize JSONB-bound fields to safe values.
+   */
+  private static stripInternal(obj: any) {
+    if (!obj || typeof obj !== 'object') return obj;
+    const out: any = {};
+    for (const [k, v] of Object.entries(obj)) {
+      if (k.startsWith('_')) continue; // skip internal markers
+      if (['handoverRecipientsRaw'].includes(k)) continue;
+      out[k] = v;
+    }
+    // Normalize templates
+    if (typeof out.templates === 'string') {
+      try {
+        const parsed = JSON.parse(out.templates);
+        out.templates = Array.isArray(parsed) ? parsed : [];
+      } catch { out.templates = []; }
+    } else if (!Array.isArray(out.templates)) {
+      out.templates = Array.isArray(obj.templates) ? obj.templates : [];
+    }
+    // Normalize subjectLines
+    if (typeof out.subjectLines === 'string') {
+      try {
+        const parsed = JSON.parse(out.subjectLines);
+        out.subjectLines = Array.isArray(parsed) ? parsed : [String(out.subjectLines)].filter(Boolean);
+      } catch { out.subjectLines = [String(out.subjectLines)].filter(Boolean); }
+    }
+    if (!Array.isArray(out.subjectLines)) out.subjectLines = [];
+    return out;
   }
 }
