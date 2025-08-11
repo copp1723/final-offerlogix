@@ -115,15 +115,18 @@ User Message: ${userMessage}`;
       }
     }
 
-    const summaryParts: string[] = [];
-    for (const f of this.REQUIRED_FIELDS) {
-      if (data[f]) summaryParts.push(`${f}: ${typeof data[f] === 'string' ? this.compactify(data[f], 40) : data[f]}`);
-    }
-    const summaryLine = summaryParts.join(' | ');
+    const bullets: string[] = [];
+    if (data.name) bullets.push(`- Name: ${data.name}`);
+    if (data.context) bullets.push(`- Context: ${this.compactify(String(data.context), 140)}`);
+    if (data.handoverGoals) bullets.push(`- Goals: ${this.compactify(String(data.handoverGoals), 160)}`);
+    if (data.targetAudience) bullets.push(`- Audience: ${this.compactify(String(data.targetAudience), 80)}`);
+    bullets.push(`- Templates: ${data.numberOfTemplates}`);
+    bullets.push(`- Cadence (days): ${data.daysBetweenMessages}`);
+    const summaryBlock = bullets.join('\n');
 
     const message = completed
-      ? `Campaign spec locked: ${summaryLine}. Type "Launch" when ready or ask to adjust any field.`
-      : `${llmJson?.reasoning ? this.compactify(llmJson.reasoning, 160) + '\n' : ''}${summaryLine}${follow ? `\n${follow}` : ''}`.trim();
+      ? `Review & Launch\n${summaryBlock}\n\nReady to generate and review templates?`
+      : `${llmJson?.reasoning ? this.compactify(llmJson.reasoning, 160) + '\n\n' : ''}${summaryBlock}${follow ? `\n\n${follow}` : ''}`.trim();
 
     return {
       message,
@@ -628,7 +631,8 @@ User Message: ${userMessage}`;
   ): Promise<CampaignChatResponse> {
     try {
       // Experimental LLM-first unified extraction mode
-      if (process.env.CAMPAIGN_CHAT_MODE === 'llm_first') {
+      const looksLikeOneShot = /campaign\s*name|context|strategy|audience|templates?|subject\s*lines?|cadence|days\s*between|re[- ]?opening|grand\s*opening/i.test(userMessage) || userMessage.includes('\n');
+      if (process.env.CAMPAIGN_CHAT_MODE === 'llm_first' || looksLikeOneShot) {
         return await this.llmFirstProcess(userMessage, existingData);
       }
       const runId = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);

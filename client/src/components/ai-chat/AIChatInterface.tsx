@@ -49,6 +49,8 @@ export default function AIChatInterface() {
   const [currentStep, setCurrentStep] = useState("context");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  // Inline preview toggle so users can see template subjects without opening modal
+  const [showInlineTemplates, setShowInlineTemplates] = useState(true);
 
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -439,7 +441,7 @@ export default function AIChatInterface() {
                   disabled={chatMutation.isPending}
                   className="flex items-center"
                 >
-                  <Sparkles className="w-4 h-4 mr-1"/> Generate Content
+                  <Sparkles className="w-4 h-4 mr-1"/> Generate Templates
                 </Button>
               </div>
               {campaignData.templates && campaignData.templates.length > 0 && (
@@ -487,6 +489,36 @@ export default function AIChatInterface() {
                       onClick={() => setEditModalOpen(true)}
                     >Edit Templates</Button>
                   </div>
+                </div>
+              )}
+
+              {/* Inline template preview for quick confidence before opening modal */}
+              {campaignData.templates && campaignData.templates.length > 0 && (
+                <div className="border rounded bg-gray-50 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-semibold text-gray-600 uppercase">Template Subjects ({campaignData.templates.length})</span>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setShowInlineTemplates(v => !v)}>
+                        {showInlineTemplates ? 'Hide' : 'Show'}
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 px-2 text-xs" onClick={() => setEditModalOpen(true)}>Open Editor</Button>
+                    </div>
+                  </div>
+                  {showInlineTemplates && (
+                    <ol className="list-decimal ml-5 space-y-1 text-xs text-gray-700">
+                      {campaignData.templates.slice(0, 10).map((t, i) => (
+                        <li key={i} className="truncate" title={t.subject}>{t.subject}</li>
+                      ))}
+                      {campaignData.templates.length > 10 && (
+                        <li className="italic text-gray-500">…and {campaignData.templates.length - 10} more</li>
+                      )}
+                    </ol>
+                  )}
+                  {showInlineTemplates && campaignData.templates.length > 0 && (
+                    <div className="mt-3 text-[11px] text-gray-500">
+                      Subjects only shown here. Click Open Editor to read & edit full email bodies before launching.
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -594,8 +626,10 @@ export default function AIChatInterface() {
               Continue with AI Chat
             </Button>
           </div>
+        </div>
+      )}
 
-      {/* Template editor modal */}
+      {/* Template editor modal (rendered globally so it opens regardless of Advanced Mode) */}
       <TemplateReviewModal
         open={editModalOpen}
         onOpenChange={setEditModalOpen}
@@ -605,9 +639,6 @@ export default function AIChatInterface() {
           setCampaignData(prev => ({ ...prev, templates, subjectLines: subjects, numberOfTemplates: templates.length }));
         }}
       />
-
-        </div>
-      )}
     </div>
   );
 }
