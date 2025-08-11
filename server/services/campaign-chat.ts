@@ -137,7 +137,7 @@ export class CampaignChatService {
     contextSection = contextSection.replace(/\s{2,}/g, ' ').trim();
     if (contextSection) out.normalizedContext = contextSection;
 
-    // Audience extraction heuristics
+    // Audience extraction heuristics (expanded)
     const audienceHints: string[] = [];
     const lower = raw.toLowerCase();
     const audienceMap: Record<string,string> = {
@@ -145,14 +145,26 @@ export class CampaignChatService {
       'first-time': 'first-time buyers',
       'first time': 'first-time buyers',
       'commuter': 'commuter buyers',
-      'rideshare': 'ride-share drivers'
+      'rideshare': 'ride-share drivers',
+      'low-funnel': 'low-funnel shoppers',
+      'in-market': 'in‑market shoppers',
+      'previously interacted': 'previously engaged non-converters',
+      'not converted': 'previously engaged non-converters',
+      'repeat buyer': 'repeat buyers',
+      'lease return': 'lease return prospects'
     };
     for (const k of Object.keys(audienceMap)) {
       if (lower.includes(k)) audienceHints.push(audienceMap[k]);
     }
+    // Generic pattern: phrases starting with 'targeting' or 'target' capturing up to punctuation
+    const targetingMatch = lower.match(/targeting\s+([^\.\n;:]{5,80})/);
+    if (targetingMatch) {
+      audienceHints.push(targetingMatch[1].trim());
+    }
     if (audienceHints.length) {
-      out.targetAudience = Array.from(new Set(audienceHints)).join(', ');
-      out.audienceSegments = Array.from(new Set(audienceHints));
+      const uniq = Array.from(new Set(audienceHints.map(a => a.replace(/[\.,;]+$/,'').trim())));
+      out.targetAudience = uniq.join(', ');
+      out.audienceSegments = uniq.map(a => ({ name: a })).map(s => s.name); // segments names only; later converted
     }
 
     // Build summary line
@@ -394,6 +406,15 @@ export class CampaignChatService {
     if (step.id === 'review_launch') {
       if (/(^|\b)(yes|yep|yeah|launch|activate|start|go live|go|ok|okay)(\b|$)/i.test(msg)) return true;
     }
+    if (step.id === 'name') {
+      // Accept concise branded names (allow 2-6 tokens, alphanumeric, at least one letter)
+      const raw = userMessage.trim();
+      const hasLetter = /[a-zA-Z]/.test(raw);
+      const tokenCount = raw.split(/\s+/).filter(Boolean).length;
+      if (hasLetter && raw.length >= 3 && raw.length <= 80 && tokenCount <= 8) {
+        return true;
+      }
+    }
     // Very short or generic acknowledgement
     if (msg.length < 8 && /^(ok|k|kk|yes|yep|sure|fine)$/i.test(msg)) return false;
     if (this.genericAcks.includes(msg)) return false;
@@ -442,7 +463,7 @@ export class CampaignChatService {
     }
 
     // As a last resort, (guarded) mini LLM classification for richness when message is short
-    if (msg.split(/\s+/).length < 4) return false; // still too short
+  if (step.id !== 'name' && msg.split(/\s+/).length < 4) return false; // still too short for other steps
 
     try {
       const cls = await LLMClient.generate({
@@ -566,6 +587,18 @@ export class CampaignChatService {
       if (currentStep === 'goals') {
         updatedData.campaignGoals = userMessage;
         updatedData.handoverGoals = userMessage; // legacy alias for compatibility
+        // Attempt to extract implicit audience from goals phrasing (e.g., 'Targeting low-funnel customers who...')
+        const lowerGoals = userMessage.toLowerCase();
+        if (!updatedData.targetAudience) {
+          const targetingMatch = lowerGoals.match(/targeting\s+([^\.\n;:]{5,120})/);
+          if (targetingMatch) {
+            const inferred = targetingMatch[1].replace(/who\s+have|that\s+have|which\s+have/i,'').trim();
+            if (inferred.length > 5) {
+              updatedData.targetAudience = inferred;
+              updatedData._audienceInferredFromGoals = true;
+            }
+          }
+        }
       }
       if (currentStep === 'target_audience') {
         const segs = this.detectSegmentsFromAudience(userMessage);
@@ -639,12 +672,19 @@ export class CampaignChatService {
       // Determine next step index with optional goals skipping
       let nextStepIndex = stepIndex + 1;
       let skippingGoals = false;
-      if (currentStep === 'context' && (updatedData as any)._autoGoalsExtracted) {
+  if (currentStep === 'context' && (updatedData as any)._autoGoalsExtracted) {
         // If the very next step is goals, skip it
         const nextCandidate = this.campaignSteps[nextStepIndex];
         if (nextCandidate && nextCandidate.id === 'goals') {
           nextStepIndex++;
           skippingGoals = true;
+        }
+      }
+      // If we just captured goals and inferred audience, skip explicit target_audience step
+      if (currentStep === 'goals' && (updatedData as any)._audienceInferredFromGoals) {
+        const candidate = this.campaignSteps[nextStepIndex];
+        if (candidate && candidate.id === 'target_audience') {
+          nextStepIndex++;
         }
       }
       const nextStep = this.campaignSteps[nextStepIndex];
