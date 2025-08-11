@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Bot, User, Send, Sparkles, Settings, MessageCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
 // import CampaignModal from "@/components/campaign/CampaignModal";
 
 interface ChatMessage {
@@ -42,11 +43,13 @@ export default function AIChatInterface() {
       timestamp: new Date(),
     }
   ]);
-  
+
   const [currentMessage, setCurrentMessage] = useState("");
   const [campaignData, setCampaignData] = useState<Partial<CampaignData>>({});
   const [currentStep, setCurrentStep] = useState("context");
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -72,11 +75,11 @@ export default function AIChatInterface() {
           campaignData,
         }),
       });
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       return response.json();
     },
     onSuccess: (response: any) => {
@@ -87,27 +90,27 @@ export default function AIChatInterface() {
           timestamp: new Date(),
           memoryInfluence: response.memoryInfluence
       };
-      
+
       setMessages(prev => [...prev, aiMessage]);
-      
+
       if (response.campaignData) {
         setCampaignData(prev => ({ ...prev, ...response.campaignData }));
       }
-      
+
       if (response.nextStep) {
         setCurrentStep(response.nextStep);
       }
-      
+
       // Update suggestions from server
       if (response.suggestions) {
         setSuggestions(response.suggestions);
       }
-      
+
       // Update progress from server if provided
       if (response.progress) {
         // Use server-provided progress for accuracy
       }
-      
+
       if (response.isComplete) {
         // Campaign is ready to be created
         toast({
@@ -116,10 +119,34 @@ export default function AIChatInterface() {
         });
       }
     },
-    onError: () => {
+    onError: (_err, variables) => {
+      const lastInput = variables as string;
+      // Detect simple intents locally to avoid dead-end UX when server hiccups
+      if (/^launch$/i.test(lastInput) && currentStep === 'review_launch') {
+        const pseudo: ChatMessage = {
+          id: Date.now().toString(),
+          content: 'Attempting launch… (server not responding). Please retry in a moment or go to Campaigns tab to launch manually.',
+          isFromAI: true,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, pseudo]);
+        return;
+      }
+      if (/^yes$/i.test(lastInput) && currentStep === 'content_generation') {
+        const pseudo: ChatMessage = {
+          id: Date.now().toString(),
+          content: 'Generation request acknowledged locally but backend failed. I will retry automatically in a few seconds…',
+          isFromAI: true,
+          timestamp: new Date()
+        };
+        setMessages(prev => [...prev, pseudo]);
+        // naive retry after short delay
+        setTimeout(() => chatMutation.mutate(lastInput), 2500);
+        return;
+      }
       const errorMessage: ChatMessage = {
         id: Date.now().toString(),
-        content: "I'm having trouble processing that. Could you try rephrasing your request?",
+        content: "I'm having trouble reaching the server. Rephrase or try again in a moment.",
         isFromAI: true,
         timestamp: new Date(),
       };
@@ -172,7 +199,7 @@ export default function AIChatInterface() {
     ];
     const currentIndex = steps.indexOf(currentStep);
     const progress = ((currentIndex + 1) / steps.length) * 100;
-    
+
     return (
       <div className="mb-4">
         <div className="flex justify-between text-xs text-gray-500 mb-1">
@@ -180,7 +207,7 @@ export default function AIChatInterface() {
           <span>{Math.round(progress)}%</span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-2">
-          <div 
+          <div
             className="bg-blue-500 h-2 rounded-full transition-all duration-300"
             style={{ width: `${progress}%` }}
           ></div>
@@ -199,7 +226,7 @@ export default function AIChatInterface() {
           </h2>
           <p className="text-gray-600 mt-1">Let's create your automotive email campaign together</p>
         </div>
-        
+
         <div className="flex space-x-2">
           <Button
             variant="outline"
@@ -213,7 +240,7 @@ export default function AIChatInterface() {
         </div>
       </div>
 
-      <Card className="flex flex-col max-h-[600px] overflow-hidden">
+      <Card className="flex flex-col h-[70vh] min-h-[520px] overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-lg flex items-center">
@@ -242,7 +269,7 @@ export default function AIChatInterface() {
                       <Bot className="w-5 h-5 text-blue-600" />
                     </div>
                   )}
-                  
+
                   <div
                     className={`px-4 py-2 rounded-lg ${
                       message.isFromAI
@@ -272,7 +299,7 @@ export default function AIChatInterface() {
                 </div>
               </div>
             ))}
-            
+
             {chatMutation.isPending && (
               <div className="flex justify-start">
                 <div className="flex items-start space-x-2">
@@ -289,7 +316,7 @@ export default function AIChatInterface() {
                 </div>
               </div>
             )}
-            
+
             <div ref={messagesEndRef} />
           </div>
 
@@ -428,14 +455,42 @@ export default function AIChatInterface() {
                 <li>Cadence (days): {campaignData.daysBetweenMessages || '—'}</li>
                 <li>Leads: {campaignData.leadList?.total || 0}</li>
               </ul>
+
+              {/* Guard: Missing templates warning and edit flow */}
+              {(!campaignData.templates || (campaignData.templates?.length ?? 0) === 0) && (
+                <div className="border border-amber-300 bg-amber-50 text-amber-900 p-3 rounded">
+                  <div className="font-medium mb-1">No templates generated</div>
+                  <p className="text-xs mb-2">We couldn’t find any email templates. Click Regenerate to create them now, or Edit to add them manually before launch.</p>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setCurrentMessage('Generate now');
+                        handleSendMessage({ preventDefault: () => {} } as any);
+                      }}
+                      disabled={chatMutation.isPending}
+                    >Regenerate</Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={() => setEditModalOpen(true)}
+                    >Edit Templates</Button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex space-x-2">
                 <Button
                   onClick={() => {
                     setCurrentMessage('Launch');
                     handleSendMessage({ preventDefault: () => {} } as any);
                   }}
-                  disabled={chatMutation.isPending}
+                  disabled={chatMutation.isPending || (!campaignData.templates || campaignData.templates.length === 0)}
                 >Launch Campaign</Button>
+                {campaignData.templates && campaignData.templates.length > 0 && (
+                  <Button variant="outline" onClick={() => setEditModalOpen(true)}>Review/Edit Templates</Button>
+                )}
               </div>
             </div>
           )}
@@ -525,13 +580,25 @@ export default function AIChatInterface() {
           <div className="bg-white rounded-lg p-6 max-w-md mx-4">
             <h3 className="text-lg font-bold mb-4">Advanced Mode</h3>
             <p className="text-gray-600 mb-4">
-              Advanced form-based campaign creation will be available soon. 
+              Advanced form-based campaign creation will be available soon.
               For now, please use the AI chat interface above.
             </p>
             <Button onClick={() => setIsAdvancedMode(false)}>
               Continue with AI Chat
             </Button>
           </div>
+
+      {/* Template editor modal */}
+      <TemplateReviewModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        initialTemplates={(campaignData.templates as any) || []}
+        initialSubjectLines={(campaignData.subjectLines as any) || []}
+        onSaved={(templates, subjects) => {
+          setCampaignData(prev => ({ ...prev, templates, subjectLines: subjects, numberOfTemplates: templates.length }));
+        }}
+      />
+
         </div>
       )}
     </div>
