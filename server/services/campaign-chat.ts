@@ -765,10 +765,25 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
           // swallow and fallback
         }
         if (!responseMessage) {
-          if (skippingGoals) {
-            responseMessage = `Let me reflect this back: \"${nm}\" — ${this.compactify(updatedData.context, 160)} aimed at ${audience} with a ${angle} angle. Pulled initial goals: ${updatedData.handoverGoals}. Tweak if needed. ${goalQuestion}`;
-          } else {
-            responseMessage = `Alright, I think I see what you're going for: \"${nm}\" — ${this.compactify(updatedData.context, 160)} Targeting ${audience} with a ${angle} play. Did I read that right? If so, spell out the concrete outcomes you want (e.g., Move more ${unitsNoun}; Book more test drives; Generate more leads). ${goalQuestion}`;
+          // High-quality variation fallback (only if dynamic LLM generation failed)
+          const baseCtx = this.compactify(updatedData.context, 160);
+          const goalExamples = `Move more ${unitsNoun}; Book more test drives; Generate more leads`;
+          const variants = skippingGoals ? [
+            `Let me reflect this back: "${nm}" — ${baseCtx} aimed at ${audience} with a ${angle} angle. Auto-derived goals: ${updatedData.handoverGoals}. Adjust if needed. ${goalQuestion}`,
+            `Quick confirmation on "${nm}": ${baseCtx} for ${audience}, leaning on a ${angle} position. Goals detected: ${updatedData.handoverGoals}. Want tweaks? ${goalQuestion}`,
+            `Context snapshot: "${nm}" targets ${audience}; angle: ${angle}. Current goals → ${updatedData.handoverGoals}. Refine or move on? ${goalQuestion}`
+          ] : [
+            `Alright, I think I see what you're going for: "${nm}" — ${baseCtx} targeting ${audience} with a ${angle} play. If that's right, spell out concrete outcomes (e.g., ${goalExamples}). ${goalQuestion}`,
+            `Got the gist of "${nm}": ${baseCtx}. Audience focus: ${audience}. Feels like a ${angle} narrative. What measurable outcomes do you want (e.g., ${goalExamples})? ${goalQuestion}`,
+            `Reading this as: "${nm}" for ${audience} leveraging a ${angle} angle. Confirm by giving 1–3 outcome goals (e.g., ${goalExamples}). ${goalQuestion}`,
+            `Working hypothesis: campaign "${nm}" = ${angle} positioning to engage ${audience}. Lock it in with specific outcome goals (e.g., ${goalExamples}). ${goalQuestion}`,
+            `Current interpretation of "${nm}": ${baseCtx}. Audience: ${audience}. Angle vector: ${angle}. Clarify success targets (e.g., ${goalExamples}). ${goalQuestion}`
+          ];
+          // Deterministic pick based on simple hash to avoid repetition across sessions with same context
+          const hash = Array.from(`${nm}|${baseCtx}|${audience}|${angle}`).reduce((acc,c)=>acc + c.charCodeAt(0),0);
+          responseMessage = variants[hash % variants.length];
+          if (process.env.NODE_ENV !== 'production') {
+            console.warn('[campaign-chat] Using fallback variant (LLM generation failed earlier). Provide OPENROUTER_API_KEY for richer dynamic copy.');
           }
         }
         const openerSample = responseMessage.split(/\s+/).slice(0,6).join(' ');
