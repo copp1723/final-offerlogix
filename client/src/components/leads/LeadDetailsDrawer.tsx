@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { ConversationMessage, Lead, Conversation } from "@shared/schema";
+import { useState, useEffect } from 'react';
 
 function deriveFacts(lead: Lead | null, messages: ConversationMessage[]): string[] {
   const facts: string[] = [];
@@ -104,6 +105,30 @@ export default function LeadDetailsDrawer({ lead, open, onOpenChange }: { lead: 
 
   const facts = deriveFacts(lead, messages);
   const nextSteps = deriveNextSteps(lead, messages);
+  const [memoryFacts, setMemoryFacts] = useState<string[] | null>(null);
+
+  // Fetch memory-backed insights (lightweight) when drawer opens
+  useEffect(() => {
+    let cancelled = false;
+    async function loadMemory() {
+      if (!open || !lead?.id) { setMemoryFacts(null); return; }
+      try {
+        const res = await fetch(`/api/leads/${lead.id}/memory-summary`);
+        if (!res.ok) throw new Error('memory fetch failed');
+        const data = await res.json();
+        if (cancelled) return;
+        const bullets: string[] = [];
+        if (Array.isArray(data.leadSignals) && data.leadSignals.length) bullets.push(`Historical signals: ${data.leadSignals.slice(0,3).join('; ')}`);
+        if (data.priorCampaign && data.priorCampaign.performance) bullets.push(`Prior campaign: ${data.priorCampaign.performance}`);
+        if (data.optimizationHint) bullets.push(data.optimizationHint);
+        setMemoryFacts(bullets.slice(0,4));
+      } catch {
+        if (!cancelled) setMemoryFacts([]);
+      }
+    }
+    loadMemory();
+    return () => { cancelled = true; };
+  }, [open, lead?.id]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -114,13 +139,24 @@ export default function LeadDetailsDrawer({ lead, open, onOpenChange }: { lead: 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <div className="space-y-4">
             <Card>
-              <CardHeader><CardTitle className="text-sm">What we know</CardTitle></CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                <ul className="list-disc ml-5 space-y-1">
-                  {facts.map((f, i) => (
-                    <li key={i}>{f}</li>
-                  ))}
-                </ul>
+              <CardHeader><CardTitle className="text-sm flex items-center gap-2">What we know {memoryFacts && <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded uppercase tracking-wide">Memory</span>}</CardTitle></CardHeader>
+              <CardContent className="text-sm text-muted-foreground space-y-3">
+                <div>
+                  <div className="text-xs font-medium text-gray-500 mb-1">Current session</div>
+                  <ul className="list-disc ml-5 space-y-1">
+                    {facts.map((f, i) => (<li key={i}>{f}</li>))}
+                  </ul>
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-gray-500 mb-1 flex items-center gap-1">Historical intelligence {memoryFacts === null && <span className="animate-pulse text-gray-400">…</span>}</div>
+                  {memoryFacts && memoryFacts.length > 0 ? (
+                    <ul className="list-disc ml-5 space-y-1">
+                      {memoryFacts.map((m,i)=><li key={i}>{m}</li>)}
+                    </ul>
+                  ) : memoryFacts && memoryFacts.length === 0 ? (
+                    <div className="text-xs text-gray-400">No enriched memory yet</div>
+                  ) : null}
+                </div>
               </CardContent>
             </Card>
             <Card>
@@ -149,7 +185,13 @@ export default function LeadDetailsDrawer({ lead, open, onOpenChange }: { lead: 
               </CardContent>
             </Card>
           </div>
-          <ConversationView conversationId={activeConversationId} messages={messages} onSendMessage={(c) => sendMessage.mutate(c)} isLoading={sendMessage.isPending} />
+          <ConversationView
+            conversationId={activeConversationId}
+            messages={messages}
+            onSendMessage={(c) => sendMessage.mutate(c)}
+            isLoading={sendMessage.isPending}
+            allowCompose={false}
+          />
         </div>
       </DialogContent>
     </Dialog>

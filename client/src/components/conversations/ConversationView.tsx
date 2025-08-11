@@ -10,11 +10,17 @@ export default function ConversationView({
   messages,
   onSendMessage,
   isLoading,
+  allowCompose = true,
+  previewCount = 5,
 }: {
   conversationId: string;
   messages: ConversationMessage[];
   onSendMessage: (content: string) => void;
   isLoading: boolean;
+  /** When false, component becomes read-only preview (no composer, last N messages only) */
+  allowCompose?: boolean;
+  /** How many most recent messages to show in preview mode */
+  previewCount?: number;
 }) {
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -22,6 +28,12 @@ export default function ConversationView({
   const sorted = useMemo(
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
     [messages]
+  );
+
+  // In preview mode only show the last N messages (keep chronological order)
+  const visibleMessages = useMemo(
+    () => (allowCompose ? sorted : sorted.slice(-previewCount)),
+    [allowCompose, sorted, previewCount]
   );
 
   function dayKey(d: Date) {
@@ -33,17 +45,17 @@ export default function ConversationView({
 
   const grouped = useMemo(() => {
     const acc: Record<string, ConversationMessage[]> = {};
-    sorted.forEach((m) => {
+    visibleMessages.forEach((m) => {
       const k = dayKey(new Date(m.createdAt));
       (acc[k] ||= []).push(m);
     });
     return acc;
-  }, [sorted]);
+  }, [visibleMessages]);
 
   useEffect(() => {
-    // Auto-scroll to bottom on new messages
-    scrollRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [sorted.length]);
+    // Auto-scroll to bottom on new messages (only when composing)
+    if (allowCompose) scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [allowCompose, visibleMessages.length]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -61,10 +73,10 @@ export default function ConversationView({
       </CardHeader>
       <CardContent className="flex-1 flex flex-col p-4">
         <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-          {sorted.length === 0 ? (
+          {visibleMessages.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <MessageCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-              <p>No messages yet. Start the conversation.</p>
+              <p>{allowCompose ? "No messages yet. Start the conversation." : "No conversation yet."}</p>
             </div>
           ) : (
             Object.entries(grouped).map(([day, items]) => (
@@ -83,7 +95,7 @@ export default function ConversationView({
                     >
                       {/* Optional label based on available metadata */}
                       <p className="text-[10px] opacity-70 mb-0.5">
-                        {message.isFromAI ? "AI" : "You"}
+                        {message.isFromAI ? "AI" : allowCompose ? "You" : "Lead"}
                       </p>
                       <p className="text-sm whitespace-pre-wrap">{message.content}</p>
                       <p className="text-xs mt-1 opacity-70">{formatTime(new Date(message.createdAt))}</p>
@@ -95,25 +107,31 @@ export default function ConversationView({
           )}
           <div ref={scrollRef} />
         </div>
-
-        <form onSubmit={handleSubmit} className="flex space-x-2">
-          <Textarea
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Type your message..."
-            className="flex-1 min-h-[60px] max-h-32 resize-none"
-            onKeyDown={(e) => {
-              const isCmdEnter = (e.metaKey || e.ctrlKey) && e.key === "Enter";
-              if ((e.key === "Enter" && !e.shiftKey) || isCmdEnter) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }}
-          />
-          <Button type="submit" disabled={isLoading || !newMessage.trim()}>
-            {isLoading ? "..." : "Send"}
-          </Button>
-        </form>
+        {allowCompose ? (
+          <form onSubmit={handleSubmit} className="flex space-x-2">
+            <Textarea
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Type your message..."
+              className="flex-1 min-h-[60px] max-h-32 resize-none"
+              onKeyDown={(e) => {
+                const isCmdEnter = (e.metaKey || e.ctrlKey) && e.key === "Enter";
+                if ((e.key === "Enter" && !e.shiftKey) || isCmdEnter) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }}
+            />
+            <Button type="submit" disabled={isLoading || !newMessage.trim()}>
+              {isLoading ? "..." : "Send"}
+            </Button>
+          </form>
+        ) : (
+          <div className="border-t pt-2 mt-2 text-xs text-muted-foreground flex items-center justify-between">
+            <span>Preview only</span>
+            <a href="/conversations" className="text-blue-600 hover:underline">Open full conversation</a>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

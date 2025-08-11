@@ -49,7 +49,7 @@ function LeadTwoPane({ lead }: { lead: Lead | null }) {
       </div>
       <div>
         {lead?.id ? (
-          <ConversationView conversationId={lead.id} messages={messages} onSendMessage={() => {}} isLoading={false} />
+          <ConversationView conversationId={lead.id} messages={messages} onSendMessage={() => {}} isLoading={false} allowCompose={false} />
         ) : (
           <Card className="h-96"><CardContent className="p-6">Select a lead to view conversation</CardContent></Card>
         )}
