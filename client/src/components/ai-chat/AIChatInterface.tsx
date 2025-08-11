@@ -63,6 +63,102 @@ export default function AIChatInterface() {
     scrollToBottom();
   }, [messages]);
 
+  // Render AI message content with simple formatting: headings, bullet lists, and numbered lists (supports one nested level)
+  const renderAIContent = (text: string) => {
+    const blocks = text.split(/\n{2,}/);
+    const bulletRegex = /^(\s*)([-•*—]|\d+[.)])\s+(.*)$/; // captures indent, token, content
+
+    return (
+      <div className="text-sm space-y-2">
+        {blocks.map((block, i) => {
+          const lines = block.split(/\n/).map(l => l.replace(/\s+$/,'')).filter(l => l.trim().length > 0);
+
+          // Classify lines
+          const parsed = lines.map((l) => {
+            const m = l.match(bulletRegex);
+            if (!m) return { isBullet: false, depth: 0, ordered: false, text: l.trim() };
+            const indent = m[1] || '';
+            const token = m[2] || '';
+            const content = m[3] || '';
+            const ordered = /\d+[.)]/.test(token);
+            const depth = indent.length >= 2 ? 1 : 0; // treat >=2 spaces as nested
+            return { isBullet: true, depth, ordered, text: content.trim() };
+          });
+
+          const bullets = parsed.filter(p => p.isBullet);
+          const nonBullets = parsed.filter(p => !p.isBullet);
+
+          // If majority bullets, render as list block with optional heading
+          if (bullets.length && bullets.length >= Math.ceil(parsed.length / 2)) {
+            const heading = nonBullets.length ? nonBullets[0].text : '';
+
+            // Group into top-level items with optional nested children
+            type Item = { text: string; ordered: boolean; subs: { text: string; ordered: boolean }[] };
+            const items: Item[] = [];
+            bullets.forEach(b => {
+              if (b.depth === 0 || items.length === 0) {
+                items.push({ text: b.text, ordered: b.ordered, subs: [] });
+              } else {
+                // nested under last top-level
+                items[items.length - 1].subs.push({ text: b.text, ordered: b.ordered });
+              }
+            });
+
+            const topOrdered = items.every(it => it.ordered);
+
+            return (
+              <div key={i}>
+                {heading && <div className="font-semibold mb-1">{heading}</div>}
+                {topOrdered ? (
+                  <ol className="list-decimal ml-5 space-y-1">
+                    {items.map((it, idx) => (
+                      <li key={idx}>
+                        {it.text}
+                        {it.subs.length > 0 && (
+                          it.subs.every(s => s.ordered) ? (
+                            <ol className="list-decimal ml-5 mt-1 space-y-1">
+                              {it.subs.map((s, j) => <li key={j}>{s.text}</li>)}
+                            </ol>
+                          ) : (
+                            <ul className="list-disc ml-5 mt-1 space-y-1">
+                              {it.subs.map((s, j) => <li key={j}>{s.text}</li>)}
+                            </ul>
+                          )
+                        )}
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <ul className="list-disc ml-5 space-y-1">
+                    {items.map((it, idx) => (
+                      <li key={idx}>
+                        {it.text}
+                        {it.subs.length > 0 && (
+                          it.subs.every(s => s.ordered) ? (
+                            <ol className="list-decimal ml-5 mt-1 space-y-1">
+                              {it.subs.map((s, j) => <li key={j}>{s.text}</li>)}
+                            </ol>
+                          ) : (
+                            <ul className="list-disc ml-5 mt-1 space-y-1">
+                              {it.subs.map((s, j) => <li key={j}>{s.text}</li>)}
+                            </ul>
+                          )
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            );
+          }
+
+          // Otherwise keep paragraphs with preserved line breaks
+          return <p key={i} className="whitespace-pre-wrap">{block}</p>;
+        })}
+      </div>
+    );
+  };
+
   // AI Chat mutation
   const chatMutation = useMutation({
     mutationFn: async (userMessage: string) => {
@@ -295,7 +391,11 @@ export default function AIChatInterface() {
                         : "bg-blue-500 text-white"
                     }`}
                   >
-                    <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    {message.isFromAI ? (
+                      renderAIContent(message.content)
+                    ) : (
+                      <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+                    )}
                     {message.isFromAI && message.memoryInfluence && (
                       <div className="mt-1 flex items-center space-x-1 text-[10px] uppercase tracking-wide">
                         <span className={`px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-600 font-medium`}>Memory</span>
