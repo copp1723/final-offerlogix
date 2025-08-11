@@ -47,7 +47,11 @@ import {
 import { apiRequest } from "@/lib/queryClient";
 import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import EmailValidationPanel from "@/components/campaigns/EmailValidationPanel";
+// (EmailValidationPanel removed in favor of Campaigns management inside this center)
+import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
+import { FileText, Play, Eye } from 'lucide-react';
+import type { Campaign } from '@shared/schema';
+import { queryClient as globalQueryClient } from '@/lib/queryClient';
 import AutomotivePromptTester from "@/components/ai/AutomotivePromptTester";
 import type { AiAgentConfig } from "@shared/schema";
 import { insertAiAgentConfigSchema } from "@shared/schema";
@@ -256,11 +260,11 @@ export default function AiSettingsPage() {
         </div>
       </div>
 
-      <Tabs defaultValue="agent-configs" className="space-y-6">
+    <Tabs defaultValue="agent-configs" className="space-y-6">
         <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="agent-configs">Agent Configurations</TabsTrigger>
           <TabsTrigger value="prompt-tester">Prompt Tester</TabsTrigger>
-          <TabsTrigger value="validation">Email Validation</TabsTrigger>
+      <TabsTrigger value="campaigns">Campaigns</TabsTrigger>
         </TabsList>
 
         <TabsContent value="agent-configs" className="space-y-6">
@@ -573,23 +577,77 @@ export default function AiSettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="validation" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-green-600" />
-                Email Validation Panel
-              </CardTitle>
-              <CardDescription>
-                Validate email configurations and test deliverability
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <EmailValidationPanel />
-            </CardContent>
-          </Card>
+        <TabsContent value="campaigns" className="space-y-6">
+          <CampaignsInline />
         </TabsContent>
       </Tabs>
+      <CampaignTemplateReviewPortal />
     </div>
   );
 }
+
+// Inline campaigns list (simplified subset of campaigns page)
+function CampaignsInline() {
+  const { data: campaigns, isLoading } = useQuery({ queryKey: ['/api/campaigns'] });
+  const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
+
+  if (isLoading) return <div className="text-sm text-gray-500 p-4">Loading campaigns…</div>;
+  if (!Array.isArray(campaigns) || campaigns.length === 0) return <Card><CardHeader><CardTitle>No Campaigns</CardTitle><CardDescription>Create one via AI Campaign Agent first.</CardDescription></CardHeader></Card>;
+
+  const parseArray = (val: any) => {
+    if (Array.isArray(val)) return val;
+    if (typeof val === 'string') { try { return JSON.parse(val); } catch { return []; } }
+    return [];
+  };
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-lg font-medium">Campaigns</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {campaigns.map((c: Campaign) => (
+          <Card key={c.id} className="hover:shadow-md transition-shadow">
+            <CardHeader>
+              <div className="flex justify-between items-start">
+                <div className="space-y-1">
+                  <CardTitle className="text-lg">{c.name}</CardTitle>
+                  <CardDescription className="line-clamp-2">{c.context}</CardDescription>
+                </div>
+                <Badge>{c.status}</Badge>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-xs text-gray-600 mb-3 space-y-1">
+                <div>Templates: {c.numberOfTemplates || parseArray(c.templates).length}</div>
+                <div>Cadence: {c.daysBetweenMessages || 3} days</div>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => { setReviewCampaign(c); setReviewOpen(true); }}>
+                  <FileText className="h-4 w-4 mr-1" /> Review
+                </Button>
+                <Button size="sm" variant="outline" className="flex-1" onClick={() => window.location.assign('/campaigns') }>
+                  <Eye className="h-4 w-4 mr-1" /> Full View
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+      {reviewCampaign && (
+        <TemplateReviewModal
+          open={reviewOpen}
+          onOpenChange={setReviewOpen}
+          campaignId={reviewCampaign.id}
+          initialTemplates={parseArray(reviewCampaign.templates)}
+          initialSubjectLines={parseArray(reviewCampaign.subjectLines)}
+          numberOfTemplates={reviewCampaign.numberOfTemplates as any}
+          daysBetweenMessages={reviewCampaign.daysBetweenMessages as any}
+          onSaved={() => globalQueryClient.invalidateQueries({ queryKey: ['/api/campaigns'] })}
+        />
+      )}
+    </div>
+  );
+}
+
+// Portal placeholder (if we later need a central place for modals outside tabs)
+function CampaignTemplateReviewPortal() { return null; }

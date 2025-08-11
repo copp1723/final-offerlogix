@@ -31,6 +31,26 @@ export default function TemplateReviewModal({
   const [subjects, setSubjects] = useState<string[]>(initialSubjectLines);
   const [isSaving, setIsSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [openPreviews, setOpenPreviews] = useState<Set<number>>(new Set());
+
+  const togglePreview = (i: number) => {
+    setOpenPreviews(prev => {
+      const next = new Set(prev);
+      if (next.has(i)) next.delete(i); else next.add(i);
+      return next;
+    });
+  };
+
+  const renderPreview = (content: string) => {
+    // Very lightweight token substitution & basic formatting
+    const sample = content
+      .replace(/\[Name\]/gi, 'John')
+      .replace(/\[vehicleInterest\]/gi, '2025 Toyota Prius')
+      .replace(/\n/g, '\n') // keep newlines for splitting
+      .trim();
+    const lines = sample.split(/\n+/).map((l, i) => `<p key="l-${i}" class='mb-2 leading-relaxed'>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('');
+    return { __html: lines };
+  };
 
   useEffect(() => {
     if (open) {
@@ -100,6 +120,9 @@ export default function TemplateReviewModal({
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-semibold text-gray-500">Template {i+1}</span>
                     <div className="flex gap-2">
+                      <Button type="button" size="sm" variant="outline" onClick={() => togglePreview(i)}>
+                        {openPreviews.has(i) ? 'Hide Preview' : 'Preview'}
+                      </Button>
                       <Button type="button" size="sm" variant="ghost" onClick={() => removeTemplate(i)} disabled={templates.length <= 1}>Remove</Button>
                     </div>
                   </div>
@@ -114,6 +137,12 @@ export default function TemplateReviewModal({
                     onChange={e => updateTemplate(i, { content: e.target.value })}
                     className="min-h-[160px] text-sm"
                   />
+                  {openPreviews.has(i) && (
+                    <div className="mt-3 border rounded bg-gray-50 p-3 text-sm">
+                      <div className="text-xs font-medium text-gray-500 mb-2">Rendered Preview (sample tokens applied)</div>
+                      <div className="prose prose-sm max-w-none" dangerouslySetInnerHTML={renderPreview(tpl.content)} />
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

@@ -22,6 +22,11 @@ const navigation: NavItem[] = [
     icon: BarChart3,
   },
   {
+    name: "AI Management Center",
+    href: "/ai-settings",
+    icon: Brain,
+  },
+  {
     name: "Leads",
     href: "/leads",
     icon: Users,
