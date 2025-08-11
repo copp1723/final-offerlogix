@@ -6,14 +6,6 @@ import { Users, Car, Shield, Bell, Database, Palette, Brain } from "lucide-react
 export default function SettingsPage() {
   const settingsCategories = [
     {
-      title: "AI Agent Settings",
-      description: "Configure AI agent behavior and responses",
-      href: "/ai-settings",
-      icon: Brain,
-      color: "text-purple-600",
-      bgColor: "bg-purple-50",
-    },
-    {
       title: "User Management",
       description: "Manage users, roles, and permissions",
       href: "/users",
