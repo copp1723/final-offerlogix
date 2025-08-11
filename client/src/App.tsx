@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/home";
 import LeadsPage from "@/pages/leads";
 import ReportsPage from "@/pages/reports";
+import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
 import EmailMonitorPage from "@/pages/email-monitor";
 import UserManagementPage from "@/pages/user-management";
@@ -22,7 +23,8 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/leads" component={LeadsPage} />
-        <Route path="/reports" component={ReportsPage} />
+  <Route path="/reports" component={ReportsPage} />
+  <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/ai-settings" component={AiSettingsPage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
