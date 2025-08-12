@@ -37,6 +37,8 @@ export interface ConversationAnalysis {
   urgencyLevel?: 'low' | 'medium' | 'high';
 }
 
+import { storage } from '../storage';
+
 export class HandoverService {
   private static defaultCriteria: HandoverCriteria = {
     qualificationThreshold: 75,
@@ -78,6 +80,46 @@ export class HandoverService {
     customCriteria?: Partial<HandoverCriteria>
   ): Promise<HandoverEvaluation> {
     const criteria = { ...this.defaultCriteria, ...customCriteria };
+
+    // Lightweight dynamic adaptation if campaign provides structured spec
+    try {
+      const campaign = conversation.campaignId ? (await (await import('../storage')).storage.getCampaign(conversation.campaignId)) : null;
+      const spec = campaign?.handoverPromptSpec as any;
+      if (spec && typeof spec === 'object') {
+        // Adjust thresholds based on spec.scoringThresholds if present
+        if (spec.scoringThresholds) {
+          if (typeof spec.scoringThresholds.instant === 'number') criteria.intentScore = spec.scoringThresholds.instant;
+          if (typeof spec.scoringThresholds.standard === 'number') criteria.qualificationThreshold = spec.scoringThresholds.standard;
+        }
+        // Merge urgency indicators
+        if (Array.isArray(spec.urgencyIndicators)) {
+          const merged = new Set([...(criteria.urgentKeywords||[]), ...spec.urgencyIndicators.map((u: string)=>String(u).toLowerCase())]);
+          criteria.urgentKeywords = Array.from(merged);
+        }
+        // Merge automotive-like keywords from signalCategories examples
+        if (Array.isArray(spec.signalCategories)) {
+          const exampleTerms: string[] = [];
+            for (const cat of spec.signalCategories) {
+              if (Array.isArray(cat.examples)) {
+                for (const ex of cat.examples) {
+                  const tokens = String(ex).toLowerCase().split(/[,;/]| and | or |\s+/).map(t=>t.trim()).filter(t=>t.length>3 && !exampleTerms.includes(t));
+                  exampleTerms.push(...tokens.slice(0,5));
+                }
+              }
+              if (cat.escalateIfAny && Array.isArray(cat.examples) && cat.examples.length) {
+                // Fast-path escalate: treat presence of any example as automotive keyword
+                cat.examples.forEach((ex: string)=>{
+                  const term = ex.toLowerCase();
+                  if (!criteria.automotiveKeywords.includes(term)) criteria.automotiveKeywords.push(term);
+                });
+              }
+            }
+        }
+      }
+    } catch (e) {
+      // Non-fatal; continue with defaults
+      console.warn('HandoverService dynamic spec adaptation failed:', (e as Error).message);
+    }
     
     // Analyze conversation and apply handover criteria
     const analysis = await this.analyzeConversation(conversation, newMessage);
@@ -110,6 +152,27 @@ export class HandoverService {
       reason += `Automotive intent detected: ${analysis.automotiveContext.join(', ')}. `;
       triggeredCriteria.push('automotive_keywords');
     }
+
+    // If spec-driven escalateIfAny detected in new message content (quick check)
+    try {
+      if (conversation?.campaignId) {
+        const campaign = await (await import('../storage')).storage.getCampaign(conversation.campaignId);
+        const spec = campaign?.handoverPromptSpec as any;
+        if (spec?.signalCategories && newMessage?.content) {
+          const lowerMsg = newMessage.content.toLowerCase();
+          for (const cat of spec.signalCategories) {
+            if (cat?.escalateIfAny && Array.isArray(cat.examples)) {
+              if (cat.examples.some((ex: string)=> lowerMsg.includes(String(ex).toLowerCase()))) {
+                shouldHandover = true;
+                reason += `Escalate-if-any signal (${cat.name}) matched. `;
+                triggeredCriteria.push(`signal_${cat.name}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    } catch {}
     
     // Check urgent keywords for priority escalation
     const hasUrgentKeywords = analysis.urgencyIndicators.some(keyword =>
@@ -379,27 +442,112 @@ export class HandoverService {
       lead?: any;
       conversation?: any;
       campaignName?: string;
+      // optional campaign object (if available) to source overrides like webhook URL
+      campaign?: any;
     }
   ): Promise<boolean> {
     try {
-      // Import email service dynamically to avoid circular dependencies
-      const { HandoverEmailService } = await import('./handover-email');
-      
-      // Send handover email notification
-      const emailSent = await HandoverEmailService.sendHandoverNotification({
-        conversationId,
-        evaluation,
-        lead: additionalData?.lead,
-        conversation: additionalData?.conversation,
-        campaignName: additionalData?.campaignName
-      });
+      // Determine delivery mode: email | webhook | both (default email for backward compatibility)
+      const deliveryMode = (process.env.HANDOVER_DELIVERY_MODE || 'email').toLowerCase();
 
-      // Find appropriate recipients based on recommended agent type
+      // Source webhook configuration (env or campaign override)
+      const campaign = additionalData?.campaign || (additionalData?.conversation?.campaignId ? await (await import('../storage')).storage.getCampaign(additionalData?.conversation?.campaignId).catch(()=>null) : null);
+      const webhookUrl = campaign?.handoverWebhookUrl || process.env.HANDOVER_WEBHOOK_URL;
+      const webhookSecret = campaign?.handoverWebhookSecret || process.env.HANDOVER_WEBHOOK_SECRET;
+
+      let emailSent: boolean | undefined;
+      let webhookSent: boolean | undefined;
+
+      // Always compute recipients (used in payload + email channel)
       const recipients = criteria.handoverRecipients.filter(recipient => 
         recipient.role === evaluation.recommendedAgent || recipient.role === 'sales'
       );
 
-      // Create handover notification
+      // Build common payload for webhook channel (only if needed)
+      const nowIso = new Date().toISOString();
+      const conversation = additionalData?.conversation;
+      const messagesSample = Array.isArray(conversation?.messages) ? conversation.messages.slice(-5).map((m: any) => ({
+        role: m.role,
+        content: (m.content || '').slice(0, 500),
+        ts: m.createdAt || null
+      })) : [];
+      const idempotencyKey = `${conversationId}-${evaluation.score}-${Date.now()}`;
+      const webhookPayload = {
+        event: 'handover.triggered',
+        version: '1.0',
+        idempotencyKey,
+        timestamp: nowIso,
+        conversationId,
+        campaignId: conversation?.campaignId || campaign?.id || null,
+        campaignName: additionalData?.campaignName || campaign?.name || null,
+        recommendedAgent: evaluation.recommendedAgent,
+        urgencyLevel: evaluation.urgencyLevel,
+        triggeredCriteria: evaluation.triggeredCriteria,
+        reason: evaluation.reason,
+        scores: {
+          qualification: evaluation.score,
+          // intent & engagement not directly exposed from evaluation; attempt to include if present on conversation analysis artifact
+          intent: conversation?.analysis?.intentScore,
+            engagement: conversation?.analysis?.engagementLevel
+        },
+        nextActions: evaluation.nextActions,
+        salesBrief: evaluation.salesBrief || null,
+        lead: additionalData?.lead ? {
+          id: additionalData?.lead.id,
+          name: [additionalData?.lead.firstName, additionalData?.lead.lastName].filter(Boolean).join(' ') || additionalData?.lead.name,
+          email: additionalData?.lead.email,
+          phone: additionalData?.lead.phone,
+          vehicleInterest: additionalData?.lead.vehicleInterest,
+          meta: {
+            source: additionalData?.lead.leadSource,
+            tags: additionalData?.lead.tags
+          }
+        } : null,
+        messagesSample,
+        recipients: recipients.map(r => ({ name: r.name, email: r.email, role: r.role })),
+        metadata: {
+          system: 'mailmind',
+          schema: 'handover.v1'
+        }
+      };
+
+      // Send email channel if mode includes email
+      if (deliveryMode === 'email' || deliveryMode === 'both') {
+        try {
+          const { HandoverEmailService } = await import('./handover-email');
+          emailSent = await HandoverEmailService.sendHandoverNotification({
+            conversationId,
+            evaluation,
+            lead: additionalData?.lead,
+            conversation: additionalData?.conversation,
+            campaignName: additionalData?.campaignName
+          });
+        } catch (e) {
+          console.error('Handover email channel failed:', (e as Error).message);
+          emailSent = false;
+        }
+      }
+
+      // Send webhook channel if mode includes webhook and URL available
+      if ((deliveryMode === 'webhook' || deliveryMode === 'both') && webhookUrl) {
+        try {
+          const { sendHandoverWebhook } = await import('./handover-webhook');
+          const result = await sendHandoverWebhook(webhookPayload, {
+            url: webhookUrl,
+            secret: webhookSecret,
+            timeoutMs: Number(process.env.HANDOVER_WEBHOOK_TIMEOUT_MS || 4000),
+            maxAttempts: Number(process.env.HANDOVER_WEBHOOK_RETRY_ATTEMPTS || 3)
+          });
+          webhookSent = result.delivered;
+          if (!result.delivered) {
+            console.warn('Handover webhook delivery failed', result);
+          }
+        } catch (e) {
+          console.error('Handover webhook channel error:', (e as Error).message);
+          webhookSent = false;
+        }
+      }
+
       const notification = {
         conversationId,
         urgencyLevel: evaluation.urgencyLevel,
@@ -407,15 +555,17 @@ export class HandoverService {
         triggeredCriteria: evaluation.triggeredCriteria,
         nextActions: evaluation.nextActions,
         recipients: recipients.map(r => r.email),
-        emailSent
+        emailSent,
+        webhookSent,
+        deliveryMode
       };
-
       console.log('Handover processed:', notification);
-      
-      // Update conversation status to indicate handover
-      // This would integrate with your conversation storage system
-      
-      return true;
+
+      // Return success if at least one configured channel succeeded
+      const success = [emailSent, webhookSent]
+        .filter(v => typeof v !== 'undefined')
+        .some(v => v === true);
+      return success;
     } catch (error) {
       console.error('Failed to process handover:', error);
       return false;

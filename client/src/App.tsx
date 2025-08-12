@@ -12,6 +12,7 @@ import EmailMonitorPage from "@/pages/email-monitor";
 import UserManagementPage from "@/pages/user-management";
 import WhiteLabelPage from "@/pages/white-label";
 import AiSettingsPage from "@/pages/ai-settings";
+import ConversationsPage from "@/pages/conversations";
 import NotFound from "@/pages/not-found";
 import { ClientProvider } from "@/contexts/ClientContext";
 import AppLayout from "@/components/layout/AppLayout";
@@ -28,6 +29,7 @@ function Router() {
         <Route path="/settings" component={SettingsPage} />
         <Route path="/ai-settings" component={AiSettingsPage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
+  <Route path="/conversations" component={ConversationsPage} />
         <Route path="/users" component={UserManagementPage} />
         <Route path="/white-label" component={WhiteLabelPage} />
         <Route component={NotFound} />

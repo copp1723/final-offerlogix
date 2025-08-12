@@ -64,6 +64,7 @@ export const campaigns = pgTable("campaigns", {
   handoverGoals: text("handover_goals"),
   targetAudience: text("target_audience"), // Campaign target audience
   handoverPrompt: text("handover_prompt"), // AI prompt for custom handover evaluation
+  handoverPromptSpec: jsonb("handover_prompt_spec"), // Structured JSON spec (signal categories, thresholds)
   status: text("status").notNull().default("draft"), // draft, active, scheduled, completed
   templates: jsonb("templates"), // AI-generated email templates
   subjectLines: jsonb("subject_lines"), // AI-generated subject lines
@@ -146,6 +147,7 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   handoverGoals: true,
   targetAudience: true,      // Added
   handoverPrompt: true,      // Added
+  handoverPromptSpec: true,
   status: true,
   templates: true,
   subjectLines: true,

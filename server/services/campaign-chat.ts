@@ -754,13 +754,16 @@ User Message: ${userMessage}`;
       }
       // Special processing for handover criteria - uses campaign context and goals
       if (currentStep === 'handover_criteria') {
-        const handoverPrompt = await this.convertHandoverCriteriaToPrompt(
+        const handoverResult = await this.convertHandoverCriteriaToPrompt(
           userMessage,
           updatedData.context,
           updatedData.handoverGoals,
           updatedData.targetAudience
         );
-        updatedData.handoverPrompt = handoverPrompt;
+        updatedData.handoverPrompt = handoverResult.prompt;
+        if (handoverResult.spec) {
+          updatedData.handoverPromptSpec = handoverResult.spec;
+        }
       }
       if (currentStep === 'handover_recipients') {
         const raw = userMessage.split(/[\n,]/).map(s => s.trim()).filter(Boolean);
@@ -1106,15 +1109,20 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
    * Broadcast progress updates via WebSocket
    */
   private static broadcastProgress(campaignId: string | null, stepIndex: number, total: number, percent: number) {
-    try {
-      // Import WebSocket service dynamically to avoid circular imports
-      const broadcast = require('./websocket')?.broadcastMessage;
-      if (broadcast) {
-        broadcast('campaignChat:progress', { campaignId, stepIndex, total, percent });
-      }
-    } catch (error) {
-      console.warn('Failed to broadcast campaign progress:', error);
-    }
+    // In tests or when explicitly disabled, skip broadcasting to avoid noisy logs and unnecessary work
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_WS === 'true') return;
+
+    // ESM-safe, lazy import to avoid circular deps and "require is not defined" in ESM builds
+    void import('./websocket')
+      .then((mod: any) => {
+        const svc = mod?.webSocketService;
+        if (svc?.broadcast) {
+          svc.broadcast('campaignChat:progress', { campaignId, stepIndex, total, percent });
+        }
+      })
+      .catch((error) => {
+        console.warn('Failed to broadcast campaign progress:', error);
+      });
   }
 
   /**
@@ -1144,7 +1152,7 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
     campaignContext?: string,
     campaignGoals?: string,
     targetAudience?: string
-  ): Promise<string> {
+  ): Promise<{ prompt: string; spec?: any }> {
     try {
       // Obtain RAG + optimization via centralized orchestrator (non-blocking if it fails)
       let contextSection = '';
@@ -1162,71 +1170,93 @@ Do NOT wrap in quotes. No JSON. No markdown.`;
       } catch {}
 
       const conversionPrompt = `
-# ROLE: Expert Automotive Handover Intelligence Designer
-You are a world-class automotive sales intelligence expert who specializes in converting natural language into precise, actionable AI handover criteria. You understand buyer psychology, sales processes, and automotive industry nuances.
+# ROLE: Expert Automotive Handover Intelligence Architect
+Convert natural / messy salesperson-style criteria into a precise, machine-consumable handover evaluation specification.
 
-## CAMPAIGN INTELLIGENCE:
-**Campaign Context:** "${campaignContext || 'General automotive campaign'}"
-**Campaign Goals:** "${campaignGoals || 'Generate automotive leads'}"
-**Target Audience:** "${targetAudience || 'General automotive prospects'}"
-**User's Natural Language Criteria:** "${userInput}"
-
+## CAMPAIGN INTELLIGENCE
+Context: "${campaignContext || 'General automotive campaign'}"
+Goals: "${campaignGoals || 'Generate automotive leads'}"
+Audience: "${targetAudience || 'General automotive prospects'}"
+User Criteria (raw): "${userInput}"
 ${contextSection}
 
-## YOUR MISSION:
-Transform the user's informal handover criteria into a sophisticated AI evaluation prompt that captures the essence of buyer readiness for THIS specific campaign context.
+## DESIGN PRINCIPLES
+1. Precision over verbosity
+2. Minimize false positives (never escalate casual curiosity)
+3. Prevent false negatives (do not miss explicit buying / scheduling intent)
+4. Adapt triggers to goals (e.g. trade‑in, test drive, credit rebuild, clearance)
+5. Weight signals cumulatively across the thread (multi-turn escalation)
 
-## EVALUATION FRAMEWORK:
-Consider these automotive buyer journey stages:
-1. **Awareness** (just browsing, general interest)
-2. **Consideration** (comparing options, seeking information)
-3. **Intent** (serious about purchasing, specific needs)
-4. **Decision** (ready to buy, urgency signals)
+## SIGNAL DOMAINS (DEFINE & MAP)
+- Buying Intent (commitment / purchase language)
+- Financial Readiness (payments, financing, approval confidence)
+- Vehicle Specificity (trim, VIN, equipment, color, inventory availability)
+- Comparison / Competitive (vs other brands, models, quotes)
+- Timeline & Urgency (today, this weekend, deadline pressure, expiring offer)
+- Trade / Equity (trade value, payoff, negative equity)
+- Test Drive / Physical Visit intent
+- Human Escalation / Rep Request
 
-## REQUIRED OUTPUT:
-Generate a comprehensive handover evaluation prompt that includes:
+## NEGATIVE / NEUTRAL (DO NOT ESCALATE ALONE)
+- Generic compliments (“looks nice”, “cool truck”)
+- Very early research (“just browsing”, “maybe next year”)
+- Pure feature curiosity without commitment
+- Price anchoring without purchase framing (“what’s MSRP?” only)
 
-### CAMPAIGN-SPECIFIC TRIGGERS:
-- Extract keywords from user criteria and map to buyer stages
-- Prioritize signals that align with campaign goals
-- Include audience-specific language patterns
-
-### CONTEXTUAL QUALIFICATION:
-- Define qualification thresholds based on campaign objectives
-- Specify conversation depth requirements
-- Set engagement quality benchmarks
-
-### URGENCY DETECTION:
-- Temporal language indicating immediate need
-- Competitive pressure signals
-- Decision-making timeline indicators
-
-### BEHAVIORAL ANALYSIS:
-- Question patterns showing serious intent
-- Information-seeking behaviors aligned with purchase readiness
-- Emotional indicators (excitement, urgency, concern resolution)
-
-Return ONLY this JSON structure:
+## REQUIRED JSON OUTPUT (NO EXTRA TEXT)
 {
-  "handoverPrompt": "Comprehensive AI evaluation prompt for this specific campaign context with detailed triggers, scoring criteria, and handover conditions",
+  "handoverPrompt": "A SINGLE consolidated instruction block the runtime AI can use to score each inbound lead message in this campaign. Include sections: Scoring Model, Signal Categories, Escalation Rules, Disqualifiers, Conversation Accumulators, Examples.",
   "campaignSpecific": true,
-  "triggerKeywords": ["specific", "campaign-relevant", "trigger", "words"],
-  "qualificationCriteria": ["measurable", "campaign-aligned", "readiness", "signals"],
-  "urgencyIndicators": ["time-sensitive", "decision-ready", "language"],
-  "scoringThresholds": {"qualification": 75, "urgency": 85, "handover": 80},
-  "reasoning": "Brief explanation of why these criteria align with campaign goals and audience"
+  "signalCategories": [
+    {"name":"BuyingIntent","weight":30,"examples":["ready to buy","let's move forward"],"escalateIfAny":true},
+    {"name":"FinancialReadiness","weight":15,"examples":["monthly payment","APR","down payment"],"stackable":true},
+    {"name":"VehicleSpecificity","weight":12,"examples":["XLT trim","towing capacity","VIN"],"stackable":true},
+    {"name":"Urgency","weight":15,"examples":["today","this weekend","asap"],"bonus":10},
+    {"name":"TestDriveOrVisit","weight":20,"examples":["schedule a test drive","can I come by"],"escalateIfAny":false},
+    {"name":"TradeOrEquity","weight":10,"examples":["trade in my","payoff amount"],"stackable":true},
+    {"name":"HumanEscalation","weight":25,"examples":["speak to someone","call me"],"escalateIfAny":true}
+  ],
+  "disqualifiers": [
+    "Explicit not interested / no intent",
+    "Spam / unrelated pitch",
+    "Abusive or off-policy content",
+    "Pure research with future (>60 day) horizon and no qualifying depth"
+  ],
+  "noiseFilters": [
+    "Remove greeting-only messages",
+    "Ignore single-word enthusiasm unless followed by intent",
+    "De-dupe repeated price asks without incremental commitment"
+  ],
+  "accumulatorRules": {
+    "windowMessages": 12,
+    "decayAfterMinutes": 90,
+    "multiSignalBonus": 8,
+    "crossDomainRequirement": 2
+  },
+  "scoringThresholds": {"instant": 85, "priority": 75, "standard": 65, "nurtureBelow": 50},
+  "handoverDecision": "Escalate immediately if any escalateIfAny signal fires OR total score >= instant. Escalate within SLA if score between priority and instant. Continue AI handling if below standard unless HumanEscalation present.",
+  "urgencyIndicators": ["today","right now","this weekend","deadline","last one","before it’s gone"],
+  "qualificationCriteria": ["Budget / payment exploration","Vehicle match specificity","Timeline <30 days","Trade-in info provided"],
+  "examples": {
+    "immediate": ["I can come in today if the payment works","Let’s do the paperwork now"],
+    "priority": ["What would payments be with 5k down?","Can I book a test drive Saturday morning?"],
+    "standard": ["What colors do you have?","How much is the XLT?"],
+    "nurture": ["Just starting to look for later this year"]
+  },
+  "reasoning": "Structured to minimize false escalations while rapidly surfacing true buying intent aligned with campaign goals."
 }
 
-CRITICAL: The handover prompt must be laser-focused on the specific campaign context and goals provided.`;
+Return ONLY the JSON object above.`;
 
-      const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt);
-      const parsed = this.coerceJson(content, { handoverPrompt: this.getDefaultHandoverPrompt() });
-
-      return parsed.handoverPrompt || this.getDefaultHandoverPrompt();
+  const { content } = await LLMClient.generateAutomotiveContent(conversionPrompt);
+  let parsed: any;
+  try { parsed = JSON.parse(content); } catch { parsed = {}; }
+  const prompt = parsed?.handoverPrompt || this.getDefaultHandoverPrompt();
+  return { prompt, spec: parsed && Object.keys(parsed).length ? parsed : undefined };
 
     } catch (error) {
       console.error('Failed to convert handover criteria:', error);
-      return this.getDefaultHandoverPrompt();
+  return { prompt: this.getDefaultHandoverPrompt() };
     }
   }
 
@@ -1283,6 +1313,7 @@ ${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}Return as JSON ar
         handoverGoals: data.handoverGoals,
         targetAudience: data.targetAudience,
         handoverPrompt: data.handoverPrompt,
+  handoverPromptSpec: data.handoverPromptSpec,
         handoverCriteria: data.handoverCriteria,
         numberOfTemplates: data.numberOfTemplates || 5,
         templates: templates,
@@ -1299,6 +1330,7 @@ ${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}Return as JSON ar
         handoverGoals: data.handoverGoals || 'Generate leads and drive sales',
         targetAudience: data.targetAudience || 'General automotive prospects',
         handoverPrompt: data.handoverPrompt || this.getDefaultHandoverPrompt(),
+  handoverPromptSpec: data.handoverPromptSpec,
         numberOfTemplates: data.numberOfTemplates || 5,
         templates: [],
         subjectLines: [],
@@ -1311,56 +1343,56 @@ ${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}Return as JSON ar
    * Get enhanced default handover prompt for fallback
    */
   private static getDefaultHandoverPrompt(): string {
-    return `# AUTOMOTIVE SALES INTELLIGENCE EVALUATION SYSTEM
+    return `# DEFAULT AUTOMOTIVE HANDOVER EVALUATION SPEC
 
-## YOUR ROLE:
-You are an expert automotive sales intelligence AI analyzing customer conversations to identify optimal handover moments. Your mission is to detect genuine buying interest and qualification signals with precision.
+This fallback spec is used when no campaign-specific structured criteria were generated. It is intentionally conservative to avoid false escalations.
 
-## HANDOVER EVALUATION FRAMEWORK:
+## SCORING MODEL (Baseline Weights)
+Buying Intent 30 | Financial Readiness 15 | Vehicle Specificity 12 | Urgency 15 (+10 bonus) | Test Drive / Visit 20 | Trade / Equity 10 | Human Escalation 25
 
-### IMMEDIATE HANDOVER TRIGGERS (Score: 90-100)
-**High-Intent Purchase Signals:**
-- Direct purchase language: "ready to buy", "want to purchase", "I'll take it", "let's move forward"
-- Pricing commitment: "what's the best price", "can you match this price", "what's my payment"
-- Scheduling urgency: "today", "this weekend", "ASAP", "how soon can I"
-- Human escalation: "speak to someone", "talk to a person", "manager", "sales rep"
+## IMMEDIATE ESCALATION (Any One)
+- Explicit purchase commitment ("ready to buy", "let's move forward")
+- Direct human escalation ("call me", "talk to a rep", "can someone call")
+- Concrete scheduling with near-term time anchor ("I can come today / tomorrow")
 
-### STRONG QUALIFICATION SIGNALS (Score: 75-89)
-**Serious Consideration Indicators:**
-- Financial readiness: "financing options", "down payment", "monthly payment", "lease terms"
-- Vehicle specificity: mentions specific models, years, trim levels, colors, features
-- Comparison shopping: "versus", "compared to", "better than", competitor mentions
-- Trade-in discussions: "trade my current car", "trade value", "what's it worth"
-- Timeline establishment: "when available", "delivery time", "how long"
+## HIGH INTENT (Score 80–100)
+Stack of: payment structure + model specificity + timeline < 7 days + trade discussion OR any immediate trigger.
 
-### MODERATE INTEREST SIGNALS (Score: 50-74)
-**Developing Interest Indicators:**
-- Information gathering: detailed feature questions, specification requests
-- Availability checks: "do you have", "in stock", "on the lot"
-- Appointment interest: "come look", "visit", "see it", "test drive" (without urgency)
-- General pricing: "how much", "price range", "cost" (without commitment language)
+## QUALIFIED (Score 65–79)
+Shows at least two of: financing exploration, trade-in value, specific trim/features, test drive interest, comparison against competitor.
 
-### EVALUATION CRITERIA:
-1. **Conversation Depth**: 8+ meaningful exchanges indicate serious engagement
-2. **Question Quality**: Specific, detailed questions show genuine interest
-3. **Response Speed**: Quick replies suggest active engagement
-4. **Language Intensity**: Emotional language ("love", "perfect", "exactly") indicates strong interest
-5. **Multiple Signal Types**: Customers showing 2+ different signal categories are handover-ready
+## NURTURE / CONTINUE (Below 65)
+General browsing, early research, feature curiosity without commitment language.
 
-### HANDOVER DECISION MATRIX:
-- **Score 90-100**: Immediate handover (within 5 minutes)
-- **Score 80-89**: Priority handover (within 15 minutes)
-- **Score 75-79**: Standard handover (within 30 minutes)
-- **Score 50-74**: Continue nurturing, reassess in 24 hours
-- **Below 50**: Standard marketing sequence
+## NEGATIVE / SUPPRESS
+- "Just looking" / future > 60 days
+- Unrelated / spam / vendor solicitations
+- Price-only pings with no follow-up intent after two clarifications
 
-### SPECIAL CONSIDERATIONS:
-- **Urgency Language**: "today", "now", "immediately" = automatic +10 points
-- **Competitor Mentions**: Active shopping = automatic +5 points
-- **Emotional Indicators**: Excitement or frustration = manual review
-- **Technical Questions**: Deep product knowledge needs = specialist referral
+## ACCUMULATION RULES
+- Maintain rolling window of last 12 meaningful messages
+- Decay older signals after 90 minutes of inactivity
+- Apply +8 multi-signal bonus when 2+ distinct domains appear in same turn or adjacent turns
 
-**HANDOVER TRIGGER**: Execute handover when score ≥ 80 OR any immediate trigger is detected.`;
+## URGENCY MODIFIERS
+Add +10 if explicit urgency ("today", "asap", "this weekend")
+Add +5 if competitor pressure or fear-of-missing-out language ("before it’s gone", "last one")
+
+## HANDOVER DECISION
+ESCALATE IMMEDIATELY: Any immediate trigger OR aggregate score ≥ 85
+ESCALATE (PRIORITY SLA <15m): Score 75–84
+ESCALATE (STANDARD SLA <30m): Score 65–74 with at least 2 domains
+CONTINUE AI: Score 50–64 (monitor for escalation)
+NURTURE: <50
+
+## OUTPUT REQUIRED FOR RUNTIME (if system parses this block)
+Emit JSON: { score, matchedSignals:[], urgencyBonus, decision, rationale }
+
+## IMPORTANT GUARDRAILS
+Never escalate solely on: greetings, compliments, MSRP-only ask, single generic question.
+Always escalate if: explicit purchase language + timing OR call request + model specificity.
+Always include rationale referencing concrete phrases.
+`;
   }
 
   /**
@@ -1458,6 +1490,14 @@ You are an expert automotive sales intelligence AI analyzing customer conversati
       if (k.startsWith('_')) continue; // skip internal markers
       if (['handoverRecipientsRaw'].includes(k)) continue;
       out[k] = v;
+    }
+    // Ensure handoverPromptSpec (if object) is JSON-safe (no functions, large strings trimmed)
+    if (out.handoverPromptSpec && typeof out.handoverPromptSpec === 'object') {
+      try {
+        JSON.stringify(out.handoverPromptSpec); // will throw if not serializable
+      } catch {
+        delete out.handoverPromptSpec; // drop if unserializable
+      }
     }
     // Normalize templates
     if (typeof out.templates === 'string') {

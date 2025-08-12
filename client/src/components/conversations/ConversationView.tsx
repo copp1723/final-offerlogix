@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { MessageCircle } from "lucide-react";
 import type { ConversationMessage } from "@shared/schema";
 
-export default function ConversationView({
-  conversationId,
-  messages,
-  onSendMessage,
-  isLoading,
-  allowCompose = true,
-  previewCount = 5,
-}: {
+export interface ConversationViewProps {
   conversationId: string;
   messages: ConversationMessage[];
   onSendMessage: (content: string) => void;
@@ -21,9 +15,25 @@ export default function ConversationView({
   allowCompose?: boolean;
   /** How many most recent messages to show in preview mode */
   previewCount?: number;
-}) {
+  /** Tailwind height class for the container card (e.g., h-[60vh]); defaults to h-96 */
+  heightClass?: string;
+}
+
+// Wrapped props pattern to avoid sporadic ReferenceError reports for heightClass in some builds.
+export default function ConversationView(props: ConversationViewProps) {
+  const {
+    conversationId,
+    messages,
+    onSendMessage,
+    isLoading,
+    allowCompose = true,
+    previewCount = 5,
+    heightClass = 'h-96',
+  } = props;
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Use the provided height class or fallback. (Explicit default above guarantees defined value.)
+  const containerHeight = heightClass;
 
   const sorted = useMemo(
     () => [...messages].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
@@ -67,7 +77,7 @@ export default function ConversationView({
   };
 
   return (
-    <Card className="h-96 flex flex-col">
+    <Card className={`${containerHeight} flex flex-col`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Conversation</CardTitle>
       </CardHeader>
@@ -129,7 +139,7 @@ export default function ConversationView({
         ) : (
           <div className="border-t pt-2 mt-2 text-xs text-muted-foreground flex items-center justify-between">
             <span>Preview only</span>
-            <a href="/conversations" className="text-blue-600 hover:underline">Open full conversation</a>
+            <Link href="/conversations" className="text-blue-600 hover:underline">Open full conversation</Link>
           </div>
         )}
       </CardContent>

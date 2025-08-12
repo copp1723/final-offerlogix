@@ -132,11 +132,11 @@ export default function LeadDetailsDrawer({ lead, open, onOpenChange }: { lead: 
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl">
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle>{lead ? `${lead.firstName ?? ''} ${lead.lastName ?? ''}`.trim() : 'Lead Details'}</DialogTitle>
         </DialogHeader>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 overflow-y-auto pr-1">
           <div className="space-y-4">
             <Card>
               <CardHeader><CardTitle className="text-sm flex items-center gap-2">What we know {memoryFacts && <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-600 rounded uppercase tracking-wide">Memory</span>}</CardTitle></CardHeader>
@@ -191,6 +191,7 @@ export default function LeadDetailsDrawer({ lead, open, onOpenChange }: { lead: 
             onSendMessage={(c) => sendMessage.mutate(c)}
             isLoading={sendMessage.isPending}
             allowCompose={false}
+            heightClass="h-[65vh]"
           />
         </div>
       </DialogContent>

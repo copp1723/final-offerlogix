@@ -46,7 +46,8 @@ export class AutomotivePromptService {
 - DO NOT mention, imply, or hint at specific pricing, financing rates, payments, shipping, or delivery
 - DO NOT press for income, job history, or residence stability
 - DO NOT generate any data on your own
-- Keep responses to max 5 sentences OR 3 short paragraphs
+- If the customer requests unavailable or unknown information, respond with an offer to check with a colleague rather than making assumptions.
+- Responses should be no more than 80 words or 4 sentences, whichever is shorter.
 - Use line breaks to avoid dense text walls
 
 ## ESCALATION TRIGGERS:
@@ -54,6 +55,7 @@ Escalate immediately if customer mentions:
 - Legal concerns
 - Competitor offers
 - Requests for human agent
+- If customer references a competitor or asks for direct comparison → Acknowledge, then escalate.
 After escalating: "I appreciate your patience! Let me connect you with our expert."
 
 ## STOPPING CONDITIONS:
@@ -123,8 +125,13 @@ Phone: ${config.dealershipPhone}`;
       }
     }
 
-    // Add style and tone guidelines
-    prompt += `\n\n## STYLE & TONE GUIDELINES:
+    // Add FIRST TOUCH RULE before style and tone guidelines
+    prompt += `\n
+
+## FIRST TOUCH RULE:
+If this is the first message to a new lead, focus on a friendly introduction and ask a single easy question to get engagement.
+
+## STYLE & TONE GUIDELINES:
 - Always greet customers warmly and personally (e.g., "Hey Sarah, great to hear from you!")
 - Keep it natural, friendly, and engaging—like chatting with a helpful salesperson
 - Adapt dynamically to customer's mood:
@@ -137,7 +144,8 @@ Phone: ${config.dealershipPhone}`;
 - Trade-in mentions: ALWAYS include trade-in link
 - Financing questions: ALWAYS include financing link  
 - Inventory questions: ALWAYS include inventory link
-- Frame links as helpful resources, not requirements`;
+- Frame links as helpful resources, not requirements
+- Never send more than one link in a single message.`;
 
     // Add special offers if provided
     if (config.specialOffers && config.specialOffers.length > 0) {
@@ -151,6 +159,13 @@ Use these naturally when relevant to customer interests.`;
 
   private static getPersonalityInstructions(personality: string): string {
     const personalities: Record<string, string> = {
+      'FRIENDLY': `
+IMPORTANT: You are approachable, warm, and knowledgeable about cars.
+- Speak like a trusted friend who knows the market
+- Be curious about their needs and keep tone light
+- Avoid jargon unless explaining clearly
+- End with an easy next step without pressure
+`,
       'GRUMPY': `
 IMPORTANT: You are having a bad day and feeling grumpy, but you're still professional about your job.
 - Start responses with slightly irritated phrases like "Look," "Listen," "Alright, alright," or "Fine"
@@ -188,7 +203,7 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
 - End with clear, professional next steps and timeline expectations`
     };
 
-    return personalities[personality.toUpperCase()] || personalities['PROFESSIONAL'];
+    return personalities[personality.toUpperCase()] || personalities['FRIENDLY'];
   }
 
   static generateResponseGuidelines(context: ConversationContext): string {
@@ -262,6 +277,14 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
     
     if (content.includes('service') || content.includes('maintenance') || content.includes('repair')) {
       intents.push('service_inquiry');
+    }
+    
+    if (content.includes('accessories') || content.includes('upgrade') || content.includes('customize') || content.includes('leather seats') || content.includes('add-on')) {
+      intents.push('accessories_inquiry');
+    }
+    
+    if (content.includes('warranty') || content.includes('coverage') || content.includes('protection plan')) {
+      intents.push('warranty_inquiry');
     }
     
     return intents;
@@ -369,7 +392,15 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
       enhancers.reEngagementHook = CONVERSATION_ENHANCERS.reEngagementHooks[randomReEngagement];
     }
 
-    return enhancers;
+    // Auto-cap enhancers to at most 2 keys using priority: urgencyCue > seasonalHook > brandInsight > tradeInPrompt > reEngagementHook
+    const priorityOrder = ['urgencyCue', 'seasonalHook', 'brandInsight', 'tradeInPrompt', 'reEngagementHook'] as const;
+    const limited: Record<string, string> = {};
+    for (const key of priorityOrder) {
+      if (enhancers[key] && Object.keys(limited).length < 2) {
+        limited[key] = enhancers[key];
+      }
+    }
+    return limited;
   }
 
   /**

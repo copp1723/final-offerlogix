@@ -1231,6 +1231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           handoverGoals: response.data.handoverGoals,
           targetAudience: response.data.targetAudience,
           handoverPrompt: response.data.handoverPrompt,
+          handoverPromptSpec: response.data.handoverPromptSpec || null,
           numberOfTemplates: toInt(response.data.numberOfTemplates, 5, 1, 30),
           daysBetweenMessages: toInt(response.data.daysBetweenMessages, 3, 1, 30),
           templates: templates,

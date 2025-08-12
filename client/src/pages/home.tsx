@@ -17,17 +17,17 @@ export default function HomePage() {
         
         {/* Top-right metrics */}
         <div className="flex gap-3">
-          <Card className="min-w-[140px]">
-            <CardContent className="p-4">
+          <Card className="min-w-[140px] bg-blue-50 border-blue-200">
+            <CardContent className="p-4 text-center">
               <div className="text-xs text-gray-500 mb-1">Live campaigns</div>
-              <div className="text-2xl font-bold text-gray-900">{liveCampaigns}</div>
+              <div className="text-2xl text-gray-900">{liveCampaigns}</div>
             </CardContent>
           </Card>
           
-          <Card className="min-w-[140px]">
-            <CardContent className="p-4">
+          <Card className="min-w-[140px] bg-green-50 border-green-200">
+            <CardContent className="p-4 text-center">
               <div className="text-xs text-gray-500 mb-1">Handovers</div>
-              <div className="text-2xl font-bold text-gray-900">{handovers}</div>
+              <div className="text-2xl text-gray-900">{handovers}</div>
             </CardContent>
           </Card>
         </div>
@@ -40,7 +40,13 @@ export default function HomePage() {
 
       {/* Priority alerts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => {
+            // Navigate to Carol Davis lead profile
+            window.location.href = '/leads?leadId=carol-davis';
+          }}
+        >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Carol Davis mentioned Toyota quote</span>
@@ -49,7 +55,13 @@ export default function HomePage() {
           </CardContent>
         </Card>
         
-        <Card>
+        <Card 
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => {
+            // Navigate to Bob Brown lead profile
+            window.location.href = '/leads?leadId=bob-brown';
+          }}
+        >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-gray-700">Bob Brown needs vehicle ASAP</span>
