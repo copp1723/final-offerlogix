@@ -195,7 +195,9 @@ export class ExecutionProcessor {
 
       // Retry mail send on transient failures
       const { storage } = await import('../../storage');
-      const activeCfg = await storage.getActiveAiAgentConfig().catch(() => undefined as any);
+      // Prefer per-campaign agent if set; fallback to active config
+      const campaignAgent = (campaign as any).agentConfigId ? await storage.getAiAgentConfig((campaign as any).agentConfigId).catch(() => undefined as any) : undefined as any;
+      const activeCfg = campaignAgent || await storage.getActiveAiAgentConfig().catch(() => undefined as any);
       const success = await this.sendWithRetries(
         emailData.to,
         emailData.subject,

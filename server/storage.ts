@@ -122,11 +122,32 @@ export class DatabaseStorage implements IStorage {
       return [];
     };
     const sanitizedTemplates = safeArray((campaign as any).templates)
-      .filter(t => t && typeof t === 'object')
-      .map(t => ({
-        subject: typeof (t as any).subject === 'string' ? (t as any).subject.slice(0, 140) : 'Untitled',
-        content: typeof (t as any).content === 'string' ? (t as any).content : ((t as any).html || '')
-      }));
+      .map((t) => {
+        // String template => treat as HTML content; derive subject from first 80 chars
+        if (typeof t === 'string') {
+          const content = t.trim();
+          const subj = content ? content.replace(/<[^>]*>/g, '').slice(0, 80) : 'Untitled';
+          return { subject: subj, content };
+        }
+        if (!t || typeof t !== 'object') return null;
+        // Object template => normalize into { subject, content }
+        const subj = typeof (t as any).subject === 'string' && (t as any).subject.trim()
+          ? String((t as any).subject).slice(0, 140)
+          : typeof (t as any).title === 'string' && (t as any).title.trim()
+            ? String((t as any).title).slice(0, 140)
+            : 'Untitled';
+        const content = typeof (t as any).content === 'string' && (t as any).content.trim()
+          ? (t as any).content
+          : (typeof (t as any).html === 'string' && (t as any).html.trim())
+            ? (t as any).html
+            : (typeof (t as any).body === 'string' && (t as any).body.trim())
+              ? (t as any).body
+              : (typeof (t as any).text === 'string' && (t as any).text.trim())
+                ? (t as any).text
+                : '';
+        return { subject: subj, content };
+      })
+      .filter(Boolean) as { subject: string; content: string }[];
     const sanitizedSubjects = safeArray((campaign as any).subjectLines)
       .filter(s => typeof s === 'string' && s.trim())
       .map(s => s.slice(0, 140));

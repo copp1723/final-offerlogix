@@ -43,6 +43,8 @@ export default function CampaignsPage() {
 
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewCampaign, setViewCampaign] = useState<Campaign | null>(null);
 
   const cloneMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name?: string }) => {
@@ -163,6 +165,7 @@ export default function CampaignsPage() {
                 <div className="text-sm text-gray-600">
                   <div>Templates: {campaign.numberOfTemplates || 0}</div>
                   <div>Frequency: Every {campaign.daysBetweenMessages || 3} days</div>
+                  <div>Agent: {(campaign as any).agentConfigId ? 'Selected Agent' : 'Active Agent'}</div>
                   {campaign.openRate && (
                     <div>Open Rate: {campaign.openRate}%</div>
                   )}
@@ -191,7 +194,12 @@ export default function CampaignsPage() {
                     <FileText className="h-4 w-4 mr-1" />
                     Review
                   </Button>
-                  <Button variant="outline" size="sm" className="flex-1">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => { setViewCampaign(campaign); setViewOpen(true); }}
+                  >
                     <Eye className="h-4 w-4 mr-1" />
                     View
                   </Button>
@@ -297,6 +305,35 @@ export default function CampaignsPage() {
             queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
           }}
         />
+      )}
+
+      {/* Full View Modal */}
+      {viewCampaign && (
+        <Dialog open={viewOpen} onOpenChange={setViewOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Campaign Details</DialogTitle>
+              <DialogDescription>
+                Full details for "{viewCampaign.name}".
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <div><strong>Name:</strong> {viewCampaign.name}</div>
+              <div><strong>Status:</strong> {viewCampaign.status}</div>
+              <div><strong>Context:</strong> {viewCampaign.context}</div>
+              <div><strong>Templates:</strong> {viewCampaign.numberOfTemplates || 0}</div>
+              <div><strong>Frequency:</strong> Every {viewCampaign.daysBetweenMessages || 3} days</div>
+              <div><strong>Agent:</strong> {(viewCampaign as any).agentConfigId ? 'Selected Agent' : 'Active Agent'}</div>
+              {viewCampaign.openRate && (
+                <div><strong>Open Rate:</strong> {viewCampaign.openRate}%</div>
+              )}
+              {/* Add more fields as needed */}
+            </div>
+            <div className="flex justify-end mt-4">
+              <Button variant="outline" onClick={() => setViewOpen(false)}>Close</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

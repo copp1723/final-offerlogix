@@ -86,6 +86,8 @@ async function applyLegacyPatches() {
     await addColumn('is_template', `ALTER TABLE campaigns ADD COLUMN is_template boolean DEFAULT false`);
     await addColumn('original_campaign_id', `ALTER TABLE campaigns ADD COLUMN original_campaign_id varchar`);
 
+    await addColumn('agent_config_id', `ALTER TABLE campaigns ADD COLUMN agent_config_id varchar`);
+
     // Leads fields that may be missing on older DBs
     const addColumnTo = async (table: string, col: string, ddl: string) => {
       const { rowCount } = await client.query(
@@ -145,14 +147,14 @@ async function applyLegacyPatches() {
 
     try {
       await client.query(`ALTER TABLE ai_agent_config ALTER COLUMN model SET DEFAULT 'openai/gpt-5-chat'`);
-      await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-chat' 
-        WHERE model IS NULL 
-           OR model='' 
-           OR model ILIKE 'openai/gpt-5-mini' 
-           OR model ILIKE 'gpt-5-mini' 
-           OR model ILIKE 'openai/gpt-4o-mini' 
-           OR model ILIKE 'gpt-4o-mini' 
-           OR model ILIKE 'openai/gpt-4o' 
+      await client.query(`UPDATE ai_agent_config SET model='openai/gpt-5-chat'
+        WHERE model IS NULL
+           OR model=''
+           OR model ILIKE 'openai/gpt-5-mini'
+           OR model ILIKE 'gpt-5-mini'
+           OR model ILIKE 'openai/gpt-4o-mini'
+           OR model ILIKE 'gpt-4o-mini'
+           OR model ILIKE 'openai/gpt-4o'
            OR model ILIKE 'gpt-4o'`);
     } catch (e) {
       console.warn('[DB Patch] model default update warning:', (e as Error).message);

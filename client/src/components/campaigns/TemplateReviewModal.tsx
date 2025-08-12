@@ -3,6 +3,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useQuery } from '@tanstack/react-query';
+
 
 export interface EditableTemplate { subject: string; content: string; }
 
@@ -29,6 +31,9 @@ export default function TemplateReviewModal({
 }: TemplateReviewModalProps) {
   const [templates, setTemplates] = useState<EditableTemplate[]>(initialTemplates);
   const [subjects, setSubjects] = useState<string[]>(initialSubjectLines);
+  const { data: agentConfigs } = useQuery({ queryKey: ['/api/ai-agent-configs'] });
+  const [agentPreviewId, setAgentPreviewId] = useState<string | ''>('');
+
   const [isSaving, setIsSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [openPreviews, setOpenPreviews] = useState<Set<number>>(new Set());
@@ -42,14 +47,19 @@ export default function TemplateReviewModal({
   };
 
   const renderPreview = (content: string) => {
-    // Very lightweight token substitution & basic formatting
+    // Optional: simulate tone/personality by annotating preview header
+    const agentLabel = Array.isArray(agentConfigs)
+      ? (agentConfigs.find((a: any) => a.id === agentPreviewId)?.name || (agentPreviewId ? 'Selected Agent' : 'Active Agent'))
+      : (agentPreviewId ? 'Selected Agent' : 'Active Agent');
+
     const sample = content
       .replace(/\[Name\]/gi, 'John')
       .replace(/\[vehicleInterest\]/gi, '2025 Toyota Prius')
-      .replace(/\n/g, '\n') // keep newlines for splitting
+      .replace(/\n/g, '\n')
       .trim();
+    const header = `<div class='text-xs text-gray-500 mb-2'>Previewing as: ${agentLabel}</div>`;
     const lines = sample.split(/\n+/).map((l, i) => `<p key="l-${i}" class='mb-2 leading-relaxed'>${l.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>`).join('');
-    return { __html: lines };
+    return { __html: header + lines };
   };
 
   useEffect(() => {
@@ -99,6 +109,20 @@ export default function TemplateReviewModal({
     } finally {
       setIsSaving(false);
     }
+            <div className="flex items-center gap-2">
+              <label className="text-xs text-gray-600">Preview agent:</label>
+              <select
+                className="border rounded px-2 py-1 text-xs"
+                value={agentPreviewId}
+                onChange={(e) => setAgentPreviewId(e.target.value)}
+              >
+                <option value="">Active Agent</option>
+                {Array.isArray(agentConfigs) && agentConfigs.map((cfg: any) => (
+                  <option key={cfg.id} value={cfg.id}>{cfg.name}</option>
+                ))}
+              </select>
+            </div>
+
   };
 
   return (

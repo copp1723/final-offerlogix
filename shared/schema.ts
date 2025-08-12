@@ -72,12 +72,12 @@ export const campaigns = pgTable("campaigns", {
   openRate: integer("open_rate"), // percentage
   isTemplate: boolean("is_template").default(false), // Mark as reusable template
   originalCampaignId: varchar("original_campaign_id"), // Reference to source campaign when cloned
-  
+
   // Communication Settings
   communicationType: varchar("communication_type", { length: 20 }).default("email"), // "email", "email_sms", "sms"
   smsOptInRequired: boolean("sms_opt_in_required").default(true),
   smsOptInMessage: text("sms_opt_in_message").default("Would you like to continue this conversation via text? Reply YES to receive SMS updates."),
-  
+
   // Scheduling Settings
   scheduleType: varchar("schedule_type", { length: 20 }).default("immediate"), // "immediate", "scheduled", "recurring"
   scheduledStart: timestamp("scheduled_start"),
@@ -86,7 +86,10 @@ export const campaigns = pgTable("campaigns", {
   recurringTime: varchar("recurring_time", { length: 8 }), // "09:00:00"
   isActive: boolean("is_active").default(true),
   nextExecution: timestamp("next_execution"),
-  
+
+  // Agent selection (optional)
+  agentConfigId: varchar("agent_config_id").references(() => aiAgentConfig.id),
+
   clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -142,7 +145,7 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   context: true,
   handoverGoals: true,
   targetAudience: true,      // Added
-  handoverPrompt: true,      // Added  
+  handoverPrompt: true,      // Added
   status: true,
   templates: true,
   subjectLines: true,
@@ -151,6 +154,7 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   openRate: true,
   isTemplate: true,
   originalCampaignId: true,
+  agentConfigId: true,
 });
 
 export const insertAiAgentConfigSchema = createInsertSchema(aiAgentConfig).omit({

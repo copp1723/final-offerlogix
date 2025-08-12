@@ -18,12 +18,12 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { 
-  Play, 
-  Users, 
-  Mail, 
-  BarChart3, 
-  Calendar, 
+import {
+  Play,
+  Users,
+  Mail,
+  BarChart3,
+  Calendar,
   TestTube,
   AlertCircle,
   CheckCircle,
@@ -169,6 +169,15 @@ export default function CampaignExecutionModal({ campaign, children }: CampaignE
                 <CardDescription>
                   Current status and execution settings
                 </CardDescription>
+
+	                {/* Inline Agent Note */}
+	                <div className="p-3 bg-gray-50 border border-gray-200 rounded-md">
+	                  <p className="text-xs text-gray-700">
+	                    This campaign will send using <strong>{(campaign as any).agentConfigId ? 'the selected agent profile' : 'the active agent profile'}</strong>.
+	                    You can change the agent on the campaign edit screen.
+	                  </p>
+	                </div>
+
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-center justify-between">
@@ -199,7 +208,7 @@ export default function CampaignExecutionModal({ campaign, children }: CampaignE
                       onCheckedChange={setTestMode}
                     />
                   </div>
-                  
+
                   {testMode && (
                     <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
                       <div className="flex items-center gap-2">
@@ -222,8 +231,8 @@ export default function CampaignExecutionModal({ campaign, children }: CampaignE
                     />
                   </div>
 
-                  <Button 
-                    onClick={handleExecute} 
+                  <Button
+                    onClick={handleExecute}
                     disabled={executeCampaignMutation.isPending}
                     className="w-full"
                     size="lg"

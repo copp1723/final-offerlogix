@@ -10,6 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
 import { SMSIntegration } from "@/components/SMSIntegration";
 import { CampaignScheduler } from "@/components/CampaignScheduler";
 import { z } from "zod";
@@ -29,7 +31,8 @@ const formSchema = insertCampaignSchema.extend({
   numberOfTemplates: z.number().optional().default(5),
   daysBetweenMessages: z.number().optional().default(3),
   originalCampaignId: z.string().nullable().optional(),
-  isTemplate: z.boolean().optional().default(false)
+  isTemplate: z.boolean().optional().default(false),
+  agentConfigId: z.string().nullable().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -68,10 +71,13 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       daysBetweenMessages: 3,
       isTemplate: false,
       originalCampaignId: null,
+      agentConfigId: null,
       communicationType: "email",
       scheduleType: "immediate",
     },
   });
+
+  const { data: agentConfigs } = useQuery({ queryKey: ['/api/ai-agent-configs'] });
 
   const createCampaign = useMutation({
     mutationFn: (data: FormData) => apiRequest('/api/campaigns', 'POST', data),
@@ -87,7 +93,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   });
 
   const generateGoals = useMutation({
-    mutationFn: (context: string) => 
+    mutationFn: (context: string) =>
       apiRequest('/api/ai/suggest-goals', 'POST', { context }),
     onSuccess: (response: any) => {
       const goals = response.json?.goals || [];
@@ -123,7 +129,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   });
 
   const generateNames = useMutation({
-    mutationFn: (context: string) => 
+    mutationFn: (context: string) =>
       apiRequest('/api/ai/suggest-names', 'POST', { context }),
     onSuccess: (response: any) => {
       const names = response.json?.names || [];
@@ -160,7 +166,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
 
   const contextSuggestions = [
     "Promote the latest SUV models with special financing offers",
-    "Highlight seasonal service offers and maintenance packages", 
+    "Highlight seasonal service offers and maintenance packages",
     "Announce upcoming dealership events and test drive opportunities"
   ];
 
@@ -199,12 +205,12 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   const handleGenerateTemplates = () => {
     const context = form.getValues('context');
     const name = form.getValues('name');
-    
+
     if (!context || !name) {
       toast({ title: "Please fill in campaign name and context first", variant: "destructive" });
       return;
     }
-    
+
     generateTemplates.mutate({ context, name, numberOfTemplates });
   };
 
@@ -256,9 +262,9 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
                 </Button>
               </div>
               <FormControl>
-                <Input 
-                  placeholder="e.g., 2024 Holiday Sales Event" 
-                  {...field} 
+                <Input
+                  placeholder="e.g., 2024 Holiday Sales Event"
+                  {...field}
                 />
               </FormControl>
               <FormMessage />
@@ -310,7 +316,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
                   {...field}
                 />
               </FormControl>
-              
+
               {/* Context Suggestions */}
               <div className="mt-3">
                 <p className="text-sm text-gray-600 mb-2">Quick suggestions for automotive campaigns:</p>
@@ -341,7 +347,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
               <FormLabel>Handover Goals</FormLabel>
               <div className="flex space-x-3">
                 <FormControl>
-                  <Input 
+                  <Input
                     placeholder="Define your campaign objectives..."
                     className="flex-1"
                     {...field}
@@ -359,7 +365,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
                   <span>AI Suggest</span>
                 </Button>
               </div>
-              
+
               {/* Goal Suggestions */}
               {showSuggestions && (
                 <div className="mt-3">
@@ -412,7 +418,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
               />
               <p className="text-xs text-gray-500 mt-1">Number of templated emails to send (if no response)</p>
             </div>
-            
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Days Between Messages
@@ -493,6 +499,35 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Response Mode</h4>
+        {/* AI Agent Selector */}
+        <div className="border-t border-gray-200 pt-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Select AI Agent</h3>
+          <FormField
+            control={form.control}
+            name="agentConfigId"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Agent Profile</FormLabel>
+                <FormControl>
+                  <select
+                    className="w-full border rounded-md px-3 py-2 text-sm"
+                    value={field.value || ''}
+                    onChange={(e) => field.onChange(e.target.value || null)}
+                  >
+                    <option value="">Use Active Agent</option>
+                    {Array.isArray(agentConfigs) && agentConfigs.map((cfg: any) => (
+                      <option key={cfg.id} value={cfg.id}>
+                        {cfg.name} {cfg.isActive ? '(Active)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </div>
+
                 <p className="text-sm text-blue-700 leading-relaxed">
                   When a lead replies to any email, the remaining templated emails are cancelled. The AI agent takes over for personalized back-and-forth conversation until handover.
                 </p>
@@ -563,15 +598,15 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
             Cancel
           </Button>
           <div className="flex space-x-3">
-            <Button 
-              type="submit" 
+            <Button
+              type="submit"
               variant="outline"
               disabled={createCampaign.isPending}
               onClick={() => form.setValue('status', 'draft' as any)}
             >
               Save Draft
             </Button>
-            <Button 
+            <Button
               type="submit"
               disabled={createCampaign.isPending}
               className="bg-blue-600 hover:bg-blue-700"

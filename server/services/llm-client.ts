@@ -23,6 +23,20 @@ export class LLMClient {
   private static readonly BASE_URL = 'https://openrouter.ai/api/v1/chat/completions';
   private static readonly DEFAULT_TIMEOUT = 30000;
   private static readonly MAX_RETRIES = 3;
+  
+  // Model Fallback Strategy Configuration
+  private static readonly ENABLE_MODEL_FALLBACK = true;
+  private static readonly FALLBACK_MODELS = [
+    'openai/gpt-5-chat',
+    'openai/gpt-4o',
+    'anthropic/claude-3.5-sonnet',
+    'google/gemini-pro-1.5'
+  ];
+  
+  // Circuit Breaker: Track failed models (in-memory, resets on restart)
+  private static readonly failedModels = new Map<string, { count: number; lastFailure: number }>();
+  private static readonly CIRCUIT_BREAKER_THRESHOLD = 3;
+  private static readonly CIRCUIT_BREAKER_RESET_TIME = 300000; // 5 minutes
   // Basic JSON repair regex patterns (remove trailing commas, fix single quotes)
   private static repairJson(input: string): string {
     if (!input) return input;
@@ -49,6 +63,42 @@ export class LLMClient {
     const renderUrl = process.env.RENDER_EXTERNAL_URL; // auto-provided by Render
     const replit = process.env.REPLIT_DOMAINS; // legacy env name used earlier
     return (explicit || renderUrl || replit || 'http://localhost:5000').replace(/\/$/, '');
+  }
+
+  // Circuit Breaker Helper Methods
+  private static shouldSkipModel(model: string): boolean {
+    const failure = this.failedModels.get(model);
+    if (!failure) return false;
+    
+    // Reset circuit breaker if enough time has passed
+    if (Date.now() - failure.lastFailure > this.CIRCUIT_BREAKER_RESET_TIME) {
+      this.failedModels.delete(model);
+      return false;
+    }
+    
+    return failure.count >= this.CIRCUIT_BREAKER_THRESHOLD;
+  }
+
+  private static markModelFailed(model: string): void {
+    const failure = this.failedModels.get(model) || { count: 0, lastFailure: 0 };
+    failure.count += 1;
+    failure.lastFailure = Date.now();
+    this.failedModels.set(model, failure);
+    console.warn(`[LLMClient] Model ${model} failed (${failure.count}/${this.CIRCUIT_BREAKER_THRESHOLD})`);
+  }
+
+  private static getAvailableFallbackModels(originalModel: string): string[] {
+    // Start with the original model if it's not circuit-broken
+    const models = this.shouldSkipModel(originalModel) ? [] : [originalModel];
+    
+    // Add fallback models that aren't circuit-broken
+    for (const model of this.FALLBACK_MODELS) {
+      if (model !== originalModel && !this.shouldSkipModel(model)) {
+        models.push(model);
+      }
+    }
+    
+    return models;
   }
 
 
@@ -84,6 +134,24 @@ export class LLMClient {
   }
 
   /**
+   * Get circuit breaker status for monitoring
+   */
+  static getCircuitBreakerStatus(): Array<{ model: string; failures: number; lastFailure: Date; isCircuitOpen: boolean }> {
+    const status: Array<{ model: string; failures: number; lastFailure: Date; isCircuitOpen: boolean }> = [];
+    
+    this.failedModels.forEach((failure, model) => {
+      status.push({
+        model,
+        failures: failure.count,
+        lastFailure: new Date(failure.lastFailure),
+        isCircuitOpen: this.shouldSkipModel(model)
+      });
+    });
+    
+    return status;
+  }
+
+  /**
    * Generate content using the unified LLM client
    */
   static async generate(options: LLMOptions): Promise<LLMResponse> {
@@ -107,7 +175,12 @@ export class LLMClient {
       payload.seed = options.seed;
     }
 
-    return this.executeWithRetry(payload, startTime);
+    // Route to fallback strategy if enabled, otherwise use original retry logic
+    if (this.ENABLE_MODEL_FALLBACK) {
+      return this.executeWithModelFallback(payload, startTime);
+    } else {
+      return this.executeWithRetry(payload, startTime);
+    }
   }
 
   /**
@@ -185,6 +258,54 @@ export class LLMClient {
 
       throw (error instanceof Error) ? error : new Error(String(error));
     }
+  }
+
+  /**
+   * Execute request with model fallback strategy
+   * This method tries multiple models in sequence if the first one fails
+   */
+  private static async executeWithModelFallback(payload: any, startTime: number): Promise<LLMResponse> {
+    const originalModel = payload.model;
+    const availableModels = this.getAvailableFallbackModels(originalModel);
+    
+    if (availableModels.length === 0) {
+      throw new Error(`All models are circuit-broken, including original: ${originalModel}`);
+    }
+
+    let lastError: Error | null = null;
+    
+    for (let i = 0; i < availableModels.length; i++) {
+      const currentModel = availableModels[i];
+      const modelPayload = { ...payload, model: currentModel };
+      
+      try {
+        console.log(`[LLMClient] Attempting model ${currentModel} (${i + 1}/${availableModels.length})`);
+        
+        const result = await this.executeWithRetry(modelPayload, startTime);
+        
+        // Success! Log if we fell back to a different model
+        if (currentModel !== originalModel) {
+          console.log(`[LLMClient] Successfully fell back from ${originalModel} to ${currentModel}`);
+        }
+        
+        return result;
+        
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+        console.warn(`[LLMClient] Model ${currentModel} failed:`, lastError.message);
+        
+        // Mark this model as failed for circuit breaking
+        this.markModelFailed(currentModel);
+        
+        // If this was the last model, we'll throw the error below
+        if (i === availableModels.length - 1) {
+          console.error(`[LLMClient] All ${availableModels.length} models exhausted for fallback`);
+        }
+      }
+    }
+    
+    // If we get here, all models failed
+    throw lastError || new Error('All fallback models failed');
   }
 
   /**

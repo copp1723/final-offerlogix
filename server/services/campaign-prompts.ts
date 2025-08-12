@@ -1,7 +1,10 @@
 /**
  * Enhanced Automotive Email Marketing Campaign Expert Prompt
  * Combines deep automotive retail knowledge with high-converting email content strategy
+ * Now includes Dynamic Prompt Context Truncation for token optimization
  */
+
+import { encoding_for_model } from 'tiktoken';
 
 export const ENHANCED_AUTOMOTIVE_EMAIL_MARKETING_PROMPT = `You are a seasoned automotive email marketing strategist with expertise in creating high-impact campaigns for car dealerships. You combine deep knowledge of automotive retail, buyer psychology, and dealership operations with the creativity and conversion skills needed to craft irresistible email campaigns that sell more vehicles and book more service appointments.
 
@@ -112,11 +115,107 @@ If a **PAST CAMPAIGNS** section is present later in the prompt, treat it as retr
 `;
 
 export class CampaignPromptService {
+  // Token optimization configuration
+  private static readonly ENABLE_TOKEN_OPTIMIZATION = true;
+  private static readonly DEFAULT_MAX_TOKENS = 3500;
+  private static readonly CORE_PROMPT_PRIORITY = 1; // Highest priority
+  private static readonly CONTEXT_PRIORITY = 2;
+  private static readonly URGENCY_PRIORITY = 3;
+  private static readonly SEGMENTS_PRIORITY = 4; // Lowest priority
+
   static getCampaignCreationPrompt(): string {
     return ENHANCED_AUTOMOTIVE_EMAIL_MARKETING_PROMPT;
   }
 
-  static generateContextualPrompt(userInput?: string, campaignType?: string, urgency?: 'low' | 'medium' | 'high'): string {
+  /**
+   * Counts tokens in text using tiktoken with fallback
+   */
+  private static countTokens(text: string): number {
+    try {
+      const encoding = encoding_for_model('gpt-4');
+      const tokens = encoding.encode(text);
+      encoding.free();
+      return tokens.length;
+    } catch (error) {
+      // Fallback: rough estimate (1 token ≈ 4 characters)
+      // This is conservative and should work for most cases
+      return Math.ceil(text.length / 4);
+    }
+  }
+
+  /**
+   * Truncates sections based on priority to fit within token limit
+   */
+  private static truncateToTokenLimit(sections: Array<{
+    content: string;
+    priority: number;
+    name: string;
+    canTruncate: boolean;
+  }>, maxTokens: number): string {
+    // Sort sections by priority (lower number = higher priority)
+    const sortedSections = [...sections].sort((a, b) => a.priority - b.priority);
+    
+    const result: string[] = [];
+    let currentTokens = 0;
+
+    for (const section of sortedSections) {
+      const sectionTokens = this.countTokens(section.content);
+      
+      // If adding this section would exceed limit
+      if (currentTokens + sectionTokens > maxTokens) {
+        const remainingTokens = maxTokens - currentTokens;
+        
+        if (remainingTokens > 50 && section.canTruncate) {
+          // Try to fit a truncated version
+          const truncated = this.truncateText(section.content, remainingTokens);
+          if (this.countTokens(truncated) <= remainingTokens) {
+            result.push(truncated);
+            currentTokens += this.countTokens(truncated);
+          }
+        }
+        break; // No more room
+      } else {
+        result.push(section.content);
+        currentTokens += sectionTokens;
+      }
+    }
+
+    return result.join('');
+  }
+
+  /**
+   * Truncates text to approximately fit within token count
+   */
+  private static truncateText(text: string, targetTokens: number): string {
+    if (targetTokens <= 0) return '';
+    
+    // Rough character estimate: tokens * 3.5 (slightly conservative)
+    const targetChars = Math.floor(targetTokens * 3.5);
+    
+    if (text.length <= targetChars) {
+      return text;
+    }
+
+    // Find a good breaking point (end of sentence or paragraph)
+    const truncated = text.substring(0, targetChars);
+    const lastPeriod = truncated.lastIndexOf('.');
+    const lastNewline = truncated.lastIndexOf('\n');
+    
+    const breakPoint = Math.max(lastPeriod, lastNewline);
+    
+    if (breakPoint > targetChars * 0.7) {
+      // Good breaking point found
+      return text.substring(0, breakPoint + 1) + '\n[Content truncated for token optimization]';
+    } else {
+      // No good breaking point, just cut at character limit
+      return truncated + '...\n[Content truncated for token optimization]';
+    }
+  }
+
+  /**
+   * Original implementation preserved for backward compatibility
+   */
+  private static generateContextualPromptOriginal(userInput?: string, campaignType?: string, urgency?: 'low' | 'medium' | 'high'): string {
     let prompt = ENHANCED_AUTOMOTIVE_EMAIL_MARKETING_PROMPT;
 
     // Add contextual guidance based on campaign type
@@ -166,6 +265,107 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
     }
 
     return prompt;
+  }
+
+  /**
+   * Enhanced generateContextualPrompt with optional token optimization
+   * Maintains exact same signature and behavior as original when maxTokens is not provided
+   */
+  static generateContextualPrompt(
+    userInput?: string, 
+    campaignType?: string, 
+    urgency?: 'low' | 'medium' | 'high',
+    maxTokens?: number
+  ): string {
+    // Use original behavior if token optimization is disabled or maxTokens not provided
+    if (!this.ENABLE_TOKEN_OPTIMIZATION || !maxTokens) {
+      return this.generateContextualPromptOriginal(userInput, campaignType, urgency);
+    }
+
+    // Token-optimized implementation
+    const sections: Array<{
+      content: string;
+      priority: number;
+      name: string;
+      canTruncate: boolean;
+    }> = [];
+
+    // Core prompt (highest priority, never truncate)
+    sections.push({
+      content: ENHANCED_AUTOMOTIVE_EMAIL_MARKETING_PROMPT,
+      priority: this.CORE_PROMPT_PRIORITY,
+      name: 'core_prompt',
+      canTruncate: false
+    });
+
+    // Campaign type context (medium priority, can truncate)
+    if (campaignType) {
+      let contextContent = `\n\n## CURRENT CONTEXT:
+Campaign Type Focus: ${campaignType}`;
+
+      switch (campaignType) {
+        case 'new_inventory':
+          contextContent += `\nPriority: Highlight fresh arrivals, specific model features, and availability urgency.
+Key Questions to Ask: "Which new models just arrived?" "Any hot sellers we should feature?" "Want to include 'just arrived' messaging?"`;
+          break;
+        case 'seasonal_service':
+          contextContent += `\nPriority: Connect service needs to current season/weather, emphasize safety and convenience.
+Key Questions to Ask: "What seasonal services are most needed now?" "Any service specials running?" "Want to tie this to weather conditions?"`;
+          break;
+        case 'finance_lease':
+          contextContent += `\nPriority: Clear payment examples, incentive deadlines, and qualification assistance.
+Key Questions to Ask: "What are the current rates?" "Any manufacturer incentives ending soon?" "Want to include payment calculator?"`;
+          break;
+      }
+
+      sections.push({
+        content: contextContent,
+        priority: this.CONTEXT_PRIORITY,
+        name: 'campaign_context',
+        canTruncate: true
+      });
+    }
+
+    // Urgency guidance (lower priority, can truncate)
+    if (urgency) {
+      let urgencyContent = `\n\nUrgency Level: ${urgency}`;
+      switch (urgency) {
+        case 'high':
+          urgencyContent += `\nApproach: Act quickly, focus on immediate next steps, suggest urgent subject lines and time-sensitive offers.`;
+          break;
+        case 'medium':
+          urgencyContent += `\nApproach: Balance thoroughness with efficiency, ask key questions but move toward recommendations.`;
+          break;
+        case 'low':
+          urgencyContent += `\nApproach: Take time to explore options, educate on best practices, suggest A/B testing opportunities.`;
+          break;
+      }
+
+      sections.push({
+        content: urgencyContent,
+        priority: this.URGENCY_PRIORITY,
+        name: 'urgency_guidance',
+        canTruncate: true
+      });
+    }
+
+    // Segment detection (lowest priority, can truncate)
+    if (userInput) {
+      const segs = this.detectSegmentsFromText(userInput);
+      if (segs.length) {
+        const segmentContent = `\n\nDetected Audience Segments: ${segs.map(s => s.name).join(', ')}
+Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 templates if more than one segment is present.`;
+
+        sections.push({
+          content: segmentContent,
+          priority: this.SEGMENTS_PRIORITY,
+          name: 'segments',
+          canTruncate: true
+        });
+      }
+    }
+
+    return this.truncateToTokenLimit(sections, maxTokens);
   }
 
   static parseUserIntent(message: string): { campaignType?: string; urgency: 'low' | 'medium' | 'high'; keywords: string[] } {
@@ -265,4 +465,52 @@ Guidance: Ensure per‑segment coverage (subject lines & CTAs). Recommend 6–9 
     return out.slice(0, 6);
   }
 
+  /**
+   * Utility method to estimate token count for a given prompt configuration
+   * Useful for debugging and monitoring
+   */
+  static estimatePromptTokens(userInput?: string, campaignType?: string, urgency?: 'low' | 'medium' | 'high'): number {
+    const fullPrompt = this.generateContextualPromptOriginal(userInput, campaignType, urgency);
+    return this.countTokens(fullPrompt);
+  }
+
+  /**
+   * Get recommended max tokens based on model and use case
+   */
+  static getRecommendedMaxTokens(model: 'gpt-4' | 'gpt-3.5-turbo' = 'gpt-4'): number {
+    switch (model) {
+      case 'gpt-4':
+        return this.DEFAULT_MAX_TOKENS; // 3500 tokens
+      case 'gpt-3.5-turbo':
+        return 3000; // More conservative for GPT-3.5
+      default:
+        return this.DEFAULT_MAX_TOKENS;
+    }
+  }
+
+  /**
+   * Debug method to show how prompt would be truncated
+   */
+  static debugTokenOptimization(
+    userInput?: string, 
+    campaignType?: string, 
+    urgency?: 'low' | 'medium' | 'high',
+    maxTokens: number = 3500
+  ): {
+    originalTokens: number;
+    optimizedTokens: number;
+    truncated: boolean;
+    sectionsIncluded: string[];
+  } {
+    const originalPrompt = this.generateContextualPromptOriginal(userInput, campaignType, urgency);
+    const optimizedPrompt = this.generateContextualPrompt(userInput, campaignType, urgency, maxTokens);
+    
+    return {
+      originalTokens: this.countTokens(originalPrompt),
+      optimizedTokens: this.countTokens(optimizedPrompt),
+      truncated: optimizedPrompt.includes('[Content truncated for token optimization]'),
+      sectionsIncluded: optimizedPrompt.includes('## CURRENT CONTEXT') ? 
+        ['core', 'context'] : ['core']
+    };
+  }
 }

@@ -49,7 +49,7 @@ import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap } from "lucide-
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // (EmailValidationPanel removed in favor of Campaigns management inside this center)
 import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
-import { FileText, Play, Eye } from 'lucide-react';
+import { FileText, Play, Eye, Copy } from 'lucide-react';
 import type { Campaign } from '@shared/schema';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
 import AutomotivePromptTester from "@/components/ai/AutomotivePromptTester";
@@ -309,6 +309,10 @@ export default function AiSettingsPage() {
               <div>
                 <strong>Industry:</strong> {(activeConfig as any)?.industry || 'Automotive'}
               </div>
+              <div>
+                <strong>Mailgun Domain:</strong> {(activeConfig as any)?.agentEmailDomain || '—'}
+              </div>
+
             </div>
           </CardContent>
         </Card>
@@ -611,6 +615,40 @@ function CampaignsInline() {
   const { data: campaigns, isLoading } = useQuery({ queryKey: ['/api/campaigns'] });
   const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
   const [reviewOpen, setReviewOpen] = useState(false);
+  const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
+  const [cloneName, setCloneName] = useState('');
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
+  const queryClient = useQueryClient();
+
+  const { toast } = useToast();
+
+  const cloneMutation = useMutation({
+    mutationFn: async ({ id, name }: { id: string; name?: string }) => {
+      return await apiRequest(`/api/campaigns/${id}/clone`, 'POST', { name });
+    },
+    onSuccess: () => {
+      toast({ title: 'Success', description: 'Campaign cloned successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
+      setCloneDialogOpen(false);
+      setCloneName('');
+      setSelectedCampaign(null);
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to clone campaign', variant: 'destructive' });
+    }
+  });
+
+  const handleClone = (c: Campaign) => {
+    setSelectedCampaign(c);
+    setCloneName(`${c.name} (Copy)`);
+    setCloneDialogOpen(true);
+  };
+
+  const handleCloneConfirm = () => {
+    if (selectedCampaign) {
+      cloneMutation.mutate({ id: selectedCampaign.id, name: cloneName || undefined });
+    }
+  };
 
   if (isLoading) return <div className="text-sm text-gray-500 p-4">Loading campaigns…</div>;
   if (!Array.isArray(campaigns) || campaigns.length === 0) return <Card><CardHeader><CardTitle>No Campaigns</CardTitle><CardDescription>Create one via AI Campaign Agent first.</CardDescription></CardHeader></Card>;
@@ -648,6 +686,9 @@ function CampaignsInline() {
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => window.location.assign('/campaigns') }>
                   <Eye className="h-4 w-4 mr-1" /> Full View
                 </Button>
+                <Button size="sm" variant="outline" className="flex-0" disabled={cloneMutation.isPending} onClick={() => handleClone(c)} title="Clone Campaign">
+                  <Copy className="h-4 w-4" />
+                </Button>
               </div>
             </CardContent>
           </Card>
@@ -665,6 +706,27 @@ function CampaignsInline() {
           onSaved={() => globalQueryClient.invalidateQueries({ queryKey: ['/api/campaigns'] })}
         />
       )}
+      {/* Clone Dialog */}
+      <Dialog open={cloneDialogOpen} onOpenChange={setCloneDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Clone Campaign</DialogTitle>
+            <DialogDescription>Create a copy of "{selectedCampaign?.name}" with a new name.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <label className="text-sm font-medium" htmlFor="clone-inline-name">Campaign Name</label>
+              <Input id="clone-inline-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="mt-1" placeholder="Enter new campaign name" />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCloneDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handleCloneConfirm} disabled={cloneMutation.isPending || !cloneName.trim()}>
+                {cloneMutation.isPending ? 'Cloning…' : 'Clone Campaign'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

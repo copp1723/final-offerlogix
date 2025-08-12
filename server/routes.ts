@@ -189,8 +189,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!templates || !Array.isArray(templates)) {
         return res.status(400).json({ message: "templates array required" });
       }
+
+      // Normalize templates into { subject, content }
+      let normalized = templates as any[];
+      if (normalized.length && typeof normalized[0] === 'string') {
+        normalized = (normalized as string[]).map((s) => ({ subject: String(s).slice(0, 80), content: String(s) }));
+      } else if (normalized.length && typeof normalized[0] === 'object') {
+        normalized = (normalized as any[]).map((t) => ({
+          subject: typeof t.subject === 'string' && t.subject.trim()
+            ? String(t.subject).slice(0, 140)
+            : typeof t.title === 'string' && t.title.trim()
+              ? String(t.title).slice(0, 140)
+              : 'Untitled',
+          content: typeof t.content === 'string' && t.content.trim()
+            ? String(t.content)
+            : typeof t.html === 'string' && t.html.trim()
+              ? String(t.html)
+              : typeof t.body === 'string' && t.body.trim()
+                ? String(t.body)
+                : typeof t.text === 'string' && t.text.trim()
+                  ? String(t.text)
+                  : ''
+        }));
+      }
+
       const campaign = await storage.updateCampaign(req.params.id, {
-        templates: templates as any,
+        templates: normalized as any,
         subjectLines: subjectLines as any,
         numberOfTemplates,
         daysBetweenMessages

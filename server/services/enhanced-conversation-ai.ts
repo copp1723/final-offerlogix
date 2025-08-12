@@ -75,6 +75,23 @@ export interface AutomotiveKnowledgeBase {
 export class EnhancedConversationAI {
   private automotiveKnowledge: AutomotiveKnowledgeBase;
   
+  // Quality Validation Pipeline Feature Flag
+  private static readonly ENABLE_QUALITY_VALIDATION = true;
+  
+  // Automotive Quality Validators
+  private static readonly AUTOMOTIVE_QUALITY_VALIDATORS = {
+    industryTerms: ['vehicle', 'financing', 'test drive', 'lease', 'warranty', 'service', 'trade-in', 'dealership', 'monthly payment', 'down payment', 'APR', 'credit', 'insurance'],
+    brandMentions: /\b(ford|toyota|honda|chevrolet|bmw|mercedes|audi|nissan|hyundai|kia|subaru|mazda|volkswagen|jeep|ram|gmc|lexus|acura|infiniti|cadillac|buick|lincoln|volvo|jaguar|land rover|porsche|tesla|genesis)\b/i,
+    actionableContent: /\b(schedule|visit|call|contact|appointment|quote|estimate|test drive|financing|apply|submit|come in|stop by|meet|discuss)\b/i,
+    avoidHallucinations: {
+      specificPrices: /\$[\d,]+(?!.*\bstarting|around|approximately\b)/,
+      specificDates: /\b(today|tomorrow|this weekend)\b(?!\s+(?:if|when|after))/,
+      guarantees: /\bguarantee[sd]?\b|\bpromise[sd]?\b/i,
+      specificInventory: /\b(we have|in stock|available now)\s+\d+\s+(vehicles?|cars?|trucks?)\b/i,
+      exactTimes: /\b(at exactly|precisely at|sharp at)\b/i
+    }
+  };
+  
   constructor() {
     this.automotiveKnowledge = this.initializeAutomotiveKnowledge();
   }
@@ -235,7 +252,19 @@ export class EnhancedConversationAI {
         frequency_penalty: 0.1
       });
 
-      return response.choices[0].message.content || "I'd be happy to help you with that. Let me get more information for you.";
+      const generatedResponse = response.choices[0].message.content || "I'd be happy to help you with that. Let me get more information for you.";
+      
+      // Apply quality validation if enabled
+      if (EnhancedConversationAI.ENABLE_QUALITY_VALIDATION) {
+        try {
+          return await this.validateAndEnhanceResponse(generatedResponse, context, messageAnalysis);
+        } catch (validationError) {
+          console.warn('Quality validation failed, returning original response:', validationError);
+          return generatedResponse;
+        }
+      }
+      
+      return generatedResponse;
     } catch (error) {
       console.error('Response generation error:', error);
       return this.generateFallbackResponse(messageAnalysis, context);
@@ -499,12 +528,256 @@ export class EnhancedConversationAI {
   }
 
   /**
+   * Validate and enhance AI response with quality checks and automotive expertise
+   */
+  private async validateAndEnhanceResponse(
+    originalResponse: string,
+    context: ConversationContext,
+    messageAnalysis: any
+  ): Promise<string> {
+    try {
+      // Step 1: Check for hallucinations and sanitize if needed
+      const sanitizedResponse = this.sanitizeHallucinations(originalResponse, context);
+      
+      // Step 2: Calculate advanced quality score
+      const qualityMetrics = this.calculateAdvancedQuality(sanitizedResponse, context);
+      
+      // Step 3: Enhance with automotive context if quality is low
+      let enhancedResponse = sanitizedResponse;
+      if (qualityMetrics.overall < 75) {
+        enhancedResponse = this.addAutomotiveContext(sanitizedResponse, context, messageAnalysis);
+      }
+      
+      // Step 4: Log quality metrics for monitoring
+      console.log('Quality Validation Metrics:', {
+        leadId: context.leadId,
+        originalScore: qualityMetrics.overall,
+        hasHallucinations: qualityMetrics.hasHallucinations,
+        automotiveTermsCount: qualityMetrics.automotiveTermsCount,
+        hasActionableContent: qualityMetrics.hasActionableContent
+      });
+      
+      return enhancedResponse;
+    } catch (error) {
+      console.error('Response validation error:', error);
+      return originalResponse; // Always return original if validation fails
+    }
+  }
+
+  /**
+   * Calculate advanced quality metrics for automotive responses
+   */
+  private calculateAdvancedQuality(
+    response: string,
+    context: ConversationContext
+  ): {
+    overall: number;
+    hasHallucinations: boolean;
+    automotiveTermsCount: number;
+    hasActionableContent: boolean;
+    personalizationScore: number;
+  } {
+    const validators = EnhancedConversationAI.AUTOMOTIVE_QUALITY_VALIDATORS;
+    const responseLC = response.toLowerCase();
+    
+    let score = 50; // Base score
+    
+    // Check for hallucinations
+    const hasHallucinations = this.containsHallucinations(response);
+    if (hasHallucinations) {
+      score -= 20;
+    }
+    
+    // Automotive industry terms usage
+    const automotiveTermsCount = validators.industryTerms.filter(term => 
+      responseLC.includes(term.toLowerCase())
+    ).length;
+    score += Math.min(20, automotiveTermsCount * 2);
+    
+    // Brand mentions (appropriate context)
+    if (validators.brandMentions.test(response)) {
+      score += 5;
+    }
+    
+    // Actionable content presence
+    const hasActionableContent = validators.actionableContent.test(response);
+    if (hasActionableContent) {
+      score += 15;
+    }
+    
+    // Personalization score
+    const personalizedElements = [
+      context.leadProfile.firstName,
+      context.leadProfile.vehicleInterest,
+      context.leadProfile.leadSource
+    ].filter(el => el && responseLC.includes(el.toLowerCase()));
+    const personalizationScore = personalizedElements.length * 5;
+    score += personalizationScore;
+    
+    // Length appropriateness
+    if (response.length >= 80 && response.length <= 400) {
+      score += 10;
+    }
+    
+    // Professional tone check (no excessive punctuation or caps)
+    if (!/[!]{2,}|[?]{2,}|[A-Z]{3,}/.test(response)) {
+      score += 5;
+    }
+    
+    return {
+      overall: Math.min(100, Math.max(0, score)),
+      hasHallucinations,
+      automotiveTermsCount,
+      hasActionableContent,
+      personalizationScore
+    };
+  }
+
+  /**
+   * Check if response contains potential hallucinations
+   */
+  private containsHallucinations(response: string): boolean {
+    const hallucinations = EnhancedConversationAI.AUTOMOTIVE_QUALITY_VALIDATORS.avoidHallucinations;
+    
+    // Check for specific prices without qualifiers
+    if (hallucinations.specificPrices.test(response)) {
+      return true;
+    }
+    
+    // Check for specific dates without conditions
+    if (hallucinations.specificDates.test(response)) {
+      return true;
+    }
+    
+    // Check for guarantees or promises
+    if (hallucinations.guarantees.test(response)) {
+      return true;
+    }
+    
+    // Check for specific inventory claims
+    if (hallucinations.specificInventory.test(response)) {
+      return true;
+    }
+    
+    // Check for exact time commitments
+    if (hallucinations.exactTimes.test(response)) {
+      return true;
+    }
+    
+    return false;
+  }
+
+  /**
+   * Sanitize response by removing or qualifying hallucinations
+   */
+  private sanitizeHallucinations(response: string, context: ConversationContext): string {
+    const hallucinations = EnhancedConversationAI.AUTOMOTIVE_QUALITY_VALIDATORS.avoidHallucinations;
+    let sanitized = response;
+    
+    // Replace specific prices with qualified language
+    sanitized = sanitized.replace(
+      hallucinations.specificPrices,
+      'starting around $XXX (actual pricing may vary)'
+    );
+    
+    // Replace specific dates with conditional language
+    sanitized = sanitized.replace(
+      /\b(today|tomorrow|this weekend)\b(?!\s+(?:if|when|after))/gi,
+      'soon (when convenient for you)'
+    );
+    
+    // Replace guarantees with softer language
+    sanitized = sanitized.replace(
+      /\b(guarantee|promise)\b/gi,
+      'work to ensure'
+    );
+    
+    // Replace specific inventory claims
+    sanitized = sanitized.replace(
+      hallucinations.specificInventory,
+      'we can check availability of vehicles for you'
+    );
+    
+    // Replace exact time commitments
+    sanitized = sanitized.replace(
+      hallucinations.exactTimes,
+      'around'
+    );
+    
+    return sanitized;
+  }
+
+  /**
+   * Add automotive context and expertise to enhance response quality
+   */
+  private addAutomotiveContext(
+    response: string,
+    context: ConversationContext,
+    messageAnalysis: any
+  ): string {
+    const validators = EnhancedConversationAI.AUTOMOTIVE_QUALITY_VALIDATORS;
+    
+    // If response lacks automotive terms, add relevant context
+    const hasAutomotiveTerms = validators.industryTerms.some(term => 
+      response.toLowerCase().includes(term.toLowerCase())
+    );
+    
+    if (!hasAutomotiveTerms) {
+      // Add relevant automotive context based on intent
+      let contextualEnding = '';
+      
+      switch (messageAnalysis.intent) {
+        case 'financing':
+          contextualEnding = ' We have competitive financing options available to help make your vehicle purchase affordable.';
+          break;
+        case 'test_drive':
+          contextualEnding = ' I can help schedule a test drive so you can experience the vehicle firsthand.';
+          break;
+        case 'price_inquiry':
+          contextualEnding = ' Let me get you current pricing and available incentives.';
+          break;
+        case 'ready_to_buy':
+          contextualEnding = ' I\'d be happy to help you move forward with your vehicle purchase.';
+          break;
+        default:
+          if (context.leadProfile.vehicleInterest) {
+            contextualEnding = ` I can provide more specific information about ${context.leadProfile.vehicleInterest} features and benefits.`;
+          }
+      }
+      
+      return response + contextualEnding;
+    }
+    
+    // If response lacks actionable content, add appropriate call-to-action
+    const hasActionableContent = validators.actionableContent.test(response);
+    if (!hasActionableContent) {
+      const ctaOptions = [
+        'Would you like to schedule a call to discuss this further?',
+        'I can arrange for you to speak with one of our specialists.',
+        'Let me know if you\'d like to visit our showroom to see the vehicles in person.'
+      ];
+      
+      const randomCTA = ctaOptions[Math.floor(Math.random() * ctaOptions.length)];
+      return response + ' ' + randomCTA;
+    }
+    
+    return response;
+  }
+
+  /**
    * Calculate response quality score
    */
   private async calculateResponseQuality(
     response: string,
     context: ConversationContext
   ): Promise<number> {
+    // Use the advanced quality calculation if validation is enabled
+    if (EnhancedConversationAI.ENABLE_QUALITY_VALIDATION) {
+      const metrics = this.calculateAdvancedQuality(response, context);
+      return metrics.overall;
+    }
+    
+    // Fallback to original quality calculation
     let score = 60; // Base score
 
     // Length appropriateness
