@@ -28,8 +28,10 @@ export async function initializeSystem(server?: import('http').Server) {
 
   if (hasImap) {
     try {
-      await startEnhancedEmailMonitor();
-      console.log('✅ Enhanced email monitoring service started');
+      const started = await startEnhancedEmailMonitor();
+      if (started) {
+        console.log('✅ Enhanced email monitoring service started');
+      }
     } catch (error) {
       console.error('❌ Email monitor failed to start:', error);
       console.log('📧 Email monitoring disabled due to startup error.');
@@ -64,18 +66,18 @@ export async function initializeSystem(server?: import('http').Server) {
 }
 
 // Enhanced email monitor service wrapper
-export async function startEnhancedEmailMonitor() {
+export async function startEnhancedEmailMonitor(): Promise<boolean> {
   if (process.env.USE_MOCK_MONITOR === 'true') {
     console.log('Using mock email monitor for development');
-    return Promise.resolve();
+  return Promise.resolve(true);
   }
 
   try {
     const { enhancedEmailMonitor } = await import('./enhanced-email-monitor');
-    return enhancedEmailMonitor.start();
+  return enhancedEmailMonitor.start();
   } catch (error) {
     console.error('Enhanced email monitor import failed:', error);
     // Don't throw - let the server continue without email monitoring
-    return Promise.resolve();
+  return Promise.resolve(false);
   }
 }

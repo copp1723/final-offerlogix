@@ -68,17 +68,19 @@ export class EnhancedEmailMonitor {
     this.loadCampaignTriggers();
   }
 
-  async start() {
+  async start(): Promise<boolean> {
     if (this.isRunning) {
-      console.log('Enhanced email monitor already running');
-      return;
+      if (process.env.DEBUG_EMAIL_MONITOR === 'true') {
+        console.log('Enhanced email monitor already running');
+      }
+      return false;
     }
 
     // Check if IMAP configuration is available
     if (!process.env.IMAP_HOST || !process.env.IMAP_USER || !process.env.IMAP_PASSWORD) {
       console.log('IMAP lead ingestion not started - IMAP configuration missing');
       console.log('Set IMAP_HOST, IMAP_USER, IMAP_PASSWORD to enable lead ingestion from email');
-      return;
+      return false;
     }
 
     const config = {
@@ -110,7 +112,7 @@ export class EnhancedEmailMonitor {
     };
 
     try {
-      this.connection = await imaps.connect(config);
+  this.connection = await imaps.connect(config);
       await this.connection.openBox('INBOX');
       this.isRunning = true;
       console.log('✅ Enhanced email monitor connected successfully');
@@ -127,7 +129,7 @@ export class EnhancedEmailMonitor {
           this.handleNewMail(numNewMails);
         });
       }
-    } catch (error: any) {
+  } catch (error: any) {
       // Check if it's a self-signed certificate error
       if (error.message && error.message.includes('self-signed certificate')) {
         console.log('⚠️  IMAP connection failed due to self-signed certificate');
@@ -148,7 +150,9 @@ export class EnhancedEmailMonitor {
       // Don't throw error to prevent server startup failure
       console.log('   📧 Email monitoring disabled - server will continue without it');
       console.log('   To enable: Configure IMAP settings in your .env file');
+      return false;
     }
+    return true;
   }
 
   async stop() {

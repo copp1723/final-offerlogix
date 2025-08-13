@@ -14,7 +14,9 @@ class WebSocketService {
 
   initialize(server: Server) {
     if (this.wss) {
-      console.warn('WebSocket server already initialized. Skipping.');
+      if (process.env.DEBUG_WS === 'true') {
+        console.warn('WebSocket server already initialized. Skipping.');
+      }
       return;
     }
     this.wss = new WebSocketServer({

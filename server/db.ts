@@ -1,5 +1,5 @@
-import dotenv from "dotenv";
-dotenv.config();
+// NOTE: dotenv is loaded once in the main entry (server/index.ts). Avoid duplicate loads here
+// to prevent double log lines like "dotenv injecting env".
 
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
