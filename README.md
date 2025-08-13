@@ -1,5 +1,7 @@
 # MailMind
 
+[![CI](https://github.com/joshcopp/MailMind/actions/workflows/ci.yml/badge.svg)](https://github.com/joshcopp/MailMind/actions/workflows/ci.yml)
+
 AI-powered email campaign platform with intelligent conversation management and automated lead engagement.
 
 ## Features
