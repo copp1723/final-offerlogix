@@ -78,6 +78,8 @@ async function applyLegacyPatches() {
     await addColumn('next_execution', `ALTER TABLE campaigns ADD COLUMN next_execution timestamp`);
     await addColumn('target_audience', `ALTER TABLE campaigns ADD COLUMN target_audience text`);
     await addColumn('handover_prompt', `ALTER TABLE campaigns ADD COLUMN handover_prompt text`);
+  // New structured JSON spec for handover evaluation (added via migration 0009) - ensure presence in older DBs
+  await addColumn('handover_prompt_spec', `ALTER TABLE campaigns ADD COLUMN handover_prompt_spec jsonb`);
     await addColumn('templates', `ALTER TABLE campaigns ADD COLUMN templates jsonb`);
     await addColumn('subject_lines', `ALTER TABLE campaigns ADD COLUMN subject_lines jsonb`);
     await addColumn('number_of_templates', `ALTER TABLE campaigns ADD COLUMN number_of_templates integer DEFAULT 5`);
