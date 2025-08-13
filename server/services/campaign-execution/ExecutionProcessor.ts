@@ -157,7 +157,8 @@ export class ExecutionProcessor {
       }
 
       return {
-        success: errors.length === 0 || emailsSent > 0,
+  // Mark success ONLY if at least one email sent. This prevents false positives when every send fails.
+  success: emailsSent > 0,
         emailsSent,
         emailsFailed,
         errors,
@@ -287,11 +288,15 @@ export class ExecutionProcessor {
 
   // Retry wrapper for mail sends
   private async sendWithRetries(to: string, subject: string, html: string, domainOverride?: string): Promise<boolean> {
-    const { sendCampaignEmail } = await import('../mailgun');
+    const { sendCampaignEmail, mailgunAuthIsSuppressed } = await import('../mailgun');
     let attempt = 0;
     while (true) {
       attempt++;
       try {
+        if (mailgunAuthIsSuppressed()) {
+          // Abort early if we know auth is currently invalid to prevent noisy retries
+          return false;
+        }
         const ok = await sendCampaignEmail(to, subject, html, {}, { domainOverride });
         if (ok) return true;
         if (attempt >= MAILGUN_MAX_RETRIES) return false;

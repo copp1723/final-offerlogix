@@ -43,6 +43,7 @@ export interface IStorage {
   getConversation(id: string): Promise<Conversation | undefined>;
   createConversation(conversation: InsertConversation): Promise<Conversation>;
   updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation>;
+  deleteConversation(id: string): Promise<void>;
 
   // Conversation message methods
   getConversationMessages(conversationId: string, limit?: number): Promise<ConversationMessage[]>;
@@ -282,6 +283,12 @@ export class DatabaseStorage implements IStorage {
     return updatedConversation;
   }
 
+  async deleteConversation(id: string): Promise<void> {
+    // Delete messages first to satisfy FK constraints, then delete conversation
+    await db.delete(conversationMessages).where(eq(conversationMessages.conversationId, id));
+    await db.delete(conversations).where(eq(conversations.id, id));
+  }
+
   // Update conversation status for handover
   async updateConversationStatus(id: string, status: string): Promise<Conversation | null> {
     const conversation = await this.getConversation(id);
@@ -296,12 +303,12 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(conversationMessages)
       .where(eq(conversationMessages.conversationId, conversationId))
-      .orderBy(desc(conversationMessages.createdAt));
-    
+      .orderBy(conversationMessages.createdAt); // ascending (oldest first)
+
     if (limit) {
       return await baseQuery.limit(limit);
     }
-    
+
     return await baseQuery;
   }
 

@@ -80,14 +80,16 @@ export class CampaignOrchestrator {
         };
       }
 
-      // Assign unassigned leads to this campaign
-      const unassignedLeads = targetLeads.filter(lead => !lead.campaignId);
-      if (unassignedLeads.length > 0) {
-        const assignmentResult = await leadAssignmentService.assignLeadsToCampaigns(
-          unassignedLeads,
-          [campaign]
-        );
-        console.log(`Assigned ${assignmentResult.assignedLeads} leads to campaign`);
+      // Assign unassigned leads to this campaign (skip bulk assignment in test mode to minimize side-effects)
+      if (!testMode) {
+        const unassignedLeads = targetLeads.filter(lead => !lead.campaignId);
+        if (unassignedLeads.length > 0) {
+          const assignmentResult = await leadAssignmentService.assignLeadsToCampaigns(
+            unassignedLeads,
+            [campaign]
+          );
+          console.log(`Assigned ${assignmentResult.assignedLeads} leads to campaign`);
+        }
       }
 
       // Update campaign status
@@ -174,12 +176,20 @@ export class CampaignOrchestrator {
         console.error('WebSocket broadcast error:', wsError);
       }
 
+      const success = processingResult.success;
+      const emailsSent = processingResult.emailsSent;
+      const baseMsg = testMode
+        ? (emailsSent > 0
+            ? `Test email sent to ${emailsSent} lead(s)`
+            : `Test execution failed: 0 emails sent`)
+        : (emailsSent > 0
+            ? `Campaign executed: ${emailsSent} email(s) sent`
+            : `Campaign execution failed: 0 emails sent`);
+
       return {
-        success: processingResult.success,
-        message: testMode 
-          ? `Test email sent to ${processingResult.emailsSent} lead(s)`
-          : `Campaign executed successfully`,
-        emailsSent: processingResult.emailsSent,
+        success,
+        message: baseMsg,
+        emailsSent,
         emailsFailed: processingResult.emailsFailed,
         totalLeads: targetLeads.length,
         errors: processingResult.errors,

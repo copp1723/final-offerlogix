@@ -1135,6 +1135,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a conversation (and its messages)
+  app.delete("/api/conversations/:id", async (req, res) => {
+    try {
+      await storage.deleteConversation(req.params.id);
+      res.status(204).send();
+    } catch (error) {
+      console.error('Failed to delete conversation', error);
+      res.status(500).json({ message: "Failed to delete conversation" });
+    }
+  });
+
+
   // Conversation message routes
   app.get("/api/conversations/:id/messages", async (req, res) => {
     try {
@@ -1142,7 +1154,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(messages);
     } catch (error) {
       console.error(`Failed to fetch messages for conversation ${req.params.id}:`, error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to fetch messages",
         conversationId: req.params.id,
         error: error instanceof Error ? error.message : "Unknown error"
@@ -1165,7 +1177,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error(`Failed to create message for conversation ${req.params.id}:`, error);
       const statusCode = error instanceof Error && error.message.includes("validation") ? 400 : 500;
-      res.status(statusCode).json({ 
+      res.status(statusCode).json({
         message: statusCode === 400 ? "Invalid message data" : "Failed to create message",
         conversationId: req.params.id,
         error: error instanceof Error ? error.message : "Unknown error"
@@ -1406,7 +1418,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(messages || []);
     } catch (error) {
       console.error(`Failed to fetch latest messages for lead ${req.params.id}:`, error);
-      res.status(500).json({ 
+      res.status(500).json({
         message: "Failed to fetch conversation messages",
         leadId: req.params.id,
         error: error instanceof Error ? error.message : "Unknown error"
@@ -1542,6 +1554,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/ai-agent-configs", async (req, res) => {
     try {
+      // Sanitize / validate agentEmailDomain if present
+      if (req.body.agentEmailDomain) {
+        let val = String(req.body.agentEmailDomain).trim();
+        if (val.includes('@')) {
+          // if user pasted an email like user@domain, keep only domain to align with Mailgun expectation
+            val = val.split('@').pop()!.trim();
+        }
+        const domainRegex = /^[a-zA-Z0-9.-]+$/;
+        if (!domainRegex.test(val)) {
+          return res.status(400).json({ message: "agentEmailDomain must be a bare domain/subdomain (no protocol, no spaces)" });
+        }
+        req.body.agentEmailDomain = val.toLowerCase();
+      }
       const configData = insertAiAgentConfigSchema.parse(req.body);
       const config = await storage.createAiAgentConfig(configData);
       res.json(config);
@@ -1552,6 +1577,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/ai-agent-configs/:id", async (req, res) => {
     try {
+      if (req.body.agentEmailDomain !== undefined) {
+        let val = String(req.body.agentEmailDomain || '').trim();
+        if (val.length === 0) {
+          // allow clearing
+          req.body.agentEmailDomain = null;
+        } else {
+          if (val.includes('@')) val = val.split('@').pop()!.trim();
+          const domainRegex = /^[a-zA-Z0-9.-]+$/;
+          if (!domainRegex.test(val)) {
+            return res.status(400).json({ message: "agentEmailDomain must be a bare domain/subdomain (no '@' or invalid chars)" });
+          }
+          req.body.agentEmailDomain = val.toLowerCase();
+        }
+      }
       const configData = insertAiAgentConfigSchema.partial().parse(req.body);
       const config = await storage.updateAiAgentConfig(req.params.id, configData);
       res.json(config);

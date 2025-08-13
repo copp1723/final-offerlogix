@@ -95,11 +95,15 @@ export class LeadAssignmentService {
 
             // Create conversation if needed
             if (assignment.createConversation) {
+              const safeFirst = (lead.firstName || '').trim();
+              const safeLast = (lead.lastName || '').trim();
+              const fallbackName = [safeFirst, safeLast].filter(Boolean).join(' ') || (lead.email || 'New Lead');
               const conversation = await storage.createConversation({
-                subject: `Lead Assignment: ${lead.firstName} ${lead.lastName}`,
+                subject: `Lead Assignment: ${fallbackName}`,
                 status: 'active',
                 priority: assignment.priority || 'normal',
-                campaignId: assignment.campaignId
+                campaignId: assignment.campaignId,
+                leadId: lead.id
               });
 
               assignment.conversationId = conversation.id;

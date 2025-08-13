@@ -31,7 +31,8 @@ export function ConversationMessaging({ conversationId, userId = "current-user" 
   // Load conversation messages
   const { data: initialMessages, isLoading } = useQuery({
     queryKey: ['/api/conversations', conversationId, 'messages'],
-    enabled: !!conversationId
+    enabled: !!conversationId,
+    select: (msgs: Message[] = []) => msgs.slice().sort((a,b)=> new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
   });
 
   // Initialize messages from API
@@ -120,7 +121,7 @@ export function ConversationMessaging({ conversationId, userId = "current-user" 
   }
 
   return (
-    <Card className="h-[600px] flex flex-col">
+    <Card className="h-[75vh] min-h-[600px] flex flex-col">
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle>Live Conversation</CardTitle>

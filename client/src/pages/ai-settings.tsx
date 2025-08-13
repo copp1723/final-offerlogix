@@ -54,12 +54,20 @@ import type { Campaign } from '@shared/schema';
 import { queryClient as globalQueryClient } from '@/lib/queryClient';
 import AutomotivePromptTester from "@/components/ai/AutomotivePromptTester";
 import type { AiAgentConfig } from "@shared/schema";
+import CampaignModal from '@/components/campaign/CampaignModal';
+
 import { insertAiAgentConfigSchema } from "@shared/schema";
 
 const formSchema = insertAiAgentConfigSchema.extend({
   dosList: z.array(z.string()).default([]),
   dontsList: z.array(z.string()).default([]),
-  agentEmailDomain: z.string().min(3, 'Mailgun subdomain is required'),
+  agentEmailDomain: z.string()
+    .min(3, 'Mailgun subdomain is required')
+    .transform(v => v.trim())
+    .refine(v => !v.includes('@') || v.split('@').length === 2, 'Invalid format')
+    .transform(v => (v.includes('@') ? v.split('@').pop() || '' : v))
+    .refine(v => /^[a-zA-Z0-9.-]+$/.test(v), 'Use only letters, numbers, dots, and hyphens')
+    .refine(v => !v.startsWith('.') && !v.endsWith('.'), 'Cannot start or end with a dot'),
 });
 
 export default function AiSettingsPage() {
@@ -482,10 +490,29 @@ export default function AiSettingsPage() {
                       <FormItem>
                         <FormLabel>Agents Email Subdomain (Mailgun)</FormLabel>
                         <FormControl>
-                          <Input placeholder="e.g., mg.dealership.com" value={field.value || ''} onChange={field.onChange} onBlur={field.onBlur} name={field.name} ref={field.ref} />
+                          <Input
+                            placeholder="e.g., mg.dealership.com"
+                            value={field.value || ''}
+                            onChange={(e) => {
+                              const raw = e.target.value;
+                              // Live strip whitespace and local-part if pasted email
+                              const cleaned = raw.includes('@') ? raw.split('@').pop()! : raw;
+                              field.onChange(cleaned.trim());
+                            }}
+                            onBlur={(e) => {
+                              const val = e.target.value.trim();
+                              if (val.includes('@')) {
+                                const domain = val.split('@').pop()!;
+                                field.onChange(domain);
+                              }
+                              field.onBlur();
+                            }}
+                            name={field.name}
+                            ref={field.ref}
+                          />
                         </FormControl>
                         <FormDescription>
-                          Used as the domain for AI agent auto-replies (overrides default MAILGUN_DOMAIN).
+                          Bare Mailgun domain or subdomain only (no email address). Overrides default MAILGUN_DOMAIN.
                         </FormDescription>
                         <FormMessage />
                       </FormItem>
@@ -617,6 +644,8 @@ function CampaignsInline() {
   const [reviewOpen, setReviewOpen] = useState(false);
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
   const [cloneName, setCloneName] = useState('');
+  const [newCampaignOpen, setNewCampaignOpen] = useState(false);
+
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
   const queryClient = useQueryClient();
 
@@ -657,11 +686,17 @@ function CampaignsInline() {
     if (Array.isArray(val)) return val;
     if (typeof val === 'string') { try { return JSON.parse(val); } catch { return []; } }
     return [];
+
   };
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-medium">Campaigns</h2>
+      <div className="flex items-center justify-between relative z-10">
+        <h2 className="text-lg font-medium">Campaigns</h2>
+        <Button size="sm" className="pointer-events-auto" onClick={() => setNewCampaignOpen(true)}>
+          <Plus className="h-4 w-4 mr-2" /> New Campaign
+        </Button>
+      </div>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {campaigns.map((c: Campaign) => (
           <Card key={c.id} className="hover:shadow-md transition-shadow">
@@ -707,6 +742,8 @@ function CampaignsInline() {
         />
       )}
       {/* Clone Dialog */}
+      <CampaignModal isOpen={newCampaignOpen} onClose={() => setNewCampaignOpen(false)} />
+
       <Dialog open={cloneDialogOpen} onOpenChange={setCloneDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -718,6 +755,7 @@ function CampaignsInline() {
               <label className="text-sm font-medium" htmlFor="clone-inline-name">Campaign Name</label>
               <Input id="clone-inline-name" value={cloneName} onChange={(e) => setCloneName(e.target.value)} className="mt-1" placeholder="Enter new campaign name" />
             </div>
+            <CampaignModal isOpen={newCampaignOpen} onClose={() => setNewCampaignOpen(false)} />
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setCloneDialogOpen(false)}>Cancel</Button>
               <Button onClick={handleCloneConfirm} disabled={cloneMutation.isPending || !cloneName.trim()}>

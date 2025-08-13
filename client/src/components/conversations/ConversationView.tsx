@@ -28,10 +28,12 @@ export default function ConversationView(props: ConversationViewProps) {
     isLoading,
     allowCompose = true,
     previewCount = 5,
-    heightClass = 'h-96',
+    heightClass = 'h-[75vh]',
   } = props;
   const [newMessage, setNewMessage] = useState("");
   const scrollRef = useRef<HTMLDivElement | null>(null);
+  // Track previous message count so we only auto-scroll on new activity, not on initial load
+  const prevCountRef = useRef<number>(messages?.length || 0);
   // Use the provided height class or fallback. (Explicit default above guarantees defined value.)
   const containerHeight = heightClass;
 
@@ -63,8 +65,13 @@ export default function ConversationView(props: ConversationViewProps) {
   }, [visibleMessages]);
 
   useEffect(() => {
-    // Auto-scroll to bottom on new messages (only when composing)
-    if (allowCompose) scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Auto-scroll to bottom only when composing AND after the initial render
+    if (!allowCompose) return;
+    const isInitial = prevCountRef.current === 0 || prevCountRef.current === visibleMessages.length;
+    prevCountRef.current = visibleMessages.length;
+    if (!isInitial) {
+      scrollRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [allowCompose, visibleMessages.length]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -77,12 +84,12 @@ export default function ConversationView(props: ConversationViewProps) {
   };
 
   return (
-    <Card className={`${containerHeight} flex flex-col`}>
+    <Card className={`${containerHeight} flex flex-col min-h-0`}>
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Conversation</CardTitle>
       </CardHeader>
-      <CardContent className="flex-1 flex flex-col p-4">
-        <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+      <CardContent className="flex-1 flex flex-col p-4 min-h-0">
+        <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1">
           {visibleMessages.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <MessageCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />

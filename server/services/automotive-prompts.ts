@@ -64,13 +64,13 @@ Resume if they ask about financing, trade-ins, test drives, or appointments`;
 
   static generateSystemPrompt(config: AutomotivePromptConfig, context?: ConversationContext): string {
     let prompt = this.baseSystemPrompt;
-    
+
     // Add personality modifications if specified
     if (config.personality) {
       prompt += `\n\n## PERSONALITY OVERRIDE:
 ${this.getPersonalityInstructions(config.personality)}`;
     }
-    
+
     // Add dealership information
     prompt += `\n\n## DEALERSHIP INFORMATION:
 ${config.dealershipName}
@@ -92,15 +92,15 @@ Phone: ${config.dealershipPhone}`;
     // Add contextual instructions based on conversation context
     if (context) {
       prompt += `\n\n## CONVERSATION CONTEXT:`;
-      
+
       if (context.leadName) {
         prompt += `\nCustomer Name: ${context.leadName} (Use naturally in conversation)`;
       }
-      
+
       if (context.vehicleInterest) {
         prompt += `\nVehicle Interest: ${context.vehicleInterest} (Reference this naturally)`;
       }
-      
+
       if (context.urgencyLevel) {
         const urgencyGuidance = {
           low: "Take time to build rapport and educate about features",
@@ -109,7 +109,7 @@ Phone: ${config.dealershipPhone}`;
         };
         prompt += `\nUrgency Level: ${context.urgencyLevel} - ${urgencyGuidance[context.urgencyLevel]}`;
       }
-      
+
       if (context.customerMood) {
         const moodGuidance = {
           interested: "Customer is engaged - continue building excitement and move toward appointment",
@@ -119,7 +119,7 @@ Phone: ${config.dealershipPhone}`;
         };
         prompt += `\nCustomer Mood: ${context.customerMood} - ${moodGuidance[context.customerMood]}`;
       }
-      
+
       if (context.detectedIntents && context.detectedIntents.length > 0) {
         prompt += `\nDetected Interests: ${context.detectedIntents.join(', ')} - Address these naturally in your response`;
       }
@@ -142,7 +142,7 @@ If this is the first message to a new lead, focus on a friendly introduction and
 
 ## URL INTEGRATION:
 - Trade-in mentions: ALWAYS include trade-in link
-- Financing questions: ALWAYS include financing link  
+- Financing questions: ALWAYS include financing link
 - Inventory questions: ALWAYS include inventory link
 - Frame links as helpful resources, not requirements
 - Never send more than one link in a single message.`;
@@ -174,16 +174,16 @@ IMPORTANT: You are having a bad day and feeling grumpy, but you're still profess
 - Show mild frustration with indecisive customers: "Come on, what's it gonna be?"
 - Still provide all necessary information, just with a gruff, no-nonsense attitude
 - End with pushing for action: "So are we doing this or what?" or "Let's wrap this up"`,
-      
+
       'ENTHUSIASTIC': `
 IMPORTANT: You are extremely excited about cars and helping customers find their perfect vehicle.
 - Start with high-energy greetings: "Oh WOW!" "This is AMAZING!" "You're gonna LOVE this!"
 - Use lots of exclamation points and energetic language
-- Get genuinely excited about vehicle features: "This engine is INCREDIBLE!" 
+- Get genuinely excited about vehicle features: "This engine is INCREDIBLE!"
 - Show enthusiasm for the customer's needs: "That's EXACTLY what you need!"
 - Use automotive enthusiasm phrases: "This baby will fly!" "Pure automotive excellence!"
 - End with excitement about next steps: "I can't WAIT to get you behind the wheel!"`,
-      
+
       'LAID_BACK': `
 IMPORTANT: You are very relaxed and casual in your approach to sales.
 - Use casual, relaxed language: "Hey there," "No worries," "Take your time"
@@ -192,7 +192,7 @@ IMPORTANT: You are very relaxed and casual in your approach to sales.
 - Be supportive and understanding: "Yeah, I totally get that"
 - Speak like you're talking to a friend rather than making a sale
 - End with easy-going suggestions: "Just let me know when you're ready"`,
-      
+
       'PROFESSIONAL': `
 IMPORTANT: You maintain the highest level of professionalism and expertise.
 - Always speak with authority and confidence about automotive knowledge
@@ -208,85 +208,85 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
 
   static generateResponseGuidelines(context: ConversationContext): string {
     const guidelines = [];
-    
+
     if (context.customerMood === 'urgent') {
       guidelines.push("PRIORITY: Customer needs immediate assistance - focus on scheduling");
     }
-    
+
     if (context.detectedIntents?.includes('test_drive_interest')) {
       guidelines.push("Customer interested in test drive - prioritize scheduling");
     }
-    
+
     if (context.detectedIntents?.includes('financing_discussion')) {
       guidelines.push("Customer asking about financing - direct to finance application");
     }
-    
+
     if (context.detectedIntents?.includes('trade_in_interest')) {
       guidelines.push("Customer has trade-in - direct to trade evaluation tool");
     }
-    
+
     return guidelines.length > 0 ? guidelines.join('. ') + '.' : '';
   }
 
   static parseCustomerMood(messageContent: string): ConversationContext['customerMood'] {
     const content = messageContent.toLowerCase();
-    
+
     if (content.includes('frustrated') || content.includes('annoyed') || content.includes('problem')) {
       return 'frustrated';
     }
-    
-    if (content.includes('urgent') || content.includes('asap') || content.includes('immediately') || 
+
+    if (content.includes('urgent') || content.includes('asap') || content.includes('immediately') ||
         content.includes('today') || content.includes('need now')) {
       return 'urgent';
     }
-    
+
     if (content.includes('not sure') || content.includes('maybe') || content.includes('hesitant') ||
         content.includes('thinking about')) {
       return 'hesitant';
     }
-    
+
     return 'interested'; // default
   }
 
   static detectAutomotiveIntents(messageContent: string): string[] {
     const content = messageContent.toLowerCase();
     const intents = [];
-    
+
     if (content.includes('test drive') || content.includes('drive it') || content.includes('try it out')) {
       intents.push('test_drive_interest');
     }
-    
+
     if (content.includes('financing') || content.includes('payment') || content.includes('loan') ||
         content.includes('monthly') || content.includes('apr')) {
       intents.push('financing_discussion');
     }
-    
+
     if (content.includes('trade') || content.includes('current car') || content.includes('my car') ||
         content.includes('trade-in')) {
       intents.push('trade_in_interest');
     }
-    
+
     if (content.includes('price') || content.includes('cost') || content.includes('how much')) {
       intents.push('pricing_inquiry');
     }
-    
+
     if (content.includes('appointment') || content.includes('schedule') || content.includes('visit') ||
         content.includes('come in') || content.includes('meet')) {
       intents.push('appointment_request');
     }
-    
+
     if (content.includes('service') || content.includes('maintenance') || content.includes('repair')) {
       intents.push('service_inquiry');
     }
-    
+
     if (content.includes('accessories') || content.includes('upgrade') || content.includes('customize') || content.includes('leather seats') || content.includes('add-on')) {
       intents.push('accessories_inquiry');
     }
-    
+
     if (content.includes('warranty') || content.includes('coverage') || content.includes('protection plan')) {
       intents.push('warranty_inquiry');
     }
-    
+
     return intents;
   }
 
@@ -301,13 +301,13 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
       vehicleInterest,
       previousMessages
     };
-    
+
     if (messageContent) {
       context.customerMood = this.parseCustomerMood(messageContent);
       context.detectedIntents = this.detectAutomotiveIntents(messageContent);
-      
+
       // Determine urgency based on keywords and mood
-      if (context.customerMood === 'urgent' || 
+      if (context.customerMood === 'urgent' ||
           context.detectedIntents.includes('appointment_request')) {
         context.urgencyLevel = 'high';
       } else if (context.detectedIntents.length >= 2) {
@@ -316,7 +316,7 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
         context.urgencyLevel = 'low';
       }
     }
-    
+
     return context;
   }
 
@@ -417,7 +417,7 @@ IMPORTANT: You maintain the highest level of professionalism and expertise.
     } = {}
   ): string {
     // Choose base prompt style
-    const basePrompt = options.useStraightTalkingStyle 
+    const basePrompt = options.useStraightTalkingStyle
       ? STRAIGHT_TALKING_AUTOMOTIVE_PRO_PROMPT
       : this.baseSystemPrompt;
 
@@ -440,23 +440,23 @@ Phone: ${config.dealershipPhone}`;
 
     if (Object.keys(enhancers).length > 0) {
       prompt += `\n\n## CONTEXTUAL ENHANCERS FOR THIS CONVERSATION:`;
-      
+
       if (enhancers.seasonalHook) {
         prompt += `\nSeasonal Context: ${enhancers.seasonalHook}`;
       }
-      
+
       if (enhancers.brandInsight) {
         prompt += `\nBrand Insight: ${enhancers.brandInsight}`;
       }
-      
+
       if (enhancers.urgencyCue) {
         prompt += `\nUrgency Opportunity: ${enhancers.urgencyCue}`;
       }
-      
+
       if (enhancers.tradeInPrompt) {
         prompt += `\nTrade-in Approach: ${enhancers.tradeInPrompt}`;
       }
-      
+
       if (enhancers.reEngagementHook) {
         prompt += `\nRe-engagement Strategy: ${enhancers.reEngagementHook}`;
       }
@@ -485,7 +485,7 @@ You are a seasoned automotive sales pro who knows cars, the market, and people. 
 
 ## Communication Style
 - Speak naturally — short sentences, easy flow, no corporate tone.
-- Always acknowledge what they say before moving forward.
+- Acknowledge what they say, but vary your openers; avoid back-to-back starts with the same phrase (no repeated "Got it", "Sure", etc.).
 - Use empathy: frustrated gets understanding, excited gets matched energy.
 - Keep messages quick to read — 1-3 sentences.
 - Mirror their tone (friendly, brief, detailed, casual).
@@ -494,11 +494,18 @@ You are a seasoned automotive sales pro who knows cars, the market, and people. 
 ## Engagement Rules
 1. Build off their last answer — never move on like you didn't hear them.
 2. Cues from them guide you — your next question or offer is based on what matters to them.
-3. Every message should either: 
-   a) make them feel understood, 
-   b) give them useful info, or 
+3. Every message should either:
+   a) make them feel understood,
+   b) give them useful info, or
    c) make the next step easy to say "yes" to.
 4. No fake urgency — only use genuine, real-time scarcity or deal deadlines.
+
+
+## No Over-Commitment & Handoff
+- Do not promise or send photos, VIN-specific details, or exact quotes yourself.
+- If they request pics, exact pricing, or anything that requires dealership systems, offer to loop in a teammate and ask their preferred contact method (text/email/call).
+- Use phrasing like: "I’ll have a teammate send options," "I can connect you with our pricing specialist," or "Let me get a quick confirm from the team."
+- You may discuss high-level ranges or factors, but avoid exact amounts without a handoff.
 
 ## Silent Background Intelligence (don't say this to them)
 Always note:
@@ -522,9 +529,9 @@ You: "Snow's coming — want me to look at AWD SUVs or trucks for you?"
 
 ## End Every Message With a Clear Next Step
 Examples:
-- "Want me to pull a couple options and send pics?"
-- "Should I lock that deal before Monday?"
-- "Want me to run payment estimates both with and without trade?"
+- "Want me to have a teammate send a couple options that fit what you described?"
+- "Want me to check with the team and hold one if it’s still available?"
+- "Want me to have the team run payment estimates with and without your trade?"
 
 Ultimate goal: Keep them engaged in a real conversation until they're ready to take the next step — and make that step frictionless.
 `;

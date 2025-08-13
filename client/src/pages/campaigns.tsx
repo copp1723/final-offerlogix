@@ -29,6 +29,8 @@ import { Copy, Edit, Trash2, Plus, Eye, Play, FileText } from "lucide-react";
 import CampaignExecutionModal from "@/components/campaigns/CampaignExecutionModal";
 import type { Campaign } from "@shared/schema";
 import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
+import CampaignModal from "@/components/campaign/CampaignModal";
+
 
 export default function CampaignsPage() {
   const [cloneDialogOpen, setCloneDialogOpen] = useState(false);
@@ -43,6 +45,8 @@ export default function CampaignsPage() {
 
   const [reviewOpen, setReviewOpen] = useState(false);
   const [reviewCampaign, setReviewCampaign] = useState<Campaign | null>(null);
+  const [newCampaignOpen, setNewCampaignOpen] = useState(false);
+
   const [viewOpen, setViewOpen] = useState(false);
   const [viewCampaign, setViewCampaign] = useState<Campaign | null>(null);
 
@@ -138,7 +142,7 @@ export default function CampaignsPage() {
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Campaigns</h1>
-        <Button>
+        <Button onClick={() => setNewCampaignOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
           New Campaign
         </Button>
@@ -170,7 +174,7 @@ export default function CampaignsPage() {
                     <div>Open Rate: {campaign.openRate}%</div>
                   )}
                 </div>
-                
+
                 <div className="flex gap-2 flex-wrap">
                   <CampaignExecutionModal campaign={{
                     id: campaign.id,
@@ -203,9 +207,9 @@ export default function CampaignsPage() {
                     <Eye className="h-4 w-4 mr-1" />
                     View
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
+                  <Button
+                    variant="outline"
+                    size="sm"
                     onClick={() => handleClone(campaign)}
                     disabled={cloneMutation.isPending}
                   >
@@ -335,6 +339,7 @@ export default function CampaignsPage() {
           </DialogContent>
         </Dialog>
       )}
+      <CampaignModal isOpen={newCampaignOpen} onClose={() => setNewCampaignOpen(false)} />
     </div>
   );
 }

@@ -9,13 +9,30 @@ export function getOpenAIClient(): OpenAI {
     if (!apiKey) {
       throw new Error("AI API key not configured - need OPENROUTER_API_KEY or OPENAI_API_KEY");
     }
-    
-    openai = new OpenAI({ 
+
+    openai = new OpenAI({
       apiKey,
       baseURL: process.env.OPENROUTER_API_KEY ? "https://openrouter.ai/api/v1" : undefined
     });
   }
   return openai;
+}
+
+// Resolve the correct model id based on environment and provider
+function getModelId(): string {
+  const envModel = process.env.AI_MODEL?.trim();
+  const usingOpenRouter = !!process.env.OPENROUTER_API_KEY;
+
+  if (envModel && envModel.length > 0) {
+    // If using OpenRouter and model doesn't specify provider, default to OpenAI provider
+    if (usingOpenRouter && !envModel.includes('/')) {
+      return `openai/${envModel}`;
+    }
+    return envModel;
+  }
+
+  // Defaults
+  return usingOpenRouter ? 'openai/gpt-4o' : 'gpt-4o';
 }
 
 export async function suggestCampaignGoals(context: string): Promise<string[]> {
@@ -40,7 +57,7 @@ Keep each goal concise (under 80 characters) and action-oriented.
   try {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: getModelId(),
       messages: [
         {
           role: "system",
@@ -89,7 +106,7 @@ Keep templates under 300 words each and subject lines under 60 characters.
   try {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: getModelId(),
       messages: [
         {
           role: "system",
@@ -136,7 +153,7 @@ Respond with JSON:
   try {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: getModelId(),
       messages: [
         {
           role: "system",
@@ -195,7 +212,7 @@ Return JSON with this structure:
   try {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: getModelId(),
       messages: [
         {
           role: "system",
@@ -237,7 +254,7 @@ Respond with JSON:
   try {
     const client = getOpenAIClient();
     const response = await client.chat.completions.create({
-      model: "gpt-4o",
+      model: getModelId(),
       messages: [
         {
           role: "system",

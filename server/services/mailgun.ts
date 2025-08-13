@@ -100,6 +100,10 @@ export async function sendCampaignEmail(
   variables: Record<string, any> = {},
   options: { isAutoResponse?: boolean; domainOverride?: string } = {}
 ): Promise<boolean> {
+  // Global auth failure suppression (module scoped singletons)
+  // If we detect repeated 401s we stop hammering Mailgun for a cooldown window
+  // to avoid log spam and rate-limit amplification.
+  // (Declared below outside the function; referenced here.)
   try {
     const apiKey = process.env.MAILGUN_API_KEY;
     // For agent auto-responses, a per-agent subdomain is REQUIRED
@@ -107,7 +111,21 @@ export async function sendCampaignEmail(
       console.error('Agent email blocked: agentEmailDomain (Mailgun subdomain) is not configured on the active AI Agent Configuration.');
       return false;
     }
-    const domain = options.domainOverride || process.env.MAILGUN_DOMAIN;
+    let domain = options.domainOverride || process.env.MAILGUN_DOMAIN;
+    if (domain && domain.includes('@')) {
+      // User mistakenly entered full email; extract domain part
+      const extracted = domain.split('@').pop()!.trim();
+      console.warn(`agentEmailDomain contained '@'; extracted domain part '${extracted}'.`);
+      domain = extracted;
+    }
+    if (domain) {
+      domain = domain.trim().toLowerCase();
+      const domainRegex = /^[a-z0-9.-]+$/i;
+      if (!domainRegex.test(domain)) {
+        console.error(`Mailgun: invalid domain '${domain}' after sanitation. Email not sent.`);
+        return false;
+      }
+    }
     if (!apiKey || !domain) {
       console.warn('Mailgun not configured - email not sent');
       return false;
@@ -122,6 +140,15 @@ export async function sendCampaignEmail(
     const fromEmail = options.isAutoResponse 
       ? `OneKeel Swarm <noreply@${domain}>`
       : (options?.isAutoResponse === false && typeof variables?.from === 'string' ? variables.from : `OneKeel Swarm <campaigns@${domain}>`);
+
+    if (MAILGUN_AUTH_SUPPRESSED_UNTIL && Date.now() < MAILGUN_AUTH_SUPPRESSED_UNTIL) {
+      // Only log once per minute while suppressed
+      if (!LAST_SUPPRESSION_LOG || Date.now() - LAST_SUPPRESSION_LOG > 60_000) {
+        console.warn(`Mailgun auth suppressed – skipping send to ${toAddr}. Cooldown active for ${(MAILGUN_AUTH_SUPPRESSED_UNTIL - Date.now())/1000 | 0}s.`);
+        LAST_SUPPRESSION_LOG = Date.now();
+      }
+      return false;
+    }
 
     const html = capHtmlSize(content || '');
     const text = toPlainText(html);
@@ -138,7 +165,9 @@ export async function sendCampaignEmail(
       'h:Precedence': 'bulk'
     });
 
-    const url = `https://api.mailgun.net/v3/${domain}/messages`;
+    const region = (process.env.MAILGUN_REGION || '').toLowerCase();
+    const base = region === 'eu' ? 'https://api.eu.mailgun.net/v3' : 'https://api.mailgun.net/v3';
+  const url = `${base}/${domain}/messages`;
     const init: RequestInit = {
       method: 'POST',
       headers: {
@@ -154,7 +183,17 @@ export async function sendCampaignEmail(
       return true;
     } else {
       const errorText = await response.text().catch(() => '');
-      console.error(`Mailgun API error ${response.status}:`, errorText);
+    if (response.status === 401) {
+        // Record suppression window (5 minutes) to prevent hammering
+        MAILGUN_AUTH_SUPPRESSED_UNTIL = Date.now() + 5 * 60_000;
+        const maskedKey = apiKey.length > 12 ? `${apiKey.slice(0,6)}…${apiKey.slice(-4)}` : '***';
+        console.error(
+      `Mailgun 401 Unauthorized. Probable causes: (1) invalid/disabled API key, (2) domain '${domain}' not verified or not in this region (${region || 'us'}), (3) region mismatch (set MAILGUN_REGION=eu if EU domain), (4) key lacks permission / wrong key type. ` +
+          `Domain='${domain}' Region='${region || 'us'}' Key='${maskedKey}'. Raw error: ${errorText}`
+        );
+      } else {
+        console.error(`Mailgun API error ${response.status}:`, errorText);
+      }
       return false;
     }
   } catch (error) {
@@ -214,4 +253,12 @@ export async function validateEmailAddresses(emails: string[]): Promise<{
   }
 
   return { valid, invalid };
+}
+
+// --- Auth suppression state (module scoped) ---
+let MAILGUN_AUTH_SUPPRESSED_UNTIL: number | null = null;
+let LAST_SUPPRESSION_LOG: number | null = null;
+
+export function mailgunAuthIsSuppressed(): boolean {
+  return !!(MAILGUN_AUTH_SUPPRESSED_UNTIL && Date.now() < MAILGUN_AUTH_SUPPRESSED_UNTIL);
 }

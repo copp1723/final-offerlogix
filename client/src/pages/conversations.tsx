@@ -22,6 +22,9 @@ export default function ConversationsPage() {
     queryKey: ["/api/conversations"],
   });
 
+  // Show all conversations, newest first
+  const visibleConversations = conversations.slice().sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
   // Fetch selected conversation messages
   const { data: messages = [] } = useQuery<ConversationMessage[]>({
     queryKey: ["/api/conversations", selectedConversationId, "messages"],
@@ -112,7 +115,7 @@ export default function ConversationsPage() {
   }
 
   return (
-    <div className="p-6">
+    <div className="p-6 h-[calc(100vh-3rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Conversations</h1>
@@ -124,12 +127,12 @@ export default function ConversationsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0"> {/* min-h-0 allows children flex overflow */}
         {/* Conversations List */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-4 overflow-y-auto pr-1 min-h-0"> {/* scrollable list */}
           <h2 className="text-lg font-semibold text-gray-900">Active Conversations</h2>
           
-          {conversations.length === 0 ? (
+          {visibleConversations.length === 0 ? (
             <Card>
               <CardContent className="p-6 text-center">
                 <MessageCircle className="h-12 w-12 text-gray-400 mx-auto mb-4" />
@@ -138,7 +141,7 @@ export default function ConversationsPage() {
               </CardContent>
             </Card>
           ) : (
-            conversations.map((conversation) => (
+            visibleConversations.map((conversation) => (
               <Card
                 key={conversation.id}
                 className={`cursor-pointer transition-all hover:shadow-md ${
@@ -172,7 +175,7 @@ export default function ConversationsPage() {
         </div>
 
         {/* Conversation View */}
-        <div className="lg:col-span-2">
+    <div className="lg:col-span-2 h-full min-h-0 flex flex-col">
           {selectedConversationId ? (
             <ConversationView
               conversationId={selectedConversationId}
@@ -183,7 +186,7 @@ export default function ConversationsPage() {
               isLoading={sendMessageMutation.isPending}
             />
           ) : (
-            <Card className="h-96">
+      <Card className="flex-1 flex flex-col">
               <CardContent className="p-6 flex items-center justify-center h-full">
                 <div className="text-center">
                   <MessageCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
@@ -221,14 +224,14 @@ function ConversationView({
   };
 
   return (
-    <Card className="h-96 flex flex-col">
+    <Card className="flex-1 min-h-0 flex flex-col">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">Conversation Messages</CardTitle>
       </CardHeader>
       
-      <CardContent className="flex-1 flex flex-col p-4">
+      <CardContent className="flex-1 flex flex-col p-4 min-h-0"> {/* min-h-0 to allow scroll area to size */}
         {/* Messages */}
-        <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+        <div className="flex-1 overflow-y-auto space-y-4 mb-4 pr-1"> {/* scrollable messages */}
           {messages.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               <MessageCircle className="h-8 w-8 mx-auto mb-2 text-gray-400" />
