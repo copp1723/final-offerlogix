@@ -1,6 +1,7 @@
 import { LLMClient } from './llm-client';
 import { MemoryMapper } from '../integrations/supermemory';
 import { getCampaignChatContext } from './memory-orchestrator';
+import { AutomotivePromptService } from './automotive-prompts';
 
 import * as crypto from 'crypto';
 
@@ -1277,23 +1278,47 @@ Return only the campaign name, no quotes or extra text.`;
       }
 
       const segHint = Array.isArray(data.segments) && data.segments.length ? `\nAudience Segments: ${data.segments.map((s: any) => s.name).join(', ')}` : '';
+      // Get the enhanced automotive system prompt for email templates with casual tone
+      const emailSystemPrompt = `You're a casual, helpful automotive salesperson writing quick emails. Write EXACTLY like these real examples:
+
+"With 140k on the clock, most '14 Silverados I see land somewhere in the $10k–$17k range depending on condition. Yours 4x4 or 2WD? Want me to have the team run a quick trade range specific to yours?"
+
+"$500's definitely doable for an Accord EX-L with some cash down — just depends on how much you want to put upfront. How much were you thinking for the down payment?"
+
+"Yeah, we can set that up no problem — just need to lock in which trim you're thinking so the right truck's ready. You leaning toward a V6, V8, or not fussed either way?"
+
+"Easy enough — mornings are usually wide open for test drives if we put your name on one. Do you want me to lock in a time so the Accord EX‑L is ready when you roll up?"
+
+CRITICAL STYLE RULES:
+- Use contractions (it's, that's, you're, we're, I'll)
+- Give specific, helpful details when relevant
+- Ask direct, casual questions
+- Use dashes for quick asides — like this
+- Keep it under 80 words/4 sentences
+- Sound like you're texting a friend, not writing formal emails
+- NEVER reveal you're AI or automated
+- Start with context, then ask a simple question
+
+Always respond with valid JSON format.`;
+
       const templatePrompt = `
-Create ${data.numberOfTemplates || 5} automotive email templates for this campaign:
-Context: ${data.context}
-Goals: ${data.handoverGoals || data.campaignGoals}
-Handover Criteria: ${data.handoverCriteria}${segHint}
-${ragContext ? `\nPast campaigns context:\n${ragContext}\n` : ''}
+Create ${data.numberOfTemplates || 5} email templates for: ${data.context}
 
-Each template should:
-- Be automotive industry focused
-- Include personalization placeholders like [Name] and [vehicleInterest]
-- Progress from introduction to call-to-action
-- Be professional but engaging
-- Include automotive-specific offers or information
+Write EXACTLY like the examples I showed you - casual, specific, helpful.
+- First email: friendly opener with specific info about their situation
+- Middle emails: address their needs with concrete details
+- Last email: create gentle urgency
 
-Return JSON array of template objects with "subject" and "content" fields.`;
+Each email MUST:
+- Be under 80 words/4 sentences
+- Sound like a text message, not a formal email
+- Include [Name] or [vehicleInterest] naturally if it fits
+- End with a simple, direct question
+- Use contractions and dashes for asides
 
-      const { content: templatesResult } = await LLMClient.generateAutomotiveContent(templatePrompt);
+Return JSON array with "subject" (max 40 chars, super casual) and "content" fields.`;
+
+      const { content: templatesResult } = await LLMClient.generateAutomotiveContent(templatePrompt, emailSystemPrompt);
       let templates: any[] = this.coerceJson<any[]>(templatesResult, [] as any[]);
       if ((!Array.isArray(templates)) || templates.length === 0) {
         templates = [
@@ -1301,10 +1326,17 @@ Return JSON array of template objects with "subject" and "content" fields.`;
         ];
       }
 
-      // Generate subject lines
-      const subjectPrompt = `Generate ${data.numberOfTemplates || 5} compelling email subject lines for automotive campaign: ${data.context}.
-${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}Return as JSON array of strings.`;
-      const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt);
+      // Generate subject lines with the same human tone
+      const subjectSystemPrompt = `You are a human automotive sales agent writing email subject lines.
+NEVER reveal you're AI. Write casual, intriguing subject lines that feel personal.
+Maximum 50 characters each. Focus on emotional hooks, not technical details.
+Always respond with valid JSON.`;
+      
+      const subjectPrompt = `Generate ${data.numberOfTemplates || 5} email subject lines for campaign: ${data.context}.
+Make them casual, personal, and intriguing - like a friend reaching out.
+${ragContext ? `Past campaigns context:\n${ragContext}\n` : ''}
+Return as JSON array of strings (max 50 chars each).`;
+      const { content: subjectsResult } = await LLMClient.generateAutomotiveContent(subjectPrompt, subjectSystemPrompt);
       let subjects = this.coerceJson(subjectsResult, [`${data.name} - Special Offer`, `${data.name} - Update`, `${data.name} - Reminder`]);
 
       return {

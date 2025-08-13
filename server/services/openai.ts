@@ -1,4 +1,6 @@
 import OpenAI from "openai";
+import { LLMClient } from './llm-client';
+import { AutomotivePromptService } from './automotive-prompts';
 
 // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
 let openai: OpenAI | null = null;
@@ -178,61 +180,74 @@ Respond with JSON:
 }
 
 export async function generateEmailTemplates(context: string, campaignName: string, numberOfTemplates: number = 5): Promise<string[]> {
+  // Use casual, specific tone like real salespeople
+  const emailSystemPrompt = `You're a casual automotive salesperson writing quick emails. Write EXACTLY like these examples:
+
+"With 140k on the clock, most '14 Silverados land somewhere in the $10k–$17k range depending on condition. Yours 4x4 or 2WD? Want me to have the team run a quick trade range?"
+
+"$500's definitely doable for an Accord EX-L with some cash down — depends on how much you want upfront. How much were you thinking for the down payment?"
+
+"Yeah, we can set that up no problem — just need to lock in which trim so the right truck's ready. You leaning toward V6, V8, or not fussed?"
+
+STYLE RULES:
+- Use contractions (it's, that's, you're, I'll)
+- Give specific details when relevant
+- Ask direct, casual questions
+- Use dashes for asides — like this
+- Under 80 words/4 sentences
+- Sound like texting, not formal email
+- NEVER reveal you're AI
+
+Always respond with valid JSON.`;
+
   const prompt = `
-Create ${numberOfTemplates} progressive email templates for an automotive campaign named "${campaignName}".
+Create ${numberOfTemplates} email templates for: ${context}
 
-Campaign Context: ${context}
+Write EXACTLY like my examples - casual, specific, helpful. 
+- First: friendly opener with helpful info
+- Middle: address needs with specifics  
+- Last: gentle urgency
 
-Requirements:
-- Each template should escalate in urgency/engagement level
-- Templates should be professional yet persuasive for automotive audience
-- Include automotive-specific language (test drives, service appointments, vehicle features)
-- Each template should be 100-200 words
-- Focus on different aspects: introduction, features, benefits, urgency, final offer
-- Format as HTML email content suitable for automotive customers
+Each email:
+- Under 80 words/4 sentences
+- Sound like texting
+- Use [Name] or [vehicleInterest] if natural
+- End with simple question
+- Format: minimal HTML with <br> for breaks
 
-Return JSON with this structure:
+Return JSON:
 {
   "templates": [
-    {
-      "sequence": 1,
-      "title": "Introduction Email",
-      "content": "HTML email content here..."
-    },
-    {
-      "sequence": 2,
-      "title": "Feature Highlight", 
-      "content": "HTML email content here..."
-    }
-    // ... continue for all ${numberOfTemplates} templates
+    {"sequence": 1, "title": "opener", "content": "..."},
+    {"sequence": 2, "title": "follow", "content": "..."}
   ]
 }
 `;
 
   try {
-    const client = getOpenAIClient();
-    const response = await client.chat.completions.create({
-      model: getModelId(),
-      messages: [
-        {
-          role: "system",
-          content: "You are an expert automotive email marketing specialist. Create compelling email sequences that drive test drives, service appointments, and vehicle sales."
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
-      response_format: { type: "json_object" },
-      temperature: 0.7,
-      max_tokens: 3000
-    });
-
-    const result = JSON.parse(response.choices[0].message.content || '{"templates": []}');
+    // Use LLMClient with enhanced system prompt
+    const response = await LLMClient.generateAutomotiveContent(prompt, emailSystemPrompt);
+    const result = JSON.parse(response.content || '{"templates": []}');
     return result.templates?.map((t: any) => t.content) || [];
   } catch (error) {
     console.error('Error generating email templates:', error);
-    throw new Error('Failed to generate email templates');
+    // Return basic templates as fallback
+    const basicTemplates = [];
+    for (let i = 1; i <= numberOfTemplates; i++) {
+      basicTemplates.push(`
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+          <h2>${campaignName} - Email ${i}</h2>
+          <p>Dear [Name],</p>
+          <p>We're excited to share information about our ${context}.</p>
+          <p>Visit our dealership today to learn more!</p>
+          <p>Best regards,<br>Your Automotive Team</p>
+        </body>
+        </html>
+      `);
+    }
+    return basicTemplates;
   }
 }
 

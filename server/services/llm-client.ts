@@ -362,10 +362,10 @@ Context (JSON): ${JSON.stringify(context).slice(0, 2000)}`;
   /**
    * Helper method for automotive content generation with enforced JSON
    */
-  static async generateAutomotiveContent(prompt: string): Promise<LLMResponse> {
+  static async generateAutomotiveContent(prompt: string, systemPrompt?: string): Promise<LLMResponse> {
     return this.generate({
       model: this.resolveModel('openai/gpt-5-chat'),
-      system: 'You are an expert automotive marketing AI assistant. Always respond with valid JSON.',
+      system: systemPrompt || 'You are an expert automotive marketing AI assistant. Always respond with valid JSON.',
       user: prompt,
       json: true,
       temperature: 0.2,
