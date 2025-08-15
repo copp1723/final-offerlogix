@@ -6,12 +6,23 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb } from "lucide-react";
+import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb, Trash2 } from "lucide-react";
 import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
 import ConversationView from "@/components/conversations/ConversationView";
@@ -101,10 +112,7 @@ export default function Leads() {
       if (campaignId && campaignId !== "all" && campaignId !== "none") {
         formData.append("campaignId", campaignId);
       }
-      return fetch("/api/leads/upload-csv", {
-        method: "POST",
-        body: formData,
-      }).then(res => res.json());
+      return apiRequest<{ leads: Lead[] }>("/api/leads/upload-csv", "POST", formData as any);
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
@@ -127,6 +135,20 @@ export default function Leads() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       toast({ title: "Lead status updated" });
+    },
+  });
+
+  // Delete lead mutation
+  const deleteLeadMutation = useMutation({
+    mutationFn: async (id: string) => {
+      return await apiRequest(`/api/leads/${id}`, "DELETE");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      toast({ title: "Lead deleted" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete lead", variant: "destructive" });
     },
   });
 
@@ -490,7 +512,7 @@ export default function Leads() {
                         );
                       })()}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="flex items-center gap-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -500,6 +522,32 @@ export default function Leads() {
                       >
                         View
                       </Button>
+
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="outline" size="sm">
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete this lead? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteLeadMutation.mutate(lead.id)}
+                              className="bg-red-600 hover:bg-red-700"
+                              disabled={deleteLeadMutation.isPending}
+                            >
+                              {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
                     </TableCell>
                   </TableRow>
                 ))}

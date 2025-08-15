@@ -45,6 +45,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
+import { useLocation, Link } from 'wouter';
 import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 // (EmailValidationPanel removed in favor of Campaigns management inside this center)
@@ -77,6 +78,7 @@ export default function AiSettingsPage() {
   const [newDont, setNewDont] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, setLocation] = useLocation();
 
   const { data: configs, isLoading } = useQuery({
     queryKey: ["/api/ai-agent-configs"],
@@ -718,9 +720,11 @@ function CampaignsInline() {
                 <Button size="sm" variant="outline" className="flex-1" onClick={() => { setReviewCampaign(c); setReviewOpen(true); }}>
                   <FileText className="h-4 w-4 mr-1" /> Review
                 </Button>
-                <Button size="sm" variant="outline" className="flex-1" onClick={() => window.location.assign('/campaigns') }>
-                  <Eye className="h-4 w-4 mr-1" /> Full View
-                </Button>
+                <Link href="/campaigns">
+                  <Button size="sm" variant="outline" className="flex-1">
+                    <Eye className="h-4 w-4 mr-1" /> Full View
+                  </Button>
+                </Link>
                 <Button size="sm" variant="outline" className="flex-0" disabled={cloneMutation.isPending} onClick={() => handleClone(c)} title="Clone Campaign">
                   <Copy className="h-4 w-4" />
                 </Button>

@@ -179,7 +179,7 @@ Respond with JSON:
   }
 }
 
-export async function generateEmailTemplates(context: string, campaignName: string, numberOfTemplates: number = 5): Promise<string[]> {
+export async function generateEmailTemplates(context: string, campaignName: string, numberOfTemplates: number = 5): Promise<any[]> {
   // Use casual, specific tone like real salespeople
   const emailSystemPrompt = `You're a casual automotive salesperson writing quick emails. Write EXACTLY like these examples:
 
@@ -189,14 +189,17 @@ export async function generateEmailTemplates(context: string, campaignName: stri
 
 "Yeah, we can set that up no problem — just need to lock in which trim so the right truck's ready. You leaning toward V6, V8, or not fussed?"
 
-STYLE RULES:
+CRITICAL RULES:
+- NEVER mention free giveaways, iPads, free oil changes, or any incentives not explicitly stated
+- ONLY reference actual dealer services, inventory, or realistic offers
 - Use contractions (it's, that's, you're, I'll)
 - Give specific details when relevant
 - Ask direct, casual questions
 - Use dashes for asides — like this
-- Under 80 words/4 sentences
+- Under 80 words total per email
 - Sound like texting, not formal email
 - NEVER reveal you're AI
+- NO made-up promotions or false claims
 
 Always respond with valid JSON.`;
 
@@ -204,22 +207,39 @@ Always respond with valid JSON.`;
 Create ${numberOfTemplates} email templates for: ${context}
 
 Write EXACTLY like my examples - casual, specific, helpful. 
-- First: friendly opener with helpful info
-- Middle: address needs with specifics  
-- Last: gentle urgency
 
-Each email:
-- Under 80 words/4 sentences
+CRITICAL: 
+- NO made-up incentives (no iPads, no free oil changes, no giveaways)
+- ONLY reference realistic dealer services
+- Keep it authentic and honest
+
+Each email needs:
+1. A subject line (max 55 chars, no emojis, conversational)
+2. Email content with proper spacing:
+   - Opening line/paragraph
+   - Middle section (if needed)
+   - Closing with question
+   - Use <br><br> between paragraphs for spacing
+
+Format each email:
+- Under 80 words total
 - Sound like texting
 - Use [Name] or [vehicleInterest] if natural
 - End with simple question
-- Format: minimal HTML with <br> for breaks
 
 Return JSON:
 {
   "templates": [
-    {"sequence": 1, "title": "opener", "content": "..."},
-    {"sequence": 2, "title": "follow", "content": "..."}
+    {
+      "sequence": 1, 
+      "subject": "Quick question about that [vehicleInterest]",
+      "content": "Hey [Name] —<br><br>Saw you were looking at [vehicleInterest]. We just got a few more in that might work better for what you need.<br><br>Want me to grab the details for you?"
+    },
+    {
+      "sequence": 2,
+      "subject": "Following up on your visit",
+      "content": "..."
+    }
   ]
 }
 `;
@@ -228,24 +248,18 @@ Return JSON:
     // Use LLMClient with enhanced system prompt
     const response = await LLMClient.generateAutomotiveContent(prompt, emailSystemPrompt);
     const result = JSON.parse(response.content || '{"templates": []}');
-    return result.templates?.map((t: any) => t.content) || [];
+    // Return full template objects with subject and content
+    return result.templates || [];
   } catch (error) {
     console.error('Error generating email templates:', error);
-    // Return basic templates as fallback
+    // Return basic templates as fallback with subject lines
     const basicTemplates = [];
     for (let i = 1; i <= numberOfTemplates; i++) {
-      basicTemplates.push(`
-        <!DOCTYPE html>
-        <html>
-        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
-          <h2>${campaignName} - Email ${i}</h2>
-          <p>Dear [Name],</p>
-          <p>We're excited to share information about our ${context}.</p>
-          <p>Visit our dealership today to learn more!</p>
-          <p>Best regards,<br>Your Automotive Team</p>
-        </body>
-        </html>
-      `);
+      basicTemplates.push({
+        sequence: i,
+        subject: `${campaignName} - Update ${i}`,
+        content: `Hey [Name] —<br><br>We're excited to share information about our ${context}.<br><br>Want to learn more?`
+      });
     }
     return basicTemplates;
   }

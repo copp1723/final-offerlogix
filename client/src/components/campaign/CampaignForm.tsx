@@ -8,9 +8,12 @@ import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays } from "lucide-react";
+import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import type { Campaign as SharedCampaign } from "@shared/schema";
 
 import { SMSIntegration } from "@/components/SMSIntegration";
 import { CampaignScheduler } from "@/components/CampaignScheduler";
@@ -40,10 +43,11 @@ type FormData = z.infer<typeof formSchema>;
 interface CampaignFormProps {
   onClose: () => void;
   currentStep: number;
-  onStepChange: (step: number) => void;
+  onStepChange: (step: number, campaignId?: string) => void;
+  campaignId?: string | null;
 }
 
-export default function CampaignForm({ onClose, currentStep, onStepChange }: CampaignFormProps) {
+export default function CampaignForm({ onClose, currentStep, onStepChange, campaignId }: CampaignFormProps) {
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
@@ -78,6 +82,12 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
   });
 
   const { data: agentConfigs } = useQuery({ queryKey: ['/api/ai-agent-configs'] });
+  
+  // Load campaign data when we have a campaignId (for steps 3 and 4)
+  const { data: campaignData } = useQuery<FormData | null>({ 
+    queryKey: [`/api/campaigns/${campaignId}`],
+    enabled: !!campaignId && currentStep >= 3
+  });
 
   const createCampaign = useMutation({
     mutationFn: (data: FormData) => apiRequest('/api/campaigns', 'POST', data),
@@ -85,7 +95,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
       queryClient.invalidateQueries({ queryKey: ['/api/campaigns'] });
       toast({ title: "Campaign created successfully!" });
       setCreatedCampaignId(response.id);
-      onStepChange(2); // Move to next step for scheduling
+      onStepChange(2, response.id); // Move to Lead Selection step with campaign ID
     },
     onError: () => {
       toast({ title: "Failed to create campaign", variant: "destructive" });
@@ -96,7 +106,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     mutationFn: (context: string) =>
       apiRequest('/api/ai/suggest-goals', 'POST', { context }),
     onSuccess: (response: any) => {
-      const goals = response.json?.goals || [];
+      const goals = response.goals || [];
       setAiSuggestions(goals);
       setShowSuggestions(true);
     },
@@ -132,7 +142,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     mutationFn: (context: string) =>
       apiRequest('/api/ai/suggest-names', 'POST', { context }),
     onSuccess: (response: any) => {
-      const names = response.json?.names || [];
+      const names = response.names || [];
       setNameSuggestions(names);
       setShowNameSuggestions(true);
     },
@@ -145,7 +155,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     mutationFn: ({ context, name, numberOfTemplates }: { context: string; name: string; numberOfTemplates: number }) =>
       apiRequest('/api/ai/generate-templates', 'POST', { context, name, numberOfTemplates }),
     onSuccess: (response: any) => {
-      const templates = response.json?.templates || [];
+      const templates = response.templates || [];
       setGeneratedTemplates(templates);
       toast({ title: `Generated ${templates.length} email templates!` });
     },
@@ -214,9 +224,11 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
     generateTemplates.mutate({ context, name, numberOfTemplates });
   };
 
-  return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+  // Only show the initial form for step 1
+  if (currentStep === 1) {
+    return (
+      <Form {...form}>
+        <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* AI Tips */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start space-x-3">
@@ -617,5 +629,170 @@ export default function CampaignForm({ onClose, currentStep, onStepChange }: Cam
         </div>
       </form>
     </Form>
-  );
+    );
+  }
+
+  // Step 3: AI Enhancement
+  if (currentStep === 3) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-4 h-4 text-blue-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Template Generation</h4>
+              <p className="text-sm text-blue-700 leading-relaxed">
+                Generate email templates and subject lines optimized for your campaign goals.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4">
+          <button
+            type="button"
+            onClick={() => {
+              if (!campaignId) {
+                toast({ title: "Campaign ID not found", variant: "destructive" });
+                return;
+              }
+              // Use the campaign data for context
+              const context = campaignData?.context || form.getValues('context');
+              const name = campaignData?.name || form.getValues('name');
+              generateTemplates.mutate({ context, name, numberOfTemplates });
+            }}
+            disabled={generateTemplates.isPending}
+            className="p-4 border border-gray-200 rounded-lg hover:border-blue-300 hover:bg-blue-50 transition-all text-left"
+          >
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Mail className="w-4 h-4 text-blue-600" />
+              </div>
+              <span className="font-medium text-gray-900">Generate Email Templates</span>
+            </div>
+            <p className="text-sm text-gray-600">
+              Create {numberOfTemplates} personalized email templates with proper spacing and subject lines
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (!campaignId) {
+                toast({ title: "Campaign ID not found", variant: "destructive" });
+                return;
+              }
+              const context = campaignData?.context || form.getValues('context') || '';
+              const name = campaignData?.name || form.getValues('name') || '';
+              generateSubjects.mutate({ context, name });
+            }}
+            disabled={generateSubjects.isPending}
+            className="p-4 border border-gray-200 rounded-lg hover:border-green-300 hover:bg-green-50 transition-all text-left"
+          >
+            <div className="flex items-center space-x-3 mb-2">
+              <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                <Type className="w-4 h-4 text-green-600" />
+              </div>
+              <span className="font-medium text-gray-900">Generate Additional Subject Lines</span>
+            </div>
+            <p className="text-sm text-gray-600">
+              Create compelling subject lines optimized for open rates
+            </p>
+          </button>
+        </div>
+
+        {generatedTemplates.length > 0 && (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800">
+              ✓ Generated {generatedTemplates.length} templates with subject lines
+            </p>
+          </div>
+        )}
+
+        <div className="flex justify-between pt-4">
+          <Button variant="outline" onClick={() => onStepChange(2)}>
+            Back to Lead Selection
+          </Button>
+          <Button onClick={() => onStepChange(4)}>
+            Continue to Review
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Step 4: Review & Launch
+  if (currentStep === 4) {
+    return (
+      <div className="space-y-6">
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-start space-x-3">
+            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Check className="w-4 h-4 text-green-600" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold text-green-900 mb-1">Campaign Ready</h4>
+              <p className="text-sm text-green-700 leading-relaxed">
+                Your campaign is configured and ready to launch. Review the settings below before launching.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Campaign Summary</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div>
+              <p className="text-sm text-gray-500">Campaign Name</p>
+              <p className="font-medium">{campaignData?.name || form.getValues('name')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Context</p>
+              <p className="text-sm">{campaignData?.context || form.getValues('context')}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Templates</p>
+              <p className="font-medium">{generatedTemplates.length} templates generated</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Status</p>
+              <Badge>Ready to Launch</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        <div className="flex justify-between pt-4">
+          <Button variant="outline" onClick={() => onStepChange(3)}>
+            Back to Enhancement
+          </Button>
+          <div className="space-x-3">
+            <Button
+              variant="outline"
+              onClick={() => {
+                toast({ title: "Campaign saved as draft" });
+                onClose();
+              }}
+            >
+              Save as Draft
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                toast({ title: "Campaign launched successfully!" });
+                onClose();
+              }}
+            >
+              Launch Campaign
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

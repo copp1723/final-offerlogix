@@ -3,6 +3,7 @@ import { Bot, X } from "lucide-react";
 import { useState } from "react";
 import StepIndicators from "./StepIndicators";
 import CampaignForm from "./CampaignForm";
+import LeadSelectionStep from "./LeadSelectionStep";
 
 interface CampaignModalProps {
   isOpen: boolean;
@@ -11,6 +12,47 @@ interface CampaignModalProps {
 
 export default function CampaignModal({ isOpen, onClose }: CampaignModalProps) {
   const [currentStep, setCurrentStep] = useState(1);
+  const [campaignId, setCampaignId] = useState<string | null>(null);
+
+  const handleStepChange = (step: number, newCampaignId?: string) => {
+    setCurrentStep(step);
+    if (newCampaignId) {
+      setCampaignId(newCampaignId);
+    }
+  };
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 1:
+        return (
+          <CampaignForm 
+            onClose={onClose}
+            currentStep={currentStep}
+            onStepChange={handleStepChange}
+          />
+        );
+      case 2:
+        return (
+          <LeadSelectionStep
+            campaignId={campaignId || undefined}
+            onNext={() => setCurrentStep(3)}
+            onBack={() => setCurrentStep(1)}
+          />
+        );
+      case 3:
+      case 4:
+        return (
+          <CampaignForm 
+            onClose={onClose}
+            currentStep={currentStep}
+            onStepChange={handleStepChange}
+            campaignId={campaignId}
+          />
+        );
+      default:
+        return null;
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -32,11 +74,7 @@ export default function CampaignModal({ isOpen, onClose }: CampaignModalProps) {
 
         <StepIndicators currentStep={currentStep} />
         
-        <CampaignForm 
-          onClose={onClose}
-          currentStep={currentStep}
-          onStepChange={setCurrentStep}
-        />
+        {renderStep()}
       </DialogContent>
     </Dialog>
   );

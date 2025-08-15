@@ -1,7 +1,9 @@
 import AIChatInterface from "@/components/ai-chat/AIChatInterface";
+import { useLocation } from 'wouter';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function HomePage() {
+  const [, navigate] = useLocation();
   // Mock data - replace with actual API calls later
   const liveCampaigns = 2;
   const handovers = 8;
@@ -40,12 +42,9 @@ export default function HomePage() {
 
       {/* Priority alerts */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card 
+          <Card 
           className="cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => {
-            // Navigate to Carol Davis lead profile
-            window.location.href = '/leads?leadId=carol-davis';
-          }}
+          onClick={() => navigate('/leads?leadId=carol-davis')}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
@@ -57,10 +56,7 @@ export default function HomePage() {
         
         <Card 
           className="cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => {
-            // Navigate to Bob Brown lead profile
-            window.location.href = '/leads?leadId=bob-brown';
-          }}
+          onClick={() => navigate('/leads?leadId=bob-brown')}
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">

@@ -5,8 +5,9 @@ interface StepIndicatorsProps {
 export default function StepIndicators({ currentStep }: StepIndicatorsProps) {
   const steps = [
     { number: 1, title: "Campaign Setup" },
-    { number: 2, title: "AI Enhancement" },
-    { number: 3, title: "Review & Launch" }
+    { number: 2, title: "Select Leads" },
+    { number: 3, title: "AI Enhancement" },
+    { number: 4, title: "Review & Launch" }
   ];
 
   return (

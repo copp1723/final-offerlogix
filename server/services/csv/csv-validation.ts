@@ -3,8 +3,8 @@ import { z } from "zod";
 
 // Validation schema for lead data
 const leadValidationSchema = z.object({
-  firstName: z.string().min(1, "First name is required").max(100),
-  lastName: z.string().min(1, "Last name is required").max(100),
+  firstName: z.string().max(100).optional().or(z.literal('')),
+  lastName: z.string().max(100).optional().or(z.literal('')),
   email: z.string().email("Invalid email format"),
   phone: z.string().optional(),
   vehicleInterest: z.string().optional(),
@@ -39,7 +39,7 @@ export class CSVValidationService {
   private static readonly DEFAULT_OPTIONS: CSVValidationOptions = {
     maxFileSize: 10 * 1024 * 1024, // 10MB
     maxRows: 10000,
-    requireColumns: ['firstName', 'lastName', 'email'],
+    requireColumns: ['email'], // Only email is truly required
     sanitizeData: true,
   };
 

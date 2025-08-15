@@ -1,4 +1,6 @@
 import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'wouter';
 import { Sparkles, Users, TrendingUp, AlertCircle, Mail, Zap, BarChart3, Activity } from 'lucide-react';
 import { useDashboard } from '@/hooks/useDashboard';
 import { AIAgentPanel } from '@/components/AIAgentPanel';
@@ -12,6 +14,7 @@ export function EnhancedDashboard() {
   const [activeTab, setActiveTab] = useState<TabValue>('agent');
   const { data, isLoading, error } = useDashboard();
   const branding = useBranding();
+  const queryClient = useQueryClient();
 
   if (isLoading) {
     return (
@@ -44,7 +47,7 @@ export function EnhancedDashboard() {
           <p className="text-2xl font-bold text-gray-900 mb-2">Oops! Something went wrong</p>
           <p className="text-gray-600 mb-6">We couldn't load your dashboard. Please try refreshing.</p>
           <button 
-            onClick={() => window.location.reload()}
+            onClick={() => queryClient.invalidateQueries({ queryKey: ['dashboard'] })}
             className="px-6 py-3 gradient-primary text-white rounded-xl font-medium hover:shadow-glow transition-all duration-300 transform hover:scale-105"
           >
             Refresh Page

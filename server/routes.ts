@@ -1296,12 +1296,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all leads or leads for a specific campaign
-  app.get("/api/leads", async (req, res) => {
+  app.get("/api/leads", async (req: TenantRequest, res) => {
     try {
       const campaignId = req.query.campaignId as string;
+      // For now, get all leads regardless of client since we're in single-tenant mode
+      // In future multi-tenant setup, filter by req.clientId
       const leads = await storage.getLeads(campaignId);
       res.json(leads);
     } catch (error) {
+      console.error('Get leads error:', error);
       res.status(500).json({ message: "Failed to fetch leads" });
     }
   });
@@ -1329,6 +1332,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download CSV template for lead upload
+  app.get("/api/leads/template", (req, res) => {
+    const csvTemplate = `email,firstName,lastName,phoneNumber,vehicleInterest,leadSource,notes
+john.doe@example.com,John,Doe,555-1234,Toyota Camry,Website,Interested in test drive
+jane.smith@example.com,Jane,Smith,555-5678,Honda Civic,Walk-in,Looking for financing options
+bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in evaluation`;
+    
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', 'attachment; filename="lead-template.csv"');
+    res.send(csvTemplate);
+  });
+
   // Lead memory summary (lightweight RAG-derived context for Lead Details drawer)
   app.get("/api/leads/:id/memory-summary", async (req, res) => {
     try {
@@ -1340,13 +1355,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Create a new lead
-  app.post("/api/leads", async (req, res) => {
+  app.post("/api/leads", async (req: TenantRequest, res) => {
     try {
-      const leadData = insertLeadSchema.parse(req.body);
+      const leadData = insertLeadSchema.parse({
+        ...req.body,
+        clientId: req.clientId // Ensure client ID is assigned from tenant middleware
+      });
       const lead = await storage.createLead(leadData);
+      
+      // Broadcast new lead via WebSocket
+      webSocketService.broadcastNewLead(lead);
+      
       res.json(lead);
     } catch (error) {
-      res.status(400).json({ message: "Invalid lead data" });
+      console.error('Create lead error:', error);
+      res.status(400).json({ 
+        message: "Invalid lead data",
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   });
 
@@ -1476,7 +1502,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ...lead,
         campaignId: campaignId || null,
         status: 'new' as const,
-        source: 'csv_upload',
+        leadSource: lead.source || 'csv_upload', // Map to correct field name
         clientId: req.clientId
       }));
 

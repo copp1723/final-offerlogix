@@ -39,7 +39,7 @@ export default function CampaignsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  const { data: campaigns, isLoading } = useQuery({
+  const { data: campaigns, isLoading } = useQuery<Campaign[]>({
     queryKey: ["/api/campaigns"],
   });
 
