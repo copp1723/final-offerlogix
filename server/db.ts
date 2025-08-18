@@ -1,5 +1,8 @@
-// NOTE: dotenv is loaded once in the main entry (server/index.ts). Avoid duplicate loads here
-// to prevent double log lines like "dotenv injecting env".
+// NOTE:
+// - dotenv is loaded once in the main entry (server/index.ts). Avoid duplicate loads here
+//   to prevent double log lines like "dotenv injecting env".
+// - DATABASE_URL must be set at import time because this module initializes the DB pool.
+//   Ensure your .env is configured before importing server modules that access the DB.
 
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';

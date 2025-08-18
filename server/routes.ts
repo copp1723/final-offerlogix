@@ -5,6 +5,10 @@ import { insertCampaignSchema, insertConversationSchema, insertConversationMessa
 import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
 import { processCampaignChat } from "./services/ai-chat";
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
+// NOTE: There are two Mailgun integrations in this codebase:
+//  1) ./services/mailgun (returns { success, sent, failed, errors })
+//  2) ./services/email/mailgun-service (class-based, returns { sent, failed, errors } for bulk)
+// Be careful not to mix return shapes across endpoints.
 import { mailgunService } from "./services/email/mailgun-service";
 import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 import { campaignScheduler } from "./services/campaign-scheduler";
@@ -1024,6 +1028,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const conversations = await storage.getConversations();
       const campaignConversations = conversations.filter(conv => conv.campaignId === campaignId);
 
+      // NOTE: The following fields are placeholders only – emailsSent and lastExecuted are not
+      // persisted in the current schema. TODO: add execution metrics storage if needed.
       const analytics = {
         campaign: {
           name: campaign.name,

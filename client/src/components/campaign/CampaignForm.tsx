@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign as SharedCampaign } from "@shared/schema";
@@ -18,6 +19,11 @@ import type { Campaign as SharedCampaign } from "@shared/schema";
 import { SMSIntegration } from "@/components/SMSIntegration";
 import { CampaignScheduler } from "@/components/CampaignScheduler";
 import { z } from "zod";
+
+
+// Type representing generated templates returned by AI
+// Templates can be plain strings or structured objects
+export type TemplateLike = string | { content?: string; body?: string; subject?: string };
 
 // Extend base schema with UI-only helper fields used in the form so React Hook Form typing matches
 const formSchema = insertCampaignSchema.extend({
@@ -52,11 +58,13 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [nameSuggestions, setNameSuggestions] = useState<string[]>([]);
   const [showNameSuggestions, setShowNameSuggestions] = useState(false);
-  const [generatedTemplates, setGeneratedTemplates] = useState<string[]>([]);
+  const [generatedTemplates, setGeneratedTemplates] = useState<TemplateLike[]>([]);
   const [numberOfTemplates, setNumberOfTemplates] = useState(5);
   const [daysBetweenMessages, setDaysBetweenMessages] = useState(3);
   const [communicationType, setCommunicationType] = useState<'email' | 'email_sms' | 'sms'>('email');
   const [createdCampaignId, setCreatedCampaignId] = useState<string | null>(null);
+  const [selectedHandoverGoals, setSelectedHandoverGoals] = useState<string[]>([]);
+  const [otherHandoverGoal, setOtherHandoverGoal] = useState("");
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -82,9 +90,9 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
   });
 
   const { data: agentConfigs } = useQuery({ queryKey: ['/api/ai-agent-configs'] });
-  
+
   // Load campaign data when we have a campaignId (for steps 3 and 4)
-  const { data: campaignData } = useQuery<FormData | null>({ 
+  const { data: campaignData } = useQuery<FormData | null>({
     queryKey: [`/api/campaigns/${campaignId}`],
     enabled: !!campaignId && currentStep >= 3
   });
@@ -354,51 +362,122 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
         <FormField
           control={form.control}
           name="handoverGoals"
-          render={({ field }) => (
-            <FormItem>
-              <FormLabel>Handover Goals</FormLabel>
-              <div className="flex space-x-3">
-                <FormControl>
-                  <Input
-                    placeholder="Define your campaign objectives..."
-                    className="flex-1"
-                    {...field}
-                    value={field.value || ""}
-                  />
-                </FormControl>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={handleSuggestGoals}
-                  disabled={generateGoals.isPending}
-                  className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
-                >
-                  <Sparkles className="w-4 h-4" />
-                  <span>AI Suggest</span>
-                </Button>
-              </div>
+          render={({ field }) => {
+            const handoverScenarios = [
+              { id: "pricing", label: "Asks pricing questions" },
+              { id: "test_drive", label: "Mentions test drive or demo" },
+              { id: "trade_in", label: "Asks trade-in value" },
+              { id: "financing", label: "Inquires about financing" },
+              { id: "availability", label: "Asks about vehicle availability" },
+              { id: "urgent", label: "Shows urgency (wants to buy soon)" }
+            ];
 
-              {/* Goal Suggestions */}
-              {showSuggestions && (
-                <div className="mt-3">
-                  <p className="text-sm text-gray-600 mb-2">AI suggested goals for automotive campaigns:</p>
-                  <div className="space-y-2">
-                    {aiSuggestions.map((goal, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => selectGoal(goal)}
-                        className="w-full text-left px-3 py-2 text-sm bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100"
-                      >
-                        {goal}
-                      </button>
+            const handleScenarioChange = (scenarioId: string, checked: boolean) => {
+              const newGoals = checked
+                ? [...selectedHandoverGoals, scenarioId]
+                : selectedHandoverGoals.filter(id => id !== scenarioId);
+
+              setSelectedHandoverGoals(newGoals);
+
+              // Update form field with readable text
+              const selectedLabels = handoverScenarios
+                .filter(s => newGoals.includes(s.id))
+                .map(s => `when a lead ${s.label.toLowerCase()}`);
+
+              if (otherHandoverGoal.trim()) {
+                selectedLabels.push(otherHandoverGoal);
+              }
+
+              field.onChange(selectedLabels.join(", "));
+            };
+
+            const handleOtherChange = (value: string) => {
+              setOtherHandoverGoal(value);
+
+              const selectedLabels = handoverScenarios
+                .filter(s => selectedHandoverGoals.includes(s.id))
+                .map(s => `when a lead ${s.label.toLowerCase()}`);
+
+              if (value.trim()) {
+                selectedLabels.push(value);
+              }
+
+              field.onChange(selectedLabels.join(", "));
+            };
+
+            return (
+              <FormItem>
+                <FormLabel>Handover Goals - Hand over to sales when a lead:</FormLabel>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {handoverScenarios.map((scenario) => (
+                      <div key={scenario.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={scenario.id}
+                          checked={selectedHandoverGoals.includes(scenario.id)}
+                          onCheckedChange={(checked) => handleScenarioChange(scenario.id, !!checked)}
+                        />
+                        <label htmlFor={scenario.id} className="text-sm font-medium">
+                          {scenario.label}
+                        </label>
+                      </div>
                     ))}
                   </div>
+
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="other"
+                      checked={!!otherHandoverGoal.trim()}
+                      onCheckedChange={(checked) => {
+                        if (!checked) {
+                          handleOtherChange("");
+                        }
+                      }}
+                    />
+                    <Input
+                      placeholder="Other scenario..."
+                      value={otherHandoverGoal}
+                      onChange={(e) => handleOtherChange(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
+
+                  <div className="flex space-x-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleSuggestGoals}
+                      disabled={generateGoals.isPending}
+                      className="flex items-center space-x-2 border-blue-200 text-blue-700 hover:bg-blue-50 hover:border-blue-300"
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      <span>AI Suggest</span>
+                    </Button>
+                  </div>
                 </div>
-              )}
-              <FormMessage />
-            </FormItem>
-          )}
+
+                {/* Goal Suggestions */}
+                {showSuggestions && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">AI suggested goals for automotive campaigns:</p>
+                    <div className="space-y-2">
+                      {aiSuggestions.map((goal, index) => (
+                        <button
+                          key={index}
+                          type="button"
+                          onClick={() => selectGoal(goal)}
+                          className="w-full text-left px-3 py-2 text-sm bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 transition-colors border border-blue-100"
+                        >
+                          {goal}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <FormMessage />
+              </FormItem>
+            );
+          }}
         />
 
         {/* Email Template Generation Section */}
@@ -493,10 +572,10 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
                   <div key={index} className="bg-white border border-gray-200 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-sm font-medium text-gray-900">Email {index + 1}</span>
-                      <span className="text-xs text-gray-500">{template.length} characters</span>
+                      <span className="text-xs text-gray-500">{(typeof template === 'string' ? template : template?.content || template?.body || JSON.stringify(template)).length} characters</span>
                     </div>
                     <div className="text-xs text-gray-600 line-clamp-3">
-                      {template.replace(/<[^>]*>/g, '').substring(0, 120)}...
+                      {(typeof template === 'string' ? template : template?.content || template?.body || JSON.stringify(template)).replace(/<[^>]*>/g, '').substring(0, 120)}...
                     </div>
                   </div>
                 ))}

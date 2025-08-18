@@ -95,7 +95,7 @@ export class ExecutionProcessor {
       for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
         const batch = batches[batchIndex];
         
-        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads) - Template: ${template.title || 'Untitled'}`);
+        console.log(`Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} leads) - Template: ${template.subject || template.title || 'Email Template'}`);
 
         // Run the batch with concurrency limiter and await concrete results
         const batchResults = await this.runWithConcurrency(
@@ -190,7 +190,7 @@ export class ExecutionProcessor {
       const emailData = {
         to: lead.email,
         subject: testMode ? `[TEST] ${personalizedSubject}` : personalizedSubject,
-        html: this.capHtmlSize(personalizedContent),
+        html: this.capHtmlSize(this.formatEmailContent(personalizedContent)),
         from: `OneKeel Swarm <${process.env.MAILGUN_FROM_EMAIL || 'swarm@mg.watchdogai.us'}>`
       };
 
@@ -271,6 +271,28 @@ export class ExecutionProcessor {
     }
     await Promise.all(workers);
     return results;
+  }
+
+  // Format email content with proper spacing and structure
+  private formatEmailContent(content: string): string {
+    if (!content) return '';
+    
+    // Convert line breaks to HTML breaks for email
+    let formatted = content
+      // Convert double line breaks to proper paragraph spacing
+      .replace(/\n\n/g, '<br><br>')
+      // Convert single line breaks to HTML breaks
+      .replace(/\n/g, '<br>')
+      // Clean up excessive spacing
+      .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
+    
+    // Ensure proper paragraph structure for long content
+    if (!formatted.includes('<br>') && formatted.length > 50) {
+      // Add breaks for long single paragraphs
+      formatted = formatted.replace(/\. ([A-Z])/g, '.<br><br>$1');
+    }
+    
+    return formatted;
   }
 
   // Bound HTML size for email

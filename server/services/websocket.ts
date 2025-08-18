@@ -98,7 +98,7 @@ class WebSocketService {
       client.ws.send(JSON.stringify({
         type: 'conversation_history',
         conversationId,
-        messages: messages.reverse() // Show oldest first
+        messages: messages.reverse() // Show newest first
       }));
     } catch (error) {
       console.error('Error loading conversation history:', error);
