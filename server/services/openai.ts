@@ -260,7 +260,7 @@ Return JSON:
       basicTemplates.push({
         sequence: i,
         subject: `${campaignName} - Update ${i}`,
-        content: `Hey [Name] —<br><br>We're excited to share information about our ${context}.<br><br>Want to learn more?`
+        content: `Hey [Name] —\n\nWe're excited to share information about our ${context}.\n\nWant to learn more?`
       });
     }
     return basicTemplates;
