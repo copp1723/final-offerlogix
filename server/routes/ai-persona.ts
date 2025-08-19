@@ -19,7 +19,7 @@ const createPersonaSchema = z.object({
     name: z.string().min(1, 'Name is required').max(255),
     description: z.string().optional(),
     targetAudience: z.string().min(1, 'Target audience is required').max(255),
-    industry: z.string().default('automotive').max(100),
+    industry: z.string().max(100).default('automotive'),
     tonality: z.string().default('professional'),
     personality: z.string().optional(),
     communicationStyle: z.string().default('helpful'),

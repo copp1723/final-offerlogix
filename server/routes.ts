@@ -36,6 +36,23 @@ import { automotiveBusinessImpactService } from "./services/automotive-business-
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Serve chat widget files from client/public directory during development
+  if (app.get("env") === "development") {
+    const path = await import("path");
+    const clientPublicPath = path.resolve(process.cwd(), "client", "public");
+    
+    app.get('/offerlogix-chat-widget.js', (req, res) => {
+      res.setHeader('Content-Type', 'application/javascript');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.sendFile(path.resolve(clientPublicPath, 'offerlogix-chat-widget.js'));
+    });
+    
+    app.get('/chat-widget-demo.html', (req, res) => {
+      res.setHeader('Content-Type', 'text/html');
+      res.sendFile(path.resolve(clientPublicPath, 'chat-widget-demo.html'));
+    });
+  }
+
   // Apply tenant middleware to all API routes
   app.use('/api', tenantMiddleware);
 
@@ -1711,6 +1728,10 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/deliverability', deliverabilityRoutes);
   app.use('/api/ai', aiConversationRoutes);
+
+  // Chat widget routes
+  const chatRoutes = await import('./routes/chat');
+  app.use('/api/chat', chatRoutes.default);
 
   // Health check routes
   const healthRoutes = await import('./routes/health');

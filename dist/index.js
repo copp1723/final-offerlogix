@@ -11268,6 +11268,368 @@ var init_execution_monitor = __esm({
   }
 });
 
+// server/services/ai-chat.ts
+function getPersonalityGuidance(personality) {
+  const guidance = {
+    "GRUMPY": 'Be direct and slightly impatient but still helpful. Use phrases like "Look," "Listen," "Fine," and push for quick decisions.',
+    "ENTHUSIASTIC": "Be very excited and energetic! Use exclamation points and show genuine enthusiasm about automotive campaigns.",
+    "LAID_BACK": `Be relaxed and casual. Use phrases like "No worries," "Take your time," and don't push too hard.`,
+    "PROFESSIONAL": "Maintain formal professionalism and demonstrate expertise with clear, structured responses."
+  };
+  return guidance[personality.toUpperCase()] || guidance["PROFESSIONAL"];
+}
+async function processCampaignChat(userMessage, currentStep, campaignData) {
+  if (!process.env.OPENROUTER_API_KEY && !process.env.OPENAI_API_KEY) {
+    console.log("No AI API key available, using fallback response for:", userMessage);
+    return processStepBasedResponse(userMessage, currentStep, campaignData);
+  }
+  const openai2 = getOpenAIClient();
+  let personalityContext = "";
+  try {
+    const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+    const activeConfig = await storage2.getActiveAiAgentConfig();
+    if (activeConfig?.personality) {
+      personalityContext = `
+  
+  ## PERSONALITY CONTEXT:
+  You have a ${activeConfig.personality} personality. Adapt your responses accordingly:
+  ${getPersonalityGuidance(activeConfig.personality)}`;
+    }
+  } catch (error) {
+    console.warn("Could not load AI agent configuration:", error);
+  }
+  const conversationContext = `
+  You are an AI Campaign Agent specializing in automotive email marketing. Your goal is to have a natural conversation with the user to gather information for creating an automotive email campaign.${personalityContext}
+  
+  Current step: ${currentStep}
+  Current campaign data: ${JSON.stringify(campaignData)}
+  
+  Steps flow:
+  1. campaign_type - Ask about the type of automotive campaign (new vehicle launch, service reminders, test drive follow-up, seasonal promotions, etc.)
+  2. target_audience - Understand their target audience (new buyers, existing customers, specific demographics)
+  3. goals - Clarify campaign goals (test drive bookings, service appointments, sales leads, customer retention)
+  4. details - Gather specific details (number of emails, timing, special offers, vehicle details)
+  5. complete - Confirm all information is collected
+  
+  Guidelines:
+  - Keep responses conversational and professional
+  - Ask one focused question at a time
+  - Show understanding of automotive industry context
+  - Suggest relevant automotive campaign ideas based on their responses
+  - Be encouraging and supportive
+  - When moving to the next step, naturally transition the conversation
+  
+  User message: "${userMessage}"
+  
+  Respond with helpful guidance and ask the next relevant question. If you have enough information to move to the next step, do so naturally.
+  `;
+  try {
+    const response = await openai2.chat.completions.create({
+      model: "gpt-4o",
+      // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
+      messages: [
+        {
+          role: "system",
+          content: `You are an AI Campaign Agent for automotive marketing. Respond with JSON in this exact format:
+  {
+    "message": "Your conversational response here",
+    "nextStep": "campaign_type|target_audience|goals|details|complete",
+    "campaignData": {"name": "...", "context": "...", "handoverGoals": "...", "numberOfTemplates": 5, "daysBetweenMessages": 3},
+    "isComplete": false
+  }
+  
+  Current step: ${currentStep}
+  Current data: ${JSON.stringify(campaignData)}
+  User message: ${userMessage}
+  
+  Ask natural questions to gather automotive campaign information.`
+        },
+        {
+          role: "user",
+          content: userMessage
+        }
+      ],
+      response_format: { type: "json_object" }
+    });
+    const aiResponse = response.choices[0]?.message?.content;
+    if (!aiResponse) {
+      throw new Error("No response from AI");
+    }
+    const parsedResponse = JSON.parse(aiResponse);
+    return {
+      message: parsedResponse.message || "Let's create your automotive email campaign! What type of campaign are you looking to create?",
+      nextStep: parsedResponse.nextStep || "campaign_type",
+      campaignData: parsedResponse.campaignData || campaignData,
+      isComplete: parsedResponse.isComplete || false
+    };
+  } catch (error) {
+    console.error("AI chat error:", error);
+    return processStepBasedResponse(userMessage, currentStep, campaignData);
+  }
+}
+function processStepBasedResponse(userMessage, currentStep, campaignData) {
+  switch (currentStep) {
+    case "welcome":
+    case "campaign_type":
+      return {
+        message: "Welcome! I'm here to help you create an automotive email campaign. What type of campaign would you like to create? For example: new vehicle launch, service reminders, test drive follow-up, or seasonal promotions?",
+        nextStep: "target_audience",
+        campaignData: { ...campaignData, type: userMessage },
+        isComplete: false
+      };
+    case "target_audience":
+      return {
+        message: "Great! Who is your target audience for this campaign? Are you targeting new buyers, existing customers, or a specific demographic?",
+        nextStep: "goals",
+        campaignData: { ...campaignData, audience: userMessage },
+        isComplete: false
+      };
+    case "goals":
+      return {
+        message: "Perfect! What are your main goals for this campaign? For example: schedule test drives, book service appointments, generate sales leads, or improve customer retention?",
+        nextStep: "details",
+        campaignData: { ...campaignData, goals: userMessage },
+        isComplete: false
+      };
+    case "details":
+      return {
+        message: "Excellent! Let me gather a few more details. How many emails would you like in this sequence, and how many days between each email?",
+        nextStep: "complete",
+        campaignData: {
+          ...campaignData,
+          details: userMessage,
+          name: `${campaignData.type || "Automotive"} Campaign`,
+          context: `${campaignData.type || "Automotive"} campaign targeting ${campaignData.audience || "customers"} with goals to ${campaignData.goals || "increase engagement"}`,
+          handoverGoals: campaignData.goals || "Increase customer engagement and drive sales",
+          numberOfTemplates: 5,
+          daysBetweenMessages: 3
+        },
+        isComplete: false
+      };
+    case "complete":
+      return {
+        message: "Perfect! I have all the information needed to create your automotive email campaign. The campaign will be set up with your specifications.",
+        nextStep: "complete",
+        campaignData: {
+          ...campaignData,
+          finalDetails: userMessage
+        },
+        isComplete: true
+      };
+    default:
+      return {
+        message: "Let's start creating your automotive email campaign! What type of campaign would you like to create?",
+        nextStep: "campaign_type",
+        campaignData,
+        isComplete: false
+      };
+  }
+}
+var init_ai_chat = __esm({
+  "server/services/ai-chat.ts"() {
+    "use strict";
+    init_openai();
+  }
+});
+
+// server/routes/chat.ts
+var chat_exports = {};
+__export(chat_exports, {
+  default: () => chat_default
+});
+import { Router as Router4 } from "express";
+import { z as z7 } from "zod";
+import { eq as eq9, and as and5, desc as desc4 } from "drizzle-orm";
+var router4, initSessionSchema, sendMessageSchema, chat_default;
+var init_chat = __esm({
+  "server/routes/chat.ts"() {
+    "use strict";
+    init_db();
+    init_schema();
+    init_ai_chat();
+    router4 = Router4();
+    initSessionSchema = z7.object({
+      visitorId: z7.string(),
+      pageUrl: z7.string().url(),
+      referrer: z7.string().optional(),
+      campaignId: z7.string(),
+      metadata: z7.object({
+        userAgent: z7.string(),
+        timestamp: z7.number()
+      }).optional()
+    });
+    sendMessageSchema = z7.object({
+      content: z7.string().min(1).max(2e3),
+      sessionToken: z7.string().optional(),
+      campaignId: z7.string()
+    });
+    router4.get("/campaigns/:campaignId/config", async (req, res) => {
+      try {
+        const { campaignId } = req.params;
+        const [campaign] = await db.select().from(campaigns).where(eq9(campaigns.id, campaignId)).limit(1);
+        if (!campaign) {
+          return res.status(404).json({ message: "Campaign not found" });
+        }
+        res.json({
+          campaign: {
+            id: campaign.id,
+            name: campaign.name,
+            description: campaign.description
+          },
+          branding: {
+            primaryColor: "#0066cc",
+            title: campaign.name || "OfferLogix AI Assistant",
+            greeting: `Hello! I'm here to help you learn about ${campaign.name}. What would you like to know?`
+          },
+          settings: {
+            autoOpen: false,
+            autoOpenDelay: 5e3,
+            position: "bottom-right",
+            theme: "default"
+          }
+        });
+      } catch (error) {
+        console.error("Error loading widget config:", error);
+        res.status(500).json({ message: "Failed to load widget configuration" });
+      }
+    });
+    router4.post("/sessions/init", async (req, res) => {
+      try {
+        const sessionData = initSessionSchema.parse(req.body);
+        const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const sessionId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        const [campaign] = await db.select().from(campaigns).where(eq9(campaigns.id, sessionData.campaignId)).limit(1);
+        const [conversation] = await db.insert(conversations).values({
+          leadId: sessionData.visitorId,
+          // Use visitor ID as lead ID for now
+          campaignId: sessionData.campaignId,
+          status: "active",
+          metadata: {
+            sessionToken,
+            sessionId,
+            pageUrl: sessionData.pageUrl,
+            referrer: sessionData.referrer,
+            userAgent: sessionData.metadata?.userAgent,
+            chatWidget: true
+          }
+        }).returning();
+        const greeting = campaign ? `Hello! I'm your ${campaign.name} assistant. I can help you learn about our offers, answer questions, and guide you through our services. What would you like to know?` : "Hello! I'm your OfferLogix AI Assistant. How can I help you find the perfect offer today?";
+        res.json({
+          sessionToken,
+          sessionId,
+          greeting,
+          campaignName: campaign?.name || "OfferLogix Campaign"
+        });
+      } catch (error) {
+        if (error instanceof z7.ZodError) {
+          return res.status(400).json({ message: "Invalid request data", errors: error.errors });
+        }
+        console.error("Error initializing chat session:", error);
+        res.status(500).json({ message: "Failed to initialize chat session" });
+      }
+    });
+    router4.post("/messages", async (req, res) => {
+      try {
+        const messageData = sendMessageSchema.parse(req.body);
+        let conversation;
+        if (messageData.sessionToken) {
+          [conversation] = await db.select().from(conversations).where(
+            and5(
+              eq9(conversations.campaignId, messageData.campaignId),
+              eq9(conversations.status, "active")
+            )
+          ).orderBy(desc4(conversations.createdAt)).limit(1);
+        }
+        if (!conversation) {
+          const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          const visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+          [conversation] = await db.insert(conversations).values({
+            leadId: visitorId,
+            campaignId: messageData.campaignId,
+            status: "active",
+            metadata: {
+              sessionToken,
+              chatWidget: true
+            }
+          }).returning();
+        }
+        await db.insert(conversationMessages).values({
+          conversationId: conversation.id,
+          content: messageData.content,
+          sender: "user",
+          metadata: {
+            source: "chat_widget"
+          }
+        });
+        const aiResponse = await processCampaignChat(
+          messageData.content,
+          messageData.campaignId,
+          conversation.leadId,
+          {
+            conversationId: conversation.id,
+            source: "chat_widget",
+            previousMessages: []
+            // You might want to load previous messages for context
+          }
+        );
+        await db.insert(conversationMessages).values({
+          conversationId: conversation.id,
+          content: aiResponse.response,
+          sender: "agent",
+          metadata: {
+            source: "ai_chat",
+            model: aiResponse.model || "gpt-4o",
+            handoverDetected: aiResponse.shouldHandover || false
+          }
+        });
+        const shouldHandover = aiResponse.shouldHandover || messageData.content.toLowerCase().includes("speak to human") || messageData.content.toLowerCase().includes("contact sales") || messageData.content.toLowerCase().includes("talk to agent");
+        res.json({
+          content: aiResponse.response,
+          shouldHandover,
+          handoverReason: shouldHandover ? "User requested human assistance" : void 0,
+          sessionToken: messageData.sessionToken,
+          conversationId: conversation.id
+        });
+      } catch (error) {
+        if (error instanceof z7.ZodError) {
+          return res.status(400).json({ message: "Invalid message data", errors: error.errors });
+        }
+        console.error("Error processing chat message:", error);
+        res.status(500).json({
+          content: "I apologize, but I'm having trouble processing your message right now. Please try again or contact our support team.",
+          shouldHandover: true,
+          handoverReason: "System error"
+        });
+      }
+    });
+    router4.post("/sessions/end", async (req, res) => {
+      try {
+        const { sessionToken, reason } = req.body;
+        if (sessionToken) {
+          await db.update(conversations).set({
+            status: "completed",
+            metadata: db.raw(`metadata || '{"endReason": "${reason || "user_closed"}", "endedAt": "${(/* @__PURE__ */ new Date()).toISOString()}"}'}`)
+          }).where(
+            db.raw(`metadata->>'sessionToken' = ?`, [sessionToken])
+          );
+        }
+        res.json({ success: true });
+      } catch (error) {
+        console.error("Error ending chat session:", error);
+        res.status(500).json({ message: "Failed to end session" });
+      }
+    });
+    router4.get("/health", (req, res) => {
+      res.json({
+        status: "healthy",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString(),
+        service: "offerlogix-chat-api"
+      });
+    });
+    chat_default = router4;
+  }
+});
+
 // server/services/deliverability/domain-health-guard.ts
 var domain_health_guard_exports = {};
 __export(domain_health_guard_exports, {
@@ -11317,13 +11679,13 @@ var health_exports = {};
 __export(health_exports, {
   default: () => health_default
 });
-import { Router as Router4 } from "express";
-var router4, health_default;
+import { Router as Router5 } from "express";
+var router5, health_default;
 var init_health = __esm({
   "server/routes/health.ts"() {
     "use strict";
-    router4 = Router4();
-    router4.get("/email", async (_req, res) => {
+    router5 = Router5();
+    router5.get("/email", async (_req, res) => {
       try {
         const hasMailgun = !!(process.env.MAILGUN_DOMAIN && process.env.MAILGUN_API_KEY);
         let authStatus = { ok: false, details: {} };
@@ -11371,7 +11733,7 @@ var init_health = __esm({
         });
       }
     });
-    router4.get("/realtime", async (_req, res) => {
+    router5.get("/realtime", async (_req, res) => {
       try {
         let wsStatus = { ok: false, details: {} };
         try {
@@ -11406,7 +11768,7 @@ var init_health = __esm({
         });
       }
     });
-    router4.get("/ai", async (_req, res) => {
+    router5.get("/ai", async (_req, res) => {
       try {
         const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
         let aiStatus = { ok: false, details: {} };
@@ -11459,7 +11821,7 @@ var init_health = __esm({
         });
       }
     });
-    router4.get("/database", async (_req, res) => {
+    router5.get("/database", async (_req, res) => {
       try {
         const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
         const { sql: sql2 } = await import("drizzle-orm");
@@ -11486,7 +11848,7 @@ var init_health = __esm({
         });
       }
     });
-    router4.get("/system", async (_req, res) => {
+    router5.get("/system", async (_req, res) => {
       try {
         const checks = await Promise.allSettled([
           Promise.resolve({ ok: true }),
@@ -11519,7 +11881,7 @@ var init_health = __esm({
         });
       }
     });
-    health_default = router4;
+    health_default = router5;
   }
 });
 
@@ -11531,7 +11893,7 @@ __export(health_imap_exports, {
   recordIMAPMessage: () => recordIMAPMessage,
   updateIMAPHealth: () => updateIMAPHealth
 });
-import { Router as Router5 } from "express";
+import { Router as Router6 } from "express";
 function updateIMAPHealth(status) {
   imapHealthStatus = { ...imapHealthStatus, ...status };
 }
@@ -11547,17 +11909,17 @@ function recordIMAPError(error) {
     imapHealthStatus.errors = imapHealthStatus.errors.slice(-5);
   }
 }
-var router5, imapHealthStatus, health_imap_default;
+var router6, imapHealthStatus, health_imap_default;
 var init_health_imap = __esm({
   "server/routes/health-imap.ts"() {
     "use strict";
-    router5 = Router5();
+    router6 = Router6();
     imapHealthStatus = {
       connected: false,
       messagesProcessed: 0,
       errors: []
     };
-    router5.get("/imap", (req, res) => {
+    router6.get("/imap", (req, res) => {
       try {
         const hasConfig = !!(process.env.IMAP_HOST && process.env.IMAP_USER && process.env.IMAP_PASSWORD);
         if (!hasConfig) {
@@ -11602,12 +11964,12 @@ var init_health_imap = __esm({
         });
       }
     });
-    health_imap_default = router5;
+    health_imap_default = router6;
   }
 });
 
 // server/services/agent-runtime.ts
-import { eq as eq9, and as and5 } from "drizzle-orm";
+import { eq as eq10, and as and6 } from "drizzle-orm";
 import crypto4 from "crypto";
 function sanitizeUserMsg(s) {
   if (!s) return "";
@@ -11671,7 +12033,7 @@ var init_agent_runtime = __esm({
        */
       static async getActiveConfig(clientId) {
         try {
-          const rows = await db.select().from(aiAgentConfig).where(and5(eq9(aiAgentConfig.clientId, clientId), eq9(aiAgentConfig.isActive, true))).limit(1);
+          const rows = await db.select().from(aiAgentConfig).where(and6(eq10(aiAgentConfig.clientId, clientId), eq10(aiAgentConfig.isActive, true))).limit(1);
           if (!rows?.[0]) return null;
           const r = rows[0];
           return {
@@ -11725,7 +12087,7 @@ Don't:
           const { clientId, leadId, topic } = opts;
           let lead = null;
           if (leadId) {
-            const rows = await db.select().from(leads).where(eq9(leads.id, leadId)).limit(1);
+            const rows = await db.select().from(leads).where(eq10(leads.id, leadId)).limit(1);
             lead = rows?.[0] || null;
           }
           const tags = [
@@ -11929,8 +12291,8 @@ __export(agent_exports, {
   agentRouter: () => agentRouter,
   default: () => agent_default
 });
-import { Router as Router6 } from "express";
-import { eq as eq10 } from "drizzle-orm";
+import { Router as Router7 } from "express";
+import { eq as eq11 } from "drizzle-orm";
 var agentRouter, agent_default;
 var init_agent = __esm({
   "server/routes/agent.ts"() {
@@ -11938,7 +12300,7 @@ var init_agent = __esm({
     init_agent_runtime();
     init_schema();
     init_db();
-    agentRouter = Router6();
+    agentRouter = Router7();
     agentRouter.post("/reply", async (req, res) => {
       try {
         const clientId = req.body.clientId || "default-client";
@@ -12005,7 +12367,7 @@ var init_agent = __esm({
             model: model || currentConfig.model,
             systemPrompt: systemPrompt || currentConfig.systemPrompt,
             updatedAt: /* @__PURE__ */ new Date()
-          }).where(eq10(aiAgentConfig.id, currentConfig.id));
+          }).where(eq11(aiAgentConfig.id, currentConfig.id));
           res.json({ success: true, configId: currentConfig.id });
         } else {
           const configId = await AgentRuntime.ensureDefaultConfig(clientId);
@@ -15637,8 +15999,8 @@ var conversation_intelligence_exports = {};
 __export(conversation_intelligence_exports, {
   default: () => conversation_intelligence_default
 });
-import { Router as Router7 } from "express";
-var router6, conversation_intelligence_default;
+import { Router as Router8 } from "express";
+var router7, conversation_intelligence_default;
 var init_conversation_intelligence = __esm({
   "server/routes/conversation-intelligence.ts"() {
     "use strict";
@@ -15648,8 +16010,8 @@ var init_conversation_intelligence = __esm({
     init_advanced_conversation_analytics();
     init_response_quality_optimizer();
     init_storage();
-    router6 = Router7();
-    router6.post("/process", async (req, res) => {
+    router7 = Router8();
+    router7.post("/process", async (req, res) => {
       try {
         const { conversationId, message, senderId } = req.body;
         if (!conversationId || !message || !senderId) {
@@ -15674,7 +16036,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/insights/:conversationId", async (req, res) => {
+    router7.get("/insights/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const insights = await conversationIntelligenceHub.getConversationInsights(conversationId);
@@ -15694,7 +16056,7 @@ var init_conversation_intelligence = __esm({
         }
       }
     });
-    router6.get("/metrics", async (req, res) => {
+    router7.get("/metrics", async (req, res) => {
       try {
         const { start, end } = req.query;
         const timeframe = {
@@ -15716,7 +16078,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/batch-analyze", async (req, res) => {
+    router7.post("/batch-analyze", async (req, res) => {
       try {
         const { conversationIds } = req.body;
         if (!conversationIds || !Array.isArray(conversationIds)) {
@@ -15738,7 +16100,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/coaching/:conversationId", async (req, res) => {
+    router7.get("/coaching/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const coaching = await conversationIntelligenceHub.getRealtimeCoaching(conversationId);
@@ -15754,7 +16116,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/dashboard", async (req, res) => {
+    router7.get("/dashboard", async (req, res) => {
       try {
         const { start, end } = req.query;
         const timeframe = {
@@ -15776,7 +16138,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/ai/generate-response", async (req, res) => {
+    router7.post("/ai/generate-response", async (req, res) => {
       try {
         const { conversationId, message, options } = req.body;
         if (!conversationId || !message) {
@@ -15836,7 +16198,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/ai/suggestions/:conversationId", async (req, res) => {
+    router7.get("/ai/suggestions/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const conversation = await storage.getConversation(conversationId);
@@ -15881,7 +16243,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/routing/decision", async (req, res) => {
+    router7.post("/routing/decision", async (req, res) => {
       try {
         const { conversationId, message, senderId } = req.body;
         if (!conversationId || !message || !senderId) {
@@ -15906,7 +16268,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/routing/metrics", async (req, res) => {
+    router7.get("/routing/metrics", async (req, res) => {
       try {
         const metrics = intelligentResponseRouter.getRoutingMetrics();
         res.json({
@@ -15921,7 +16283,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/routing/flow/:conversationId", async (req, res) => {
+    router7.get("/routing/flow/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const flowState = intelligentResponseRouter.getConversationFlow(conversationId);
@@ -15942,7 +16304,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/analytics/sentiment/:conversationId", async (req, res) => {
+    router7.get("/analytics/sentiment/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const sentimentProgression = await advancedConversationAnalytics.analyzeSentimentProgression(conversationId);
@@ -15958,7 +16320,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/analytics/intent/:conversationId", async (req, res) => {
+    router7.post("/analytics/intent/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const { messageId } = req.body;
@@ -15978,7 +16340,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/analytics/buying-signals/:conversationId", async (req, res) => {
+    router7.get("/analytics/buying-signals/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const buyingSignalAnalysis = await advancedConversationAnalytics.analyzeBuyingSignals(conversationId);
@@ -15994,7 +16356,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/analytics/prediction/:conversationId", async (req, res) => {
+    router7.get("/analytics/prediction/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const prediction = await advancedConversationAnalytics.predictConversationOutcome(conversationId);
@@ -16010,7 +16372,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/analytics/coaching/:conversationId", async (req, res) => {
+    router7.get("/analytics/coaching/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const suggestions = await advancedConversationAnalytics.generateCoachingSuggestions(conversationId);
@@ -16026,7 +16388,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/analytics/quality/:conversationId", async (req, res) => {
+    router7.get("/analytics/quality/:conversationId", async (req, res) => {
       try {
         const { conversationId } = req.params;
         const qualityMetrics = await advancedConversationAnalytics.calculateConversationQuality(conversationId);
@@ -16042,7 +16404,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/optimization/ab-test", async (req, res) => {
+    router7.post("/optimization/ab-test", async (req, res) => {
       try {
         const { name, description, variants, targetSegment } = req.body;
         if (!name || !description || !variants || !Array.isArray(variants)) {
@@ -16069,7 +16431,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/optimization/ab-test/:testId/start", async (req, res) => {
+    router7.post("/optimization/ab-test/:testId/start", async (req, res) => {
       try {
         const { testId } = req.params;
         await responseQualityOptimizer.startABTest(testId);
@@ -16085,7 +16447,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/ab-tests", async (req, res) => {
+    router7.get("/optimization/ab-tests", async (req, res) => {
       try {
         const activeTests = responseQualityOptimizer.getActiveABTests();
         res.json({
@@ -16100,7 +16462,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/effectiveness", async (req, res) => {
+    router7.get("/optimization/effectiveness", async (req, res) => {
       try {
         const { limit } = req.query;
         const scores = responseQualityOptimizer.getResponseScores(
@@ -16118,7 +16480,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/recommendations", async (req, res) => {
+    router7.get("/optimization/recommendations", async (req, res) => {
       try {
         const { start, end, leadSegment } = req.query;
         const timeframe = {
@@ -16142,7 +16504,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/personalization", async (req, res) => {
+    router7.get("/optimization/personalization", async (req, res) => {
       try {
         const profiles = responseQualityOptimizer.getPersonalizationProfiles();
         res.json({
@@ -16157,7 +16519,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/optimization/personalization/:segment", async (req, res) => {
+    router7.post("/optimization/personalization/:segment", async (req, res) => {
       try {
         const { segment } = req.params;
         const optimization = await responseQualityOptimizer.optimizePersonalization(segment);
@@ -16174,7 +16536,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/quality-monitoring", async (req, res) => {
+    router7.get("/optimization/quality-monitoring", async (req, res) => {
       try {
         const { start, end } = req.query;
         const timeframe = {
@@ -16196,7 +16558,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/optimization/analytics", async (req, res) => {
+    router7.get("/optimization/analytics", async (req, res) => {
       try {
         const { start, end } = req.query;
         const timeframe = {
@@ -16218,7 +16580,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.get("/health", async (req, res) => {
+    router7.get("/health", async (req, res) => {
       try {
         const health = conversationIntelligenceHub.getServiceHealth();
         res.json({
@@ -16233,7 +16595,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/cache/clear", async (req, res) => {
+    router7.post("/cache/clear", async (req, res) => {
       try {
         const { olderThan } = req.body;
         conversationIntelligenceHub.clearCache(
@@ -16251,7 +16613,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/optimization/ab-test/:testId/results", async (req, res) => {
+    router7.post("/optimization/ab-test/:testId/results", async (req, res) => {
       try {
         const { testId } = req.params;
         const results = req.body;
@@ -16273,7 +16635,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    router6.post("/routing/template/:templateId/effectiveness", async (req, res) => {
+    router7.post("/routing/template/:templateId/effectiveness", async (req, res) => {
       try {
         const { templateId } = req.params;
         const { effectiveness } = req.body;
@@ -16295,7 +16657,7 @@ var init_conversation_intelligence = __esm({
         });
       }
     });
-    conversation_intelligence_default = router6;
+    conversation_intelligence_default = router7;
   }
 });
 
@@ -16305,41 +16667,41 @@ __export(knowledge_base_exports, {
   default: () => knowledge_base_default
 });
 import express from "express";
-import { z as z7 } from "zod";
-var router7, createKnowledgeBaseSchema, addDocumentSchema, searchKnowledgeBaseSchema, linkCampaignSchema, handleError, knowledge_base_default;
+import { z as z8 } from "zod";
+var router8, createKnowledgeBaseSchema, addDocumentSchema, searchKnowledgeBaseSchema, linkCampaignSchema, handleError, knowledge_base_default;
 var init_knowledge_base2 = __esm({
   "server/routes/knowledge-base.ts"() {
     "use strict";
     init_knowledge_base();
-    router7 = express.Router();
-    createKnowledgeBaseSchema = z7.object({
-      name: z7.string().min(1).max(255),
-      description: z7.string().optional(),
-      clientId: z7.string().uuid(),
-      settings: z7.record(z7.any()).optional()
+    router8 = express.Router();
+    createKnowledgeBaseSchema = z8.object({
+      name: z8.string().min(1).max(255),
+      description: z8.string().optional(),
+      clientId: z8.string().uuid(),
+      settings: z8.record(z8.any()).optional()
     });
-    addDocumentSchema = z7.object({
-      knowledgeBaseId: z7.string().uuid(),
-      title: z7.string().min(1).max(500),
-      content: z7.string().min(1),
-      url: z7.string().url().optional(),
-      documentType: z7.enum(["note", "webpage", "pdf", "google_doc", "notion_doc", "image", "video"]).optional(),
-      tags: z7.array(z7.string()).optional(),
-      containerTags: z7.array(z7.string()).optional(),
-      metadata: z7.record(z7.any()).optional()
+    addDocumentSchema = z8.object({
+      knowledgeBaseId: z8.string().uuid(),
+      title: z8.string().min(1).max(500),
+      content: z8.string().min(1),
+      url: z8.string().url().optional(),
+      documentType: z8.enum(["note", "webpage", "pdf", "google_doc", "notion_doc", "image", "video"]).optional(),
+      tags: z8.array(z8.string()).optional(),
+      containerTags: z8.array(z8.string()).optional(),
+      metadata: z8.record(z8.any()).optional()
     });
-    searchKnowledgeBaseSchema = z7.object({
-      query: z7.string().min(1),
-      knowledgeBaseIds: z7.array(z7.string().uuid()).optional(),
-      clientId: z7.string().uuid(),
-      limit: z7.number().int().min(1).max(50).optional(),
-      threshold: z7.number().min(0).max(1).optional(),
-      onlyMatchingChunks: z7.boolean().optional(),
-      filters: z7.record(z7.any()).optional()
+    searchKnowledgeBaseSchema = z8.object({
+      query: z8.string().min(1),
+      knowledgeBaseIds: z8.array(z8.string().uuid()).optional(),
+      clientId: z8.string().uuid(),
+      limit: z8.number().int().min(1).max(50).optional(),
+      threshold: z8.number().min(0).max(1).optional(),
+      onlyMatchingChunks: z8.boolean().optional(),
+      filters: z8.record(z8.any()).optional()
     });
-    linkCampaignSchema = z7.object({
-      campaignId: z7.string(),
-      knowledgeBaseId: z7.string().uuid()
+    linkCampaignSchema = z8.object({
+      campaignId: z8.string(),
+      knowledgeBaseId: z8.string().uuid()
     });
     handleError = (error, res) => {
       console.error("Knowledge base API error:", error);
@@ -16348,7 +16710,7 @@ var init_knowledge_base2 = __esm({
         message: error.message
       });
     };
-    router7.post("/", async (req, res) => {
+    router8.post("/", async (req, res) => {
       try {
         const data = createKnowledgeBaseSchema.parse(req.body);
         const knowledgeBase = await knowledgeBaseService.createKnowledgeBase(data);
@@ -16363,9 +16725,9 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.get("/:clientId", async (req, res) => {
+    router8.get("/:clientId", async (req, res) => {
       try {
-        const clientId = z7.string().uuid().parse(req.params.clientId);
+        const clientId = z8.string().uuid().parse(req.params.clientId);
         const knowledgeBases2 = await knowledgeBaseService.getKnowledgeBases(clientId);
         res.json(knowledgeBases2);
       } catch (error) {
@@ -16377,7 +16739,7 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.post("/documents", async (req, res) => {
+    router8.post("/documents", async (req, res) => {
       try {
         const data = addDocumentSchema.parse(req.body);
         const document = await knowledgeBaseService.addDocument(data);
@@ -16392,9 +16754,9 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.get("/:knowledgeBaseId/documents", async (req, res) => {
+    router8.get("/:knowledgeBaseId/documents", async (req, res) => {
       try {
-        const knowledgeBaseId = z7.string().uuid().parse(req.params.knowledgeBaseId);
+        const knowledgeBaseId = z8.string().uuid().parse(req.params.knowledgeBaseId);
         const limit = parseInt(req.query.limit) || 50;
         const offset = parseInt(req.query.offset) || 0;
         const documents = await knowledgeBaseService.getDocuments(knowledgeBaseId, limit, offset);
@@ -16408,9 +16770,9 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.delete("/documents/:documentId", async (req, res) => {
+    router8.delete("/documents/:documentId", async (req, res) => {
       try {
-        const documentId = z7.string().uuid().parse(req.params.documentId);
+        const documentId = z8.string().uuid().parse(req.params.documentId);
         await knowledgeBaseService.deleteDocument(documentId);
         res.status(204).send();
       } catch (error) {
@@ -16422,7 +16784,7 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.post("/search", async (req, res) => {
+    router8.post("/search", async (req, res) => {
       try {
         const data = searchKnowledgeBaseSchema.parse(req.body);
         const results = await knowledgeBaseService.searchKnowledgeBase(data);
@@ -16437,7 +16799,7 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.post("/link-campaign", async (req, res) => {
+    router8.post("/link-campaign", async (req, res) => {
       try {
         const data = linkCampaignSchema.parse(req.body);
         await knowledgeBaseService.linkCampaignToKnowledgeBase(data.campaignId, data.knowledgeBaseId);
@@ -16452,16 +16814,16 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.get("/campaign/:campaignId", async (req, res) => {
+    router8.get("/campaign/:campaignId", async (req, res) => {
       try {
-        const campaignId = z7.string().parse(req.params.campaignId);
+        const campaignId = z8.string().parse(req.params.campaignId);
         const knowledgeBases2 = await knowledgeBaseService.getCampaignKnowledgeBases(campaignId);
         res.json(knowledgeBases2);
       } catch (error) {
         handleError(error, res);
       }
     });
-    router7.post("/ingest-url", async (req, res) => {
+    router8.post("/ingest-url", async (req, res) => {
       try {
         const { knowledgeBaseId, url, title, tags, containerTags } = req.body;
         if (!knowledgeBaseId || !url) {
@@ -16484,7 +16846,7 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    router7.post("/bulk-ingest", async (req, res) => {
+    router8.post("/bulk-ingest", async (req, res) => {
       try {
         const { knowledgeBaseId, documents } = req.body;
         if (!knowledgeBaseId || !Array.isArray(documents)) {
@@ -16519,7 +16881,7 @@ var init_knowledge_base2 = __esm({
         handleError(error, res);
       }
     });
-    knowledge_base_default = router7;
+    knowledge_base_default = router8;
   }
 });
 
@@ -16529,24 +16891,24 @@ __export(kb_campaign_integration_exports, {
   default: () => kb_campaign_integration_default
 });
 import express2 from "express";
-import { z as z8 } from "zod";
-var router8, linkKBToCampaignSchema, testKBContextSchema, handleError2, kb_campaign_integration_default;
+import { z as z9 } from "zod";
+var router9, linkKBToCampaignSchema, testKBContextSchema, handleError2, kb_campaign_integration_default;
 var init_kb_campaign_integration = __esm({
   "server/routes/kb-campaign-integration.ts"() {
     "use strict";
     init_kb_ai_integration();
     init_knowledge_base();
-    router8 = express2.Router();
-    linkKBToCampaignSchema = z8.object({
-      campaignId: z8.string(),
-      knowledgeBaseId: z8.string().uuid()
+    router9 = express2.Router();
+    linkKBToCampaignSchema = z9.object({
+      campaignId: z9.string(),
+      knowledgeBaseId: z9.string().uuid()
     });
-    testKBContextSchema = z8.object({
-      campaignId: z8.string().optional(),
-      clientId: z8.string().uuid(),
-      query: z8.string().min(1),
-      maxResults: z8.number().int().min(1).max(20).optional(),
-      includeGeneral: z8.boolean().optional()
+    testKBContextSchema = z9.object({
+      campaignId: z9.string().optional(),
+      clientId: z9.string().uuid(),
+      query: z9.string().min(1),
+      maxResults: z9.number().int().min(1).max(20).optional(),
+      includeGeneral: z9.boolean().optional()
     });
     handleError2 = (error, res) => {
       console.error("KB Campaign Integration API error:", error);
@@ -16555,7 +16917,7 @@ var init_kb_campaign_integration = __esm({
         message: error.message
       });
     };
-    router8.post("/link", async (req, res) => {
+    router9.post("/link", async (req, res) => {
       try {
         const data = linkKBToCampaignSchema.parse(req.body);
         await kbAIIntegration.linkKnowledgeBaseToCampaign(data.campaignId, data.knowledgeBaseId);
@@ -16570,9 +16932,9 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    router8.get("/available/:clientId", async (req, res) => {
+    router9.get("/available/:clientId", async (req, res) => {
       try {
-        const clientId = z8.string().uuid().parse(req.params.clientId);
+        const clientId = z9.string().uuid().parse(req.params.clientId);
         const knowledgeBases2 = await kbAIIntegration.getAvailableKnowledgeBases(clientId);
         res.json(knowledgeBases2);
       } catch (error) {
@@ -16584,16 +16946,16 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    router8.get("/linked/:campaignId", async (req, res) => {
+    router9.get("/linked/:campaignId", async (req, res) => {
       try {
-        const campaignId = z8.string().parse(req.params.campaignId);
+        const campaignId = z9.string().parse(req.params.campaignId);
         const linkedKBs = await knowledgeBaseService.getCampaignKnowledgeBases(campaignId);
         res.json(linkedKBs);
       } catch (error) {
         handleError2(error, res);
       }
     });
-    router8.post("/test-context", async (req, res) => {
+    router9.post("/test-context", async (req, res) => {
       try {
         const data = testKBContextSchema.parse(req.body);
         const context = await kbAIIntegration.getKBContext({
@@ -16625,7 +16987,7 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    router8.post("/test-chat-context", async (req, res) => {
+    router9.post("/test-chat-context", async (req, res) => {
       try {
         const { clientId, campaignId, userTurn, context, goals } = req.body;
         if (!clientId || !userTurn) {
@@ -16654,7 +17016,7 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    router8.post("/add-document", async (req, res) => {
+    router9.post("/add-document", async (req, res) => {
       try {
         const { knowledgeBaseId, title, content, metadata } = req.body;
         if (!knowledgeBaseId || !title || !content) {
@@ -16673,7 +17035,7 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    router8.delete("/unlink", async (req, res) => {
+    router9.delete("/unlink", async (req, res) => {
       try {
         const data = linkKBToCampaignSchema.parse(req.body);
         res.json({ message: "Knowledge base unlinked from campaign successfully" });
@@ -16687,7 +17049,7 @@ var init_kb_campaign_integration = __esm({
         handleError2(error, res);
       }
     });
-    kb_campaign_integration_default = router8;
+    kb_campaign_integration_default = router9;
   }
 });
 
@@ -16696,80 +17058,80 @@ var ai_persona_exports = {};
 __export(ai_persona_exports, {
   default: () => ai_persona_default
 });
-import { Router as Router8 } from "express";
-import { z as z9 } from "zod";
-var router9, createPersonaSchema, updatePersonaSchema, linkKnowledgeBaseSchema, searchPersonasSchema, ai_persona_default;
+import { Router as Router9 } from "express";
+import { z as z10 } from "zod";
+var router10, createPersonaSchema, updatePersonaSchema, linkKnowledgeBaseSchema, searchPersonasSchema, ai_persona_default;
 var init_ai_persona = __esm({
   "server/routes/ai-persona.ts"() {
     "use strict";
     init_ai_persona_management();
     init_validation();
-    router9 = Router8();
-    createPersonaSchema = z9.object({
-      body: z9.object({
-        name: z9.string().min(1, "Name is required").max(255),
-        description: z9.string().optional(),
-        targetAudience: z9.string().min(1, "Target audience is required").max(255),
-        industry: z9.string().default("automotive").max(100),
-        tonality: z9.string().default("professional"),
-        personality: z9.string().optional(),
-        communicationStyle: z9.string().default("helpful"),
-        model: z9.string().default("openai/gpt-4o"),
-        temperature: z9.number().min(0).max(100).default(70),
-        maxTokens: z9.number().min(50).max(2e3).default(300),
-        systemPrompt: z9.string().optional(),
-        responseGuidelines: z9.array(z9.string()).default([]),
-        escalationCriteria: z9.array(z9.string()).default([]),
-        preferredChannels: z9.array(z9.string()).default(["email"]),
-        handoverSettings: z9.record(z9.any()).default({}),
-        knowledgeBaseAccessLevel: z9.enum(["campaign_only", "client_all", "persona_filtered"]).default("campaign_only"),
-        isActive: z9.boolean().default(true),
-        isDefault: z9.boolean().default(false),
-        priority: z9.number().default(100),
-        metadata: z9.record(z9.any()).default({})
+    router10 = Router9();
+    createPersonaSchema = z10.object({
+      body: z10.object({
+        name: z10.string().min(1, "Name is required").max(255),
+        description: z10.string().optional(),
+        targetAudience: z10.string().min(1, "Target audience is required").max(255),
+        industry: z10.string().max(100).default("automotive"),
+        tonality: z10.string().default("professional"),
+        personality: z10.string().optional(),
+        communicationStyle: z10.string().default("helpful"),
+        model: z10.string().default("openai/gpt-4o"),
+        temperature: z10.number().min(0).max(100).default(70),
+        maxTokens: z10.number().min(50).max(2e3).default(300),
+        systemPrompt: z10.string().optional(),
+        responseGuidelines: z10.array(z10.string()).default([]),
+        escalationCriteria: z10.array(z10.string()).default([]),
+        preferredChannels: z10.array(z10.string()).default(["email"]),
+        handoverSettings: z10.record(z10.any()).default({}),
+        knowledgeBaseAccessLevel: z10.enum(["campaign_only", "client_all", "persona_filtered"]).default("campaign_only"),
+        isActive: z10.boolean().default(true),
+        isDefault: z10.boolean().default(false),
+        priority: z10.number().default(100),
+        metadata: z10.record(z10.any()).default({})
       })
     });
-    updatePersonaSchema = z9.object({
-      body: z9.object({
-        name: z9.string().min(1).max(255).optional(),
-        description: z9.string().optional(),
-        targetAudience: z9.string().min(1).max(255).optional(),
-        industry: z9.string().max(100).optional(),
-        tonality: z9.string().optional(),
-        personality: z9.string().optional(),
-        communicationStyle: z9.string().optional(),
-        model: z9.string().optional(),
-        temperature: z9.number().min(0).max(100).optional(),
-        maxTokens: z9.number().min(50).max(2e3).optional(),
-        systemPrompt: z9.string().optional(),
-        responseGuidelines: z9.array(z9.string()).optional(),
-        escalationCriteria: z9.array(z9.string()).optional(),
-        preferredChannels: z9.array(z9.string()).optional(),
-        handoverSettings: z9.record(z9.any()).optional(),
-        knowledgeBaseAccessLevel: z9.enum(["campaign_only", "client_all", "persona_filtered"]).optional(),
-        isActive: z9.boolean().optional(),
-        isDefault: z9.boolean().optional(),
-        priority: z9.number().optional(),
-        metadata: z9.record(z9.any()).optional()
+    updatePersonaSchema = z10.object({
+      body: z10.object({
+        name: z10.string().min(1).max(255).optional(),
+        description: z10.string().optional(),
+        targetAudience: z10.string().min(1).max(255).optional(),
+        industry: z10.string().max(100).optional(),
+        tonality: z10.string().optional(),
+        personality: z10.string().optional(),
+        communicationStyle: z10.string().optional(),
+        model: z10.string().optional(),
+        temperature: z10.number().min(0).max(100).optional(),
+        maxTokens: z10.number().min(50).max(2e3).optional(),
+        systemPrompt: z10.string().optional(),
+        responseGuidelines: z10.array(z10.string()).optional(),
+        escalationCriteria: z10.array(z10.string()).optional(),
+        preferredChannels: z10.array(z10.string()).optional(),
+        handoverSettings: z10.record(z10.any()).optional(),
+        knowledgeBaseAccessLevel: z10.enum(["campaign_only", "client_all", "persona_filtered"]).optional(),
+        isActive: z10.boolean().optional(),
+        isDefault: z10.boolean().optional(),
+        priority: z10.number().optional(),
+        metadata: z10.record(z10.any()).optional()
       })
     });
-    linkKnowledgeBaseSchema = z9.object({
-      body: z9.object({
-        knowledgeBaseId: z9.string().uuid("Invalid knowledge base ID"),
-        accessLevel: z9.enum(["read", "write", "admin"]).default("read"),
-        priority: z9.number().default(100)
+    linkKnowledgeBaseSchema = z10.object({
+      body: z10.object({
+        knowledgeBaseId: z10.string().uuid("Invalid knowledge base ID"),
+        accessLevel: z10.enum(["read", "write", "admin"]).default("read"),
+        priority: z10.number().default(100)
       })
     });
-    searchPersonasSchema = z9.object({
-      query: z9.object({
-        targetAudience: z9.string().optional(),
-        industry: z9.string().optional(),
-        isActive: z9.string().transform((val) => val === "true").optional(),
-        includeKnowledgeBases: z9.string().transform((val) => val === "true").default("false"),
-        includeCampaignCounts: z9.string().transform((val) => val === "true").default("false")
+    searchPersonasSchema = z10.object({
+      query: z10.object({
+        targetAudience: z10.string().optional(),
+        industry: z10.string().optional(),
+        isActive: z10.string().transform((val) => val === "true").optional(),
+        includeKnowledgeBases: z10.string().transform((val) => val === "true").default("false"),
+        includeCampaignCounts: z10.string().transform((val) => val === "true").default("false")
       })
     });
-    router9.get("/", validateRequest(searchPersonasSchema), async (req, res) => {
+    router10.get("/", validateRequest(searchPersonasSchema), async (req, res) => {
       try {
         const clientId = req.headers["x-client-id"] || "default";
         const {
@@ -16801,7 +17163,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.get("/:id", async (req, res) => {
+    router10.get("/:id", async (req, res) => {
       try {
         const { id } = req.params;
         if (!id) {
@@ -16830,7 +17192,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.post("/", validateRequest(createPersonaSchema), async (req, res) => {
+    router10.post("/", validateRequest(createPersonaSchema), async (req, res) => {
       try {
         const clientId = req.headers["x-client-id"] || "default";
         const personaConfig = req.body;
@@ -16849,7 +17211,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.put("/:id", validateRequest(updatePersonaSchema), async (req, res) => {
+    router10.put("/:id", validateRequest(updatePersonaSchema), async (req, res) => {
       try {
         const { id } = req.params;
         const updates = req.body;
@@ -16874,7 +17236,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.delete("/:id", async (req, res) => {
+    router10.delete("/:id", async (req, res) => {
       try {
         const { id } = req.params;
         if (!id) {
@@ -16897,7 +17259,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.get("/client/default", async (req, res) => {
+    router10.get("/client/default", async (req, res) => {
       try {
         const clientId = req.headers["x-client-id"] || "default";
         const persona = await aiPersonaManagementService.getDefaultPersona(clientId);
@@ -16920,7 +17282,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.post("/:id/knowledge-bases", validateRequest(linkKnowledgeBaseSchema), async (req, res) => {
+    router10.post("/:id/knowledge-bases", validateRequest(linkKnowledgeBaseSchema), async (req, res) => {
       try {
         const { id } = req.params;
         const { knowledgeBaseId, accessLevel, priority } = req.body;
@@ -16949,7 +17311,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.delete("/:id/knowledge-bases/:kbId", async (req, res) => {
+    router10.delete("/:id/knowledge-bases/:kbId", async (req, res) => {
       try {
         const { id, kbId } = req.params;
         if (!id || !kbId) {
@@ -16972,7 +17334,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.get("/:id/knowledge-bases", async (req, res) => {
+    router10.get("/:id/knowledge-bases", async (req, res) => {
       try {
         const { id } = req.params;
         if (!id) {
@@ -16996,7 +17358,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.post("/create-defaults", async (req, res) => {
+    router10.post("/create-defaults", async (req, res) => {
       try {
         const clientId = req.headers["x-client-id"] || "default";
         const personas = await aiPersonaManagementService.createDefaultPersonas(clientId);
@@ -17014,7 +17376,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    router9.get("/:id/system-prompt", async (req, res) => {
+    router10.get("/:id/system-prompt", async (req, res) => {
       try {
         const { id } = req.params;
         const { targetAudience, campaignContext } = req.query;
@@ -17052,7 +17414,7 @@ var init_ai_persona = __esm({
         });
       }
     });
-    ai_persona_default = router9;
+    ai_persona_default = router10;
   }
 });
 
@@ -17508,7 +17870,7 @@ var tenantMiddleware = async (req, res, next) => {
 init_db();
 init_schema();
 init_websocket();
-import { eq as eq11 } from "drizzle-orm";
+import { eq as eq12 } from "drizzle-orm";
 import multer from "multer";
 import { parse as parse2 } from "csv-parse/sync";
 
@@ -21651,13 +22013,26 @@ var abTestingFramework = new ABTestingFramework();
 
 // server/routes.ts
 async function registerRoutes(app2) {
+  if (app2.get("env") === "development") {
+    const path4 = await import("path");
+    const clientPublicPath = path4.resolve(process.cwd(), "client", "public");
+    app2.get("/offerlogix-chat-widget.js", (req, res) => {
+      res.setHeader("Content-Type", "application/javascript");
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.sendFile(path4.resolve(clientPublicPath, "offerlogix-chat-widget.js"));
+    });
+    app2.get("/chat-widget-demo.html", (req, res) => {
+      res.setHeader("Content-Type", "text/html");
+      res.sendFile(path4.resolve(clientPublicPath, "chat-widget-demo.html"));
+    });
+  }
   app2.use("/api", tenantMiddleware);
   app2.get("/api/branding", async (req, res) => {
     try {
       const domain = req.query.domain || req.get("host") || "localhost";
-      let [client] = await db.select().from(clients).where(eq11(clients.domain, domain));
+      let [client] = await db.select().from(clients).where(eq12(clients.domain, domain));
       if (!client) {
-        [client] = await db.select().from(clients).where(eq11(clients.name, "Default Client"));
+        [client] = await db.select().from(clients).where(eq12(clients.name, "Default Client"));
       }
       if (client) {
         res.json(client);
@@ -21702,7 +22077,7 @@ async function registerRoutes(app2) {
   app2.put("/api/clients/:id", async (req, res) => {
     try {
       const clientData = insertClientSchema.partial().parse(req.body);
-      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq11(clients.id, req.params.id)).returning();
+      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq12(clients.id, req.params.id)).returning();
       if (!client) {
         return res.status(404).json({ message: "Client not found" });
       }
@@ -21713,7 +22088,7 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/clients/:id", async (req, res) => {
     try {
-      await db.delete(clients).where(eq11(clients.id, req.params.id));
+      await db.delete(clients).where(eq12(clients.id, req.params.id));
       res.json({ message: "Client deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete client" });
@@ -23054,6 +23429,8 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app2.use("/api/notifications", notifications_default);
   app2.use("/api/deliverability", deliverability_default);
   app2.use("/api/ai", ai_conversation_default);
+  const chatRoutes = await Promise.resolve().then(() => (init_chat(), chat_exports));
+  app2.use("/api/chat", chatRoutes.default);
   const healthRoutes = await Promise.resolve().then(() => (init_health(), health_exports));
   app2.use("/api/health", healthRoutes.default);
   const imapHealthRoutes = await Promise.resolve().then(() => (init_health_imap(), health_imap_exports));
@@ -23695,7 +24072,15 @@ function serveStatic(app2) {
     );
   }
   app2.use(express3.static(distPath));
-  app2.use("*", (_req, res) => {
+  app2.get("/offerlogix-chat-widget.js", (_req, res) => {
+    res.setHeader("Content-Type", "application/javascript");
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.sendFile(path3.resolve(distPath, "offerlogix-chat-widget.js"));
+  });
+  app2.use("*", (req, res) => {
+    if (req.originalUrl.includes("offerlogix-chat-widget") || req.originalUrl.includes("chat-widget-demo")) {
+      return res.status(404).send("File not found");
+    }
     res.sendFile(path3.resolve(distPath, "index.html"));
   });
 }

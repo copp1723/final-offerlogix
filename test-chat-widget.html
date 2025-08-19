@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferLogix Chat Widget Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .demo-section h2 {
+            color: #0066cc;
+            margin-top: 0;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background: #0052a3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+
+        .note {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            color: #856404;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OfferLogix Chat Widget Test</h1>
+        
+        <div class="note">
+            <strong>Note:</strong> This is a standalone test of the chat widget UI. The backend API endpoints will need to be running for full functionality.
+        </div>
+        
+        <div class="demo-section">
+            <h2>🚀 Widget Status</h2>
+            <div id="widget-status" class="status info">Loading widget...</div>
+            <div class="button-group">
+                <button onclick="checkWidgetStatus()">Check Status</button>
+                <button onclick="reinitializeWidget()" id="reinit-btn" disabled>Reinitialize</button>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>🎮 Widget Controls</h2>
+            <p>Test the chat widget functionality:</p>
+            <div class="button-group">
+                <button onclick="openChat()">Open Chat</button>
+                <button onclick="closeChat()">Close Chat</button>
+                <button onclick="minimizeChat()">Minimize Chat</button>
+                <button onclick="sendTestMessage()">Send Test Message</button>
+            </div>
+        </div>
+
+        <div class="demo-section">
+            <h2>💬 Chat Widget</h2>
+            <p>The chat widget should appear in the bottom-right corner of this page. Click the blue chat bubble to start chatting!</p>
+            <p><em>Note: Without the backend running, you'll see error messages when trying to send messages, but the UI should work correctly.</em></p>
+        </div>
+    </div>
+
+    <!-- Inline Chat Widget for Testing -->
+    <script>
+        // Mock Chat Widget (Simplified version for testing UI)
+        (function() {
+          'use strict';
+
+          const CONFIG = {
+            campaignId: 'test-campaign-123',
+            apiUrl: window.location.origin,
+            position: 'bottom-right',
+            theme: 'default',
+            autoOpen: false,
+            debug: true,
+          };
+
+          class OfferLogixChatWidget {
+            constructor() {
+              this.campaignId = CONFIG.campaignId;
+              this.apiUrl = CONFIG.apiUrl;
+              this.isOpen = false;
+              this.isInitialized = false;
+              this.isMinimized = true;
+              
+              this.init();
+            }
+
+            async init() {
+              try {
+                this.createWidgetContainer();
+                this.setupEventListeners();
+                
+                this.isInitialized = true;
+                console.log('Chat widget initialized successfully');
+                
+                // Display welcome message
+                this.displayMessage({
+                  content: 'Hello! I\'m your OfferLogix AI Assistant. How can I help you find the perfect offer today? (Note: Backend not connected in this demo)',
+                  senderType: 'agent',
+                  timestamp: new Date(),
+                });
+                
+                // Clear loading state
+                this.messagesContainer.innerHTML = '';
+                
+                window.dispatchEvent(new CustomEvent('offerLogixChatReady', {
+                  detail: { widget: this }
+                }));
+              } catch (error) {
+                console.error('OfferLogix Chat Widget initialization failed:', error);
+              }
+            }
+
+            createWidgetContainer() {
+              // Create main container
+              this.container = document.createElement('div');
+              this.container.id = 'offerlogix-chat-widget';
+              this.container.style.cssText = \`
+                position: fixed;
+                z-index: 2147483647;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                bottom: 20px;
+                right: 20px;
+              \`;
+
+              // Create shadow DOM for style isolation
+              this.shadowRoot = this.container.attachShadow({ mode: 'closed' });
+              
+              // Add styles
+              this.addStyles();
+              
+              // Create widget HTML
+              this.createWidgetHTML();
+              
+              // Add to page
+              document.body.appendChild(this.container);
+            }
+
+            addStyles() {
+              const styles = document.createElement('style');
+              styles.textContent = \`
+                * { box-sizing: border-box; margin: 0; padding: 0; }
+
+                .widget-container {
+                  width: 400px; max-width: 90vw; height: 600px; max-height: 80vh;
+                  background: #ffffff; border-radius: 12px;
+                  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12); border: 1px solid #e5e7eb;
+                  display: flex; flex-direction: column; overflow: hidden;
+                  transform: translateY(100%); opacity: 0;
+                  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                }
+
+                .widget-container.open { transform: translateY(0); opacity: 1; }
+
+                .widget-launcher {
+                  width: 60px; height: 60px; background: #0066cc; border-radius: 50%;
+                  border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;
+                  box-shadow: 0 4px 12px rgba(0, 102, 204, 0.3); transition: all 0.2s ease;
+                }
+
+                .widget-launcher:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(0, 102, 204, 0.4); }
+                .widget-launcher svg { width: 24px; height: 24px; fill: white; }
+
+                .widget-header {
+                  background: #0066cc; color: white; padding: 16px;
+                  display: flex; align-items: center; justify-content: space-between;
+                }
+
+                .widget-title { font-weight: 600; font-size: 16px; }
+                .widget-controls { display: flex; gap: 8px; }
+
+                .widget-btn {
+                  background: rgba(255, 255, 255, 0.2); border: none; border-radius: 6px;
+                  padding: 6px; cursor: pointer; color: white; transition: background 0.2s;
+                }
+
+                .widget-btn:hover { background: rgba(255, 255, 255, 0.3); }
+                .widget-btn svg { width: 16px; height: 16px; fill: currentColor; }
+
+                .chat-messages {
+                  flex: 1; overflow-y: auto; padding: 16px;
+                  display: flex; flex-direction: column; gap: 12px; scroll-behavior: smooth;
+                }
+
+                .message {
+                  max-width: 85%; padding: 12px 16px; border-radius: 18px;
+                  line-height: 1.4; font-size: 14px;
+                }
+
+                .message.user {
+                  background: #0066cc; color: white; align-self: flex-end;
+                  border-bottom-right-radius: 4px;
+                }
+
+                .message.agent {
+                  background: #f3f4f6; color: #374151; align-self: flex-start;
+                  border-bottom-left-radius: 4px;
+                }
+
+                .message-time { font-size: 10px; opacity: 0.6; margin-top: 4px; }
+
+                .chat-input-container {
+                  padding: 16px; border-top: 1px solid #e5e7eb; background: #fafafa;
+                }
+
+                .chat-input-wrapper { display: flex; gap: 8px; align-items: flex-end; }
+
+                .chat-input {
+                  flex: 1; border: 1px solid #d1d5db; border-radius: 20px; padding: 12px 16px;
+                  font-size: 14px; resize: none; max-height: 100px; background: white;
+                  font-family: inherit;
+                }
+
+                .chat-input:focus {
+                  outline: none; border-color: #0066cc;
+                  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+                }
+
+                .send-button {
+                  background: #0066cc; border: none; border-radius: 50%; width: 40px; height: 40px;
+                  cursor: pointer; display: flex; align-items: center; justify-content: center;
+                  transition: all 0.2s;
+                }
+
+                .send-button:hover:not(:disabled) { background: #0052a3; transform: scale(1.05); }
+                .send-button:disabled { opacity: 0.5; cursor: not-allowed; }
+                .send-button svg { width: 18px; height: 18px; fill: white; }
+              \`;
+              this.shadowRoot.appendChild(styles);
+            }
+
+            createWidgetHTML() {
+              const widgetHTML = document.createElement('div');
+              widgetHTML.innerHTML = \`
+                <div class="widget-launcher" id="launcher">
+                  <svg viewBox="0 0 24 24">
+                    <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/>
+                  </svg>
+                </div>
+                
+                <div class="widget-container" id="widget">
+                  <div class="widget-header">
+                    <div class="widget-title">OfferLogix AI Assistant</div>
+                    <div class="widget-controls">
+                      <button class="widget-btn" id="minimize" title="Minimize">
+                        <svg viewBox="0 0 24 24"><path d="M19 13H5v-2h14v2z"/></svg>
+                      </button>
+                      <button class="widget-btn" id="close" title="Close">
+                        <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                  
+                  <div class="chat-messages" id="messages"></div>
+                  
+                  <div class="chat-input-container">
+                    <div class="chat-input-wrapper">
+                      <textarea class="chat-input" id="messageInput" placeholder="Ask me about our offers..." rows="1"></textarea>
+                      <button class="send-button" id="sendButton" title="Send message">
+                        <svg viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              \`;
+              
+              this.shadowRoot.appendChild(widgetHTML);
+              
+              // Get references to elements
+              this.launcher = this.shadowRoot.getElementById('launcher');
+              this.widget = this.shadowRoot.getElementById('widget');
+              this.messagesContainer = this.shadowRoot.getElementById('messages');
+              this.messageInput = this.shadowRoot.getElementById('messageInput');
+              this.sendButton = this.shadowRoot.getElementById('sendButton');
+              this.minimizeButton = this.shadowRoot.getElementById('minimize');
+              this.closeButton = this.shadowRoot.getElementById('close');
+            }
+
+            setupEventListeners() {
+              this.launcher.addEventListener('click', () => this.openChat());
+              this.minimizeButton.addEventListener('click', () => this.minimizeChat());
+              this.closeButton.addEventListener('click', () => this.closeChat());
+              this.sendButton.addEventListener('click', () => this.handleSendMessage());
+              
+              this.messageInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  this.handleSendMessage();
+                }
+              });
+              
+              this.messageInput.addEventListener('input', () => {
+                this.sendButton.disabled = !this.messageInput.value.trim();
+              });
+            }
+
+            displayMessage(message) {
+              const messageElement = document.createElement('div');
+              messageElement.className = \`message \${message.senderType}\`;
+              
+              const content = document.createElement('div');
+              content.textContent = message.content;
+              messageElement.appendChild(content);
+              
+              const time = document.createElement('div');
+              time.className = 'message-time';
+              time.textContent = new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit', minute: '2-digit',
+              }).format(message.timestamp);
+              messageElement.appendChild(time);
+              
+              this.messagesContainer.appendChild(messageElement);
+              this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+            }
+
+            handleSendMessage() {
+              const message = this.messageInput.value.trim();
+              if (!message) return;
+              
+              // Display user message
+              this.displayMessage({
+                content: message,
+                senderType: 'user',
+                timestamp: new Date(),
+              });
+
+              this.messageInput.value = '';
+              this.sendButton.disabled = true;
+              
+              // Mock response
+              setTimeout(() => {
+                this.displayMessage({
+                  content: 'Thank you for your message! This is a demo response. To get real AI responses, the OfferLogix backend server needs to be running.',
+                  senderType: 'agent',
+                  timestamp: new Date(),
+                });
+              }, 1000);
+            }
+
+            openChat() {
+              if (!this.isInitialized) return;
+              this.isOpen = true;
+              this.isMinimized = false;
+              this.launcher.style.display = 'none';
+              this.widget.classList.add('open');
+              setTimeout(() => this.messageInput.focus(), 300);
+            }
+
+            minimizeChat() {
+              this.isMinimized = true;
+              this.widget.classList.remove('open');
+              this.launcher.style.display = 'flex';
+            }
+
+            closeChat() {
+              this.isOpen = false;
+              this.isMinimized = true;
+              this.widget.classList.remove('open');
+              this.launcher.style.display = 'flex';
+            }
+
+            // Public API
+            open() { this.openChat(); }
+            close() { this.closeChat(); }
+            minimize() { this.minimizeChat(); }
+            sendUserMessage(message) {
+              if (this.isInitialized && message) {
+                this.messageInput.value = message;
+                this.handleSendMessage();
+              }
+            }
+            isReady() { return this.isInitialized; }
+          }
+
+          // Initialize widget
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => {
+              window.OfferLogixChat = new OfferLogixChatWidget();
+            });
+          } else {
+            window.OfferLogixChat = new OfferLogixChatWidget();
+          }
+        })();
+    </script>
+
+    <script>
+        // Demo functionality
+        let widgetReady = false;
+
+        window.addEventListener('offerLogixChatReady', function(event) {
+            widgetReady = true;
+            updateStatus('success', 'Widget loaded and ready!');
+            document.getElementById('reinit-btn').disabled = false;
+        });
+
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('widget-status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+
+        function checkWidgetStatus() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                updateStatus('success', 'Widget is ready and functional');
+            } else {
+                updateStatus('error', 'Widget not found or not ready');
+            }
+        }
+
+        function reinitializeWidget() {
+            const existing = document.getElementById('offerlogix-chat-widget');
+            if (existing) existing.remove();
+            
+            location.reload(); // Simple reload for demo
+        }
+
+        function openChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.open();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function closeChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.close();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function minimizeChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.minimize();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function sendTestMessage() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.sendUserMessage("Hello! This is a test message from the demo page.");
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        // Initial status check
+        setTimeout(checkWidgetStatus, 1000);
+    </script>
+</body>
+</html>

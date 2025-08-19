@@ -90,8 +90,19 @@ export function serveStatic(app: Express) {
 
   app.use(express.static(distPath));
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // Serve chat widget files with proper headers
+  app.get('/offerlogix-chat-widget.js', (_req, res) => {
+    res.setHeader('Content-Type', 'application/javascript');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.sendFile(path.resolve(distPath, 'offerlogix-chat-widget.js'));
+  });
+
+  // fall through to index.html if the file doesn't exist (excluding chat widget files)
+  app.use("*", (req, res) => {
+    // Don't serve index.html for chat widget files
+    if (req.originalUrl.includes('offerlogix-chat-widget') || req.originalUrl.includes('chat-widget-demo')) {
+      return res.status(404).send('File not found');
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }
