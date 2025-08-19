@@ -3,6 +3,7 @@ import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap,
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
+import ChatWidget from "@/components/ChatWidget";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -115,7 +116,7 @@ function SidebarNavItem({ item, isActive, currentPath }: { item: NavItem; isActi
         {isExpanded && (
           <div className="ml-8 mt-1 space-y-1">
             {item.children.map((child) => {
-              const childIcon = child.icon;
+              const ChildIcon = child.icon;
               const isChildActive = currentPath === child.href;
               
               return (
@@ -128,7 +129,7 @@ function SidebarNavItem({ item, isActive, currentPath }: { item: NavItem; isActi
                         : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
                     )}
                   >
-                    <childIcon className="flex-shrink-0 w-4 h-4" />
+                    <ChildIcon className="flex-shrink-0 w-4 h-4" />
                     <span>{child.name}</span>
                   </div>
                 </Link>
@@ -253,6 +254,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
+      
+      {/* Chat Widget - Demo Integration */}
+      <ChatWidget 
+        campaignId="demo-offerlogix-campaign"
+        position="bottom-right"
+        theme="default"
+        autoOpen={false}
+        autoOpenDelay={3000}
+        debug={true}
+      />
     </div>
   );
 }
