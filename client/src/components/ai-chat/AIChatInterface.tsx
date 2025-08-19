@@ -38,7 +38,7 @@ export default function AIChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: "welcome",
-      content: "Hi! I'm your AI Campaign Agent for automotive marketing. I'll help you create a personalized email campaign by asking a few questions. What type of automotive campaign would you like to create today?",
+      content: "Hi! I'm your OfferLogix Campaign Agent for dealership outreach. I'll help you create a personalized email campaign that promotes OfferLogix solutions to dealerships. What type of dealership outreach campaign would you like to create today?",
       isFromAI: true,
       timestamp: new Date(),
     }
@@ -338,7 +338,7 @@ export default function AIChatInterface() {
             <Bot className="w-8 h-8 text-blue-600 mr-3" />
             AI Campaign Agent
           </h2>
-          <p className="text-gray-600 mt-1">Let's create your automotive email campaign together</p>
+          <p className="text-gray-600 mt-1">Let's create your dealership outreach campaign for OfferLogix together</p>
         </div>
 
         <div className="flex space-x-2">

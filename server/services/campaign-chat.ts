@@ -251,15 +251,15 @@ User Message: ${userMessage}`;
 
   // Quick reply suggestions by step
   private static suggestionsByStep: Record<string, string[]> = {
-    context: ["New vehicle launch", "Service reminders", "Test drive follow-up"],
-    goals: ["Book test drives", "Book service", "Get trade-in leads"],
-    target_audience: ["New prospects", "Current owners", "Leads with SUV interest"],
-  handover_recipients: ["Primary Sales Rep", "BDC Manager", "Floor Lead"],
-  email_templates: ["3", "5", "7"],
-  lead_upload: ["Uploaded", "Lead list ready", "Here it is"],
-  email_cadence: ["3", "5", "7"],
-  content_generation: ["Yes", "Generate now"],
-  review_launch: ["Launch now", "Yes launch", "Activate campaign"],
+    context: ["Dealer ROI case study", "Payment widget integration", "Lead quality improvement"],
+    goals: ["Book OfferLogix demos", "Start 14‑day trial", "Enable website widgets"],
+    target_audience: ["GMs / GSMs", "Internet managers", "Dealer group marketing"],
+    handover_recipients: ["Account Executive", "Solutions Engineer", "Partnerships"],
+    email_templates: ["3", "5", "7"],
+    lead_upload: ["Uploaded", "Lead list ready", "Here it is"],
+    email_cadence: ["3", "5", "7"],
+    content_generation: ["Yes", "Generate now"],
+    review_launch: ["Launch now", "Yes launch", "Activate campaign"],
   };
   // TODO: suggestionsByStep is a static mutable object; in multi-user scenarios this could cause cross-session bleed.
   // Consider cloning per conversation instance or returning a new array each time to avoid mutation side-effects.
@@ -1013,7 +1013,7 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
             `Quick confirmation on "${nm}": ${baseCtx} for ${audience}, leaning on a ${angle} position. Goals detected: ${updatedData.handoverGoals}. Want tweaks? ${goalQuestion}`,
             `Context snapshot: "${nm}" targets ${audience}; angle: ${angle}. Current goals → ${updatedData.handoverGoals}. Refine or move on? ${goalQuestion}`
           ] : [
-            `Alright, I think I see what you're going for: "${nm}" — ${baseCtx} targeting ${audience} with a ${angle} play. If that's right, spell out concrete outcomes (e.g., ${goalExamples}). ${goalQuestion}`,
+            `Alright — campaign "${nm}" looks geared to dealership outreach: ${baseCtx} for ${audience} with a ${angle} angle. Spell out B2B outcomes (e.g., ${goalExamples}). ${goalQuestion}`,
             `Got the gist of "${nm}": ${baseCtx}. Audience focus: ${audience}. Feels like a ${angle} narrative. What measurable outcomes do you want (e.g., ${goalExamples})? ${goalQuestion}`,
             `Reading this as: "${nm}" for ${audience} leveraging a ${angle} angle. Confirm by giving 1–3 outcome goals (e.g., ${goalExamples}). ${goalQuestion}`,
             `Working hypothesis: campaign "${nm}" = ${angle} positioning to engage ${audience}. Lock it in with specific outcome goals (e.g., ${goalExamples}). ${goalQuestion}`,
@@ -1032,11 +1032,11 @@ RawContext: ${this.compactify(updatedData._rawContextInput || updatedData.contex
         // Override goal suggestions dynamically to more numeric, outcome-based examples
         if (!skippingGoals) {
           this.suggestionsByStep.goals = [
-            `Move more ${unitsNoun}`,
-            'Book more test drives',
-            'Generate more leads',
-            'Secure more finance apps',
-            'Capture more trade-in appraisals'
+            'Book OfferLogix demos',
+            'Start 14‑day trial',
+            'Enable website payment widgets',
+            'Integrate with CRM/DR tools',
+            'Prove ROI with a pilot'
           ];
         } else {
           // Build audience suggestions dynamically from context/keywords

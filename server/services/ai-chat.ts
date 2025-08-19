@@ -54,34 +54,26 @@
     // Standardized campaign creation system prompt used across features
     const basePrompt = CampaignPromptService.getCampaignCreationPrompt();
 
-    // Straight-Talking Automotive Pro style (per demo request)
+    // OfferLogix B2B dealership‑outreach style
     const straightTalkingStyle = `
 
-  ### System Prompt: The Straight-Talking Automotive Pro
+  ### System Prompt: OfferLogix Dealership Outreach Agent
 
   Core Identity:
-  You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful - not a pushy salesperson. You talk like a real person who knows OfferLogix and knows dealers, and understands that picking a vendor is a big decision.
+  You help users create campaigns that promote OfferLogix services and payment/offer technology to automotive dealerships (B2B). You speak like an experienced vendor partner who understands dealership roles (GMs, GSMs, Internet Managers, Finance).
 
   Communication Style:
-  - Be real. Talk like you would to a friend who's asking for car advice
-  - Be direct. No fluff, no corporate speak
-  - Be helpful. Figure out what they actually need and point them in the right direction
-  - Be conversational. Short sentences. Natural flow. Like you're texting a friend
+  - Be clear, direct, and helpful — no consumer retail tone
+  - Use dealership outcomes: more qualified web leads, faster pencil, higher close rate, compliant payments, lower ad waste
+  - Ask one focused question at a time; keep it short
 
-  How You Engage:
-  - Ask one simple question at a time
-  - Listen and build on what they tell you
-  - Don't jump straight to selling
-
-  What You DON'T Do:
-  - No marketing speak
-  - No five-in-one questions
-  - Don't ignore what they just told you
-  - Don't sound like a robot
-  - Don't be overly enthusiastic about everything
+  Guardrails:
+  - Never frame messages as if targeting retail shoppers or moving vehicles
+  - Do not propose consumer CTAs like test drives or trade‑in appraisals
+  - Keep examples oriented to demos, pilots, integrations, ROI proof
 
   Goal:
-  Have a normal conversation that helps them figure out what they actually want. If they're ready to move forward, make it easy. If they're not, give them something useful and stay in touch.
+  Guide to concrete B2B outcomes (e.g., book demos, start trials, enable website widgets, integrate with CRM/DR tools).
   `;
 
     const systemPrompt = `${basePrompt}
@@ -96,7 +88,7 @@
       const typicalSteps = new Set(["welcome","campaign_type","target_audience","goals","details","complete"]);
       const campaignId = currentStep && !typicalSteps.has(currentStep) ? currentStep : undefined;
       const kb = await kbAIIntegration.getCampaignChatContextWithKB({
-        clientId: 'default',
+        clientId: '00000000-0000-0000-0000-000000000001',
         campaignId,
         userTurn: userMessage,
         context: typeof campaignData === 'object' ? campaignData?.context : undefined,
@@ -136,12 +128,12 @@
       const parsedResponse = JSON.parse(content || '{}');
 
       return {
-        message: parsedResponse.message || "Let's create your automotive email campaign! What type of campaign are you looking to create?",
+        message: parsedResponse.message || "Let's create your OfferLogix dealership outreach campaign! What type of dealership campaign are you looking to create?",
         nextStep: parsedResponse.nextStep || "campaign_type",
         campaignData: parsedResponse.campaignData || campaignData,
         isComplete: parsedResponse.isComplete || false,
         // Compatibility fields for routes expecting these
-        response: parsedResponse.message || "Let's create your automotive email campaign! What type of campaign are you looking to create?",
+        response: parsedResponse.message || "Let's create your OfferLogix dealership outreach campaign! What type of dealership campaign are you looking to create?",
         shouldHandover: false
       } as any;
 
@@ -157,17 +149,17 @@
       case "welcome":
       case "campaign_type":
         return {
-          message: "Welcome! I'm here to help you create an outreach campaign to connect with automotive dealerships. What type of dealership outreach campaign would you like to create? For example: credit calculator software demo, payment calculator trial, dealership management tools, or seasonal software promotions?",
+          message: "Welcome! I’ll help you create a dealership outreach campaign to promote OfferLogix solutions. What type of campaign do you want to build? Examples: payment widget rollout, credit calculator trial, CRM/DR integration pilot, or ROI case‑study outreach.",
           nextStep: "target_audience",
           campaignData: { ...campaignData, type: userMessage },
           isComplete: false,
-          response: "Welcome! I'm here to help you create an outreach campaign to connect with automotive dealerships. What type of dealership outreach campaign would you like to create? For example: credit calculator software demo, payment calculator trial, dealership management tools, or seasonal software promotions?",
+          response: "Welcome! I’ll help you create a dealership outreach campaign to promote OfferLogix solutions. What type of campaign do you want to build? Examples: payment widget rollout, credit calculator trial, CRM/DR integration pilot, or ROI case‑study outreach.",
           shouldHandover: false
         } as any;
 
       case "target_audience":
         return {
-          message: "Great! What type of automotive dealerships are you targeting? For example: new car dealerships, used car lots, luxury dealers, independent dealers, or dealership groups?",
+          message: "Great! Which dealership personas are you targeting? For example: GMs, GSMs, Internet managers, finance directors, or dealer groups?",
           nextStep: "goals",
           campaignData: { ...campaignData, audience: userMessage },
           isComplete: false,
@@ -177,7 +169,7 @@
 
       case "goals":
         return {
-          message: "Perfect! What are your main goals for this dealership outreach campaign? For example: schedule software demos, book discovery calls, generate trial sign-ups, or onboard new dealership clients?",
+          message: "Perfect! What outcomes are you aiming for? For example: book OfferLogix demos, start 14‑day trials, enable website payment widgets, integrate with CRM/DR tools, or run a short ROI pilot.",
           nextStep: "details",
           campaignData: { ...campaignData, goals: userMessage },
           isComplete: false,
@@ -187,14 +179,14 @@
 
       case "details":
         return {
-          message: "Excellent! Let me gather a few more details. How many emails would you like in this sequence, and how many days between each email?",
+          message: "Excellent — a couple logistics: how many emails in the sequence and how many days between sends? We’ll tailor copy for dealership decision‑makers.",
           nextStep: "complete",
           campaignData: {
             ...campaignData,
             details: userMessage,
             name: `${campaignData.type || 'OfferLogix Dealership'} Campaign`,
-            context: `${campaignData.type || 'OfferLogix Software'} campaign targeting ${campaignData.audience || 'automotive dealerships'} with goals to ${campaignData.goals || 'generate software trials'}`,
-            handoverGoals: campaignData.goals || 'Generate software demos and trial sign-ups from automotive dealerships',
+            context: `${campaignData.type || 'OfferLogix Solutions'} campaign targeting ${campaignData.audience || 'dealership leaders'} with goals to ${campaignData.goals || 'book demos and start trials'}`,
+            handoverGoals: campaignData.goals || 'Book demos and trial sign‑ups from dealerships',
             numberOfTemplates: 5,
             daysBetweenMessages: 3
           },
@@ -205,7 +197,7 @@
 
       case "complete":
         return {
-          message: "Perfect! I have all the information needed to create your dealership outreach campaign. The campaign will be set up to connect with automotive dealerships and promote OfferLogix software solutions.",
+          message: "Perfect! I have everything needed to create your OfferLogix dealership outreach campaign — focused on demos, trials, and integrations.",
           nextStep: "complete",
           campaignData: {
             ...campaignData,

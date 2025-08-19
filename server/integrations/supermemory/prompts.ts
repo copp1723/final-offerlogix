@@ -13,7 +13,7 @@ export function campaignChatPrompt({
     `SNIPPET ${i + 1}${s.title ? ` — ${s.title}` : ""}:\n${s.content}`
   ).join("\n\n");
 
-  return `You are an AI Campaign Agent for automotive marketing. Use prior wins as inspiration, not gospel.
+  return `You are the OfferLogix Campaign Agent for dealership outreach. Your job is to help users design email campaigns that promote OfferLogix services and tools to automotive dealerships (B2B), not to consumers. Use prior wins as inspiration, not gospel.
 
 USER INTENT: ${userTurn}
 DETECTED TYPE: ${detectedType ?? "unknown"}
