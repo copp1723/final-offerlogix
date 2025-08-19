@@ -528,52 +528,57 @@ export default function Leads() {
                       })()}
                     </TableCell>
                     <TableCell className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
+                      <button
+                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
                         onClick={() => setSelectedLead(lead)}
                       >
                         View
-                      </Button>
+                      </button>
 
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="outline" size="sm">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() => {
-                              if (lead.campaignId) {
-                                assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: "" });
-                              }
-                            }}
-                            disabled={!lead.campaignId}
-                          >
-                            <Target className="h-4 w-4 mr-2" />
-                            Remove from Campaign
-                          </DropdownMenuItem>
-                          {campaigns.filter((campaign: Campaign) => campaign.status === "draft").map((campaign: Campaign) => (
-                            <DropdownMenuItem
-                              key={campaign.id}
-                              onClick={() => assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: campaign.id })}
-                              disabled={lead.campaignId === campaign.id}
+                      <div className="relative">
+                        <button
+                          className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const menu = e.currentTarget.nextElementSibling;
+                            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+                          }}
+                        >
+                          ⋯
+                        </button>
+                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50" style={{display: 'none'}}>
+                          <div className="py-1">
+                            <button
+                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                              onClick={() => {
+                                if (lead.campaignId) {
+                                  assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: "" });
+                                }
+                              }}
+                              disabled={!lead.campaignId}
                             >
-                              <Target className="h-4 w-4 mr-2" />
-                              Assign to {campaign.name}
-                            </DropdownMenuItem>
-                          ))}
-                          <DropdownMenuItem
-                            onClick={() => deleteLeadMutation.mutate(lead.id)}
-                            className="text-red-600 focus:text-red-600"
-                            disabled={deleteLeadMutation.isPending}
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                              Remove from Campaign
+                            </button>
+                            {campaigns.filter((campaign: Campaign) => campaign.status === "draft").map((campaign: Campaign) => (
+                              <button
+                                key={campaign.id}
+                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                                onClick={() => assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: campaign.id })}
+                                disabled={lead.campaignId === campaign.id}
+                              >
+                                Assign to {campaign.name}
+                              </button>
+                            ))}
+                            <button
+                              className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
+                              onClick={() => deleteLeadMutation.mutate(lead.id)}
+                              disabled={deleteLeadMutation.isPending}
+                            >
+                              {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
