@@ -260,7 +260,7 @@ export default function PersonasPage() {
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No AI Personas Configured</h3>
               <p className="text-gray-600 mb-6 max-w-md mx-auto">
                 Get started by setting up default personas for your OfferLogix system.
-                This will create specialized AI agents for dealers and vendors.
+                This will create specialized AI agents for reaching automotive dealerships with your software solutions.
               </p>
               <Button 
                 onClick={createDefaultPersonas} 

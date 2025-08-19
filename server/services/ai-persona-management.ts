@@ -1,5 +1,5 @@
 import { eq, and, desc, asc } from 'drizzle-orm';
-import { db } from '../db';
+import { db } from '../db.js';
 import { 
   aiPersonas, 
   personaKnowledgeBases, 
@@ -136,6 +136,13 @@ class AIPersonaManagementService {
    */
   async getPersonas(options: PersonaSearchOptions): Promise<PersonaWithKBs[]> {
     try {
+      console.log('getPersonas called with options:', options);
+      console.log('db object:', db);
+      
+      if (!db) {
+        throw new Error('Database connection is undefined');
+      }
+      
       let query = db
         .select()
         .from(aiPersonas)
