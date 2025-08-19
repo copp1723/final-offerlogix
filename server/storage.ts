@@ -170,7 +170,7 @@ export class DatabaseStorage implements IStorage {
 
     // Store campaign in Supermemory for AI recall
     try {
-      const { MemoryMapper } = await import('./integrations/supermemory');
+      const { MemoryMapper } = await import('./integrations/supermemory.js');
       await MemoryMapper.writeCampaignSummary({
         type: 'campaign_summary',
         clientId: newCampaign.clientId || 'default',
@@ -329,7 +329,7 @@ export class DatabaseStorage implements IStorage {
     if (!newMessage.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
       try {
         const conversation = await this.getConversation(newMessage.conversationId || '');
-        const { MemoryMapper } = await import('./integrations/supermemory');
+        const { MemoryMapper } = await import('./integrations/supermemory.js');
         await MemoryMapper.writeLeadMessage({
           type: 'lead_msg',
           clientId: 'default', // TODO: Add clientId to message context

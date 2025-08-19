@@ -10,12 +10,13 @@ const app = express();
 // CORS configuration for production
 app.use((req, res, next) => {
   const allowedOrigins = [
-    'http://localhost:5173',
-    'http://localhost:3000', 
-    'https://ccl-3-final.onrender.com',
+    process.env.NODE_ENV === 'development' ? 'http://localhost:5173' : null,
+    process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : null,
+    'https://final-offerlogix.onrender.com',
     process.env.FRONTEND_URL,
     process.env.CLIENT_URL,
-    process.env.CORS_ORIGIN
+    process.env.CORS_ORIGIN,
+    process.env.APP_URL
   ].filter(Boolean);
 
   const origin = req.headers.origin;
@@ -101,7 +102,7 @@ app.use((req, res, next) => {
     
     // Initialize services after server starts
     try {
-      const { initializeSystem } = await import('./services/system-initializer');
+      const { initializeSystem } = await import('./services/system-initializer.js');
       await initializeSystem(server);
     } catch (error) {
       console.error('Failed to initialize services:', error);

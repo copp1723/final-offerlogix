@@ -11,7 +11,7 @@ export async function initializeSystem(server?: import('http').Server) {
   // WebSocket service
   if (server) {
     try {
-      const { webSocketService } = await import('./websocket');
+      const { webSocketService } = await import('./websocket.js');
       webSocketService.initialize(server);
       // WebSocket service logs its own success; avoid duplicate here.
     } catch (error) {
@@ -73,7 +73,7 @@ export async function startEnhancedEmailMonitor(): Promise<boolean> {
   }
 
   try {
-    const { enhancedEmailMonitor } = await import('./enhanced-email-monitor');
+    const { enhancedEmailMonitor } = await import('./enhanced-email-monitor.js');
   return enhancedEmailMonitor.start();
   } catch (error) {
     console.error('Enhanced email monitor import failed:', error);

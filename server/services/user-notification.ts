@@ -51,7 +51,7 @@ const notificationTemplates: Record<NotificationType, (data: any) => Notificatio
         <p>You can monitor campaign performance and view detailed analytics in your dashboard.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/campaigns" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/campaigns" 
              style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             View Campaign Results
           </a>
@@ -72,7 +72,7 @@ Execution Summary:
 - Template Used: ${data.templateTitle || 'N/A'}
 - Execution Time: ${new Date(data.executedAt || Date.now()).toLocaleString()}
 
-View your campaign results at: ${process.env.APP_URL || 'http://localhost:5000'}/campaigns`
+View your campaign results at: ${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/campaigns`
   }),
 
   [NotificationType.CAMPAIGN_COMPLETED]: (data) => ({
@@ -95,7 +95,7 @@ View your campaign results at: ${process.env.APP_URL || 'http://localhost:5000'}
         <p>Congratulations on completing your automotive email campaign! Review the detailed analytics to optimize future campaigns.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/campaigns/${data.campaignId}/analytics" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/campaigns/${data.campaignId}/analytics" 
              style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             View Complete Analytics
           </a>
@@ -134,7 +134,7 @@ Final Results:
         <p>This lead will be included in your next campaign execution. Consider personalizing the approach based on their vehicle interest.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/leads" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/leads" 
              style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Manage Leads
           </a>
@@ -173,7 +173,7 @@ Lead Details:
         <p>Consider scaling this successful campaign or using its templates as a foundation for future campaigns.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/campaigns/${data.campaignId}" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/campaigns/${data.campaignId}" 
              style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             View Campaign Performance
           </a>
@@ -208,7 +208,7 @@ Performance Highlights:
         ` : ''}
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/dashboard" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/dashboard" 
              style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Go to Dashboard
           </a>
@@ -250,7 +250,7 @@ ${data.actionRequired ? `Action Required: ${data.actionRequired}` : ''}`
         <p>Keep up the great work with your automotive email marketing campaigns!</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/analytics" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/analytics" 
              style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             View Detailed Analytics
           </a>
@@ -286,7 +286,7 @@ Monthly Statistics:
         <p>Please review and fix these issues before your next campaign execution to ensure optimal deliverability.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/campaigns/${data.campaignId}" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/campaigns/${data.campaignId}" 
              style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Fix Campaign Issues
           </a>
@@ -324,7 +324,7 @@ Please review and fix these issues before your next campaign execution.`
         <p>Consider upgrading your plan or optimizing your campaigns to stay within your quota.</p>
         
         <div style="margin: 30px 0;">
-          <a href="${process.env.APP_URL || 'http://localhost:5000'}/billing" 
+          <a href="${process.env.APP_URL || process.env.PUBLIC_APP_URL || process.env.RENDER_EXTERNAL_URL || 'https://offerlogix.onrender.com'}/billing" 
              style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Manage Billing
           </a>

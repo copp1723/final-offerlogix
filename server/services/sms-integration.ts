@@ -1,6 +1,6 @@
 import { sendSMS, SMSData } from './twilio';
 import { db } from '../db';
-import { leads } from '../../shared/schema';
+import { leads } from '@shared/schema';
 import { eq } from 'drizzle-orm';
 
 export interface SMSCampaignData {

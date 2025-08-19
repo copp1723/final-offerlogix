@@ -269,7 +269,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await storage.updateCampaign(campaignId, { status: 'active' as any });
 
       // Execute via orchestrator
-      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator.js');
       const orchestrator = new CampaignOrchestrator();
       const result = await orchestrator.executeCampaign({ campaignId, testMode: false });
       res.json({ message: 'Campaign launched', execution: result });
@@ -399,7 +399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Required fields: to, subject, htmlContent" });
       }
 
-      const { emailWatchdog } = await import('./services/email-validator');
+      const { emailWatchdog } = await import('./services/email-validator.js');
       const validation = await emailWatchdog.validateOutboundEmail(emailData);
 
       res.json(validation);
@@ -411,7 +411,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/email/validation-stats", async (req, res) => {
     try {
-      const { emailWatchdog } = await import('./services/email-validator');
+      const { emailWatchdog } = await import('./services/email-validator.js');
       const stats = emailWatchdog.getValidationStats();
       res.json(stats);
     } catch (error) {
@@ -432,7 +432,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "Conversation not found" });
       }
 
-      const { HandoverService } = await import('./services/handover-service');
+      const { HandoverService } = await import('./services/handover-service.js');
       const evaluation = await HandoverService.evaluateHandover(
         id,
         conversation,
@@ -472,7 +472,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get handover statistics
   app.get("/api/handover/stats", async (req, res) => {
     try {
-      const { HandoverService } = await import('./services/handover-service');
+      const { HandoverService } = await import('./services/handover-service.js');
       const stats = HandoverService.getHandoverStats();
       res.json(stats);
     } catch (error) {
@@ -486,7 +486,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { dealershipConfig, conversationContext } = req.body;
 
-      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
       const systemPrompt = AutomotivePromptService.generateSystemPrompt(
         dealershipConfig || AutomotivePromptService.getDefaultDealershipConfig(),
         conversationContext
@@ -504,7 +504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messageContent, leadName, vehicleInterest, previousMessages } = req.body;
 
-      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
       const context = AutomotivePromptService.createConversationContext(
         leadName,
         vehicleInterest,
@@ -526,7 +526,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { userInput, campaignType, urgency } = req.body;
 
-      const { CampaignPromptService } = await import('./services/campaign-prompts');
+      const { CampaignPromptService } = await import('./services/campaign-prompts.js');
       const prompt = CampaignPromptService.generateContextualPrompt(userInput, campaignType, urgency);
 
       res.json({ prompt });
@@ -541,7 +541,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { message } = req.body;
 
-      const { CampaignPromptService } = await import('./services/campaign-prompts');
+      const { CampaignPromptService } = await import('./services/campaign-prompts.js');
       const intent = CampaignPromptService.parseUserIntent(message);
       const guidance = CampaignPromptService.generateResponseGuidance(intent);
 
@@ -566,7 +566,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         useStraightTalkingStyle
       } = req.body;
 
-      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
 
       const context = AutomotivePromptService.createConversationContext(
         leadName,
@@ -600,7 +600,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { messageContent, leadName, vehicleInterest, season, brand, isReEngagement } = req.body;
 
-      const { AutomotivePromptService } = await import('./services/automotive-prompts');
+      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
 
       const context = AutomotivePromptService.createConversationContext(
         leadName,
@@ -771,7 +771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Simple webhook endpoints
   app.post("/api/webhooks/mailgun/inbound", async (req, res) => {
     try {
-      const { InboundEmailService } = await import('./services/inbound-email');
+      const { InboundEmailService } = await import('./services/inbound-email.js');
       await InboundEmailService.handleInboundEmail(req, res);
     } catch (error) {
       console.error('Mailgun inbound webhook error:', error);
@@ -816,7 +816,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get email monitoring status (Enhanced)
   app.get("/api/email-monitor/status", async (req, res) => {
     try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       const status = enhancedEmailMonitor.getStatus();
       res.json(status);
     } catch (error) {
@@ -828,7 +828,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get email monitoring rules (Enhanced)
   app.get("/api/email-monitor/rules", async (req, res) => {
     try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       const rules = enhancedEmailMonitor.getTriggerRules();
       res.json(rules);
     } catch (error) {
@@ -844,7 +844,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!rule || !rule.id || !rule.name) {
         return res.status(400).json({ message: 'Rule id and name required' });
       }
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       // Simple replace logic
       const existing = enhancedEmailMonitor.getTriggerRules().find(r => r.id === rule.id);
       if (existing) {
@@ -870,7 +870,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete('/api/email-monitor/rules/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       const removed = enhancedEmailMonitor.removeTriggerRule(id);
       if (!removed) return res.status(404).json({ message: 'Rule not found' });
       res.json({ message: 'Rule deleted' });
@@ -883,7 +883,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Start/stop monitoring (placeholder)
   app.post("/api/email-monitor/start", async (req, res) => {
     try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       await enhancedEmailMonitor.start();
       res.json({ message: "Email monitor started successfully" });
     } catch (e) {
@@ -893,7 +893,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/email-monitor/stop", async (req, res) => {
     try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       await enhancedEmailMonitor.stop();
       res.json({ message: "Email monitor stopped successfully" });
     } catch (e) {
@@ -939,7 +939,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const campaignId = req.params.id;
       const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
 
-      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator');
+      const { CampaignOrchestrator } = await import('./services/campaign-execution/CampaignOrchestrator.js');
       const campaignOrchestrator = new CampaignOrchestrator();
 
       const executionOptions = {
@@ -1217,7 +1217,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message is required" });
       }
 
-      const { CampaignChatService } = await import('./services/campaign-chat');
+      const { CampaignChatService } = await import('./services/campaign-chat.js');
       const response = await CampaignChatService.processCampaignChat(
         message,
         currentStep || 'context',
@@ -1370,7 +1370,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // Lead memory summary (lightweight RAG-derived context for Lead Details drawer)
   app.get("/api/leads/:id/memory-summary", async (req, res) => {
     try {
-      const { getLeadMemorySummary } = await import('./services/supermemory');
+      const { getLeadMemorySummary } = await import('./services/supermemory.js');
       return getLeadMemorySummary(req, res);
     } catch (e) {
       return res.status(500).json({ error: 'Failed to load memory summary' });
@@ -1669,7 +1669,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // Execution monitoring routes
   app.get("/api/executions", async (req, res) => {
     try {
-      const { executionMonitor } = await import('./services/execution-monitor');
+      const { executionMonitor } = await import('./services/execution-monitor.js');
       const executions = executionMonitor.getActiveExecutions();
       res.json(executions);
     } catch (error) {
@@ -1679,7 +1679,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
   app.get("/api/executions/history", async (req, res) => {
     try {
-      const { executionMonitor } = await import('./services/execution-monitor');
+      const { executionMonitor } = await import('./services/execution-monitor.js');
       const limit = parseInt(req.query.limit as string) || 20;
       const history = executionMonitor.getExecutionHistory(limit);
       res.json(history);
@@ -1690,7 +1690,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
   app.get("/api/executions/stats", async (req, res) => {
     try {
-      const { executionMonitor } = await import('./services/execution-monitor');
+      const { executionMonitor } = await import('./services/execution-monitor.js');
       const stats = executionMonitor.getExecutionStats();
       res.json(stats);
     } catch (error) {
@@ -1700,7 +1700,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
   app.get("/api/executions/:id", async (req, res) => {
     try {
-      const { executionMonitor } = await import('./services/execution-monitor');
+      const { executionMonitor } = await import('./services/execution-monitor.js');
       const execution = executionMonitor.getExecutionStatus(req.params.id);
       if (!execution) {
         return res.status(404).json({ message: "Execution not found" });
@@ -1713,7 +1713,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
   app.post("/api/executions/:id/cancel", async (req, res) => {
     try {
-      const { executionMonitor } = await import('./services/execution-monitor');
+      const { executionMonitor } = await import('./services/execution-monitor.js');
       const cancelled = executionMonitor.cancelExecution(req.params.id);
       if (!cancelled) {
         return res.status(400).json({ message: "Execution cannot be cancelled" });
@@ -1730,35 +1730,35 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app.use('/api/ai', aiConversationRoutes);
 
   // Chat widget routes
-  const chatRoutes = await import('./routes/chat');
+  const chatRoutes = await import('./routes/chat.js');
   app.use('/api/chat', chatRoutes.default);
 
   // Health check routes
-  const healthRoutes = await import('./routes/health');
+  const healthRoutes = await import('./routes/health.js');
   app.use('/api/health', healthRoutes.default);
 
   // IMAP health check
-  const imapHealthRoutes = await import('./routes/health-imap');
+  const imapHealthRoutes = await import('./routes/health-imap.js');
   app.use('/api/health', imapHealthRoutes.default);
 
   // Agent runtime routes
-  const agentRoutes = await import('./routes/agent');
+  const agentRoutes = await import('./routes/agent.js');
   app.use('/api/agent', agentRoutes.default);
 
   // Conversation Intelligence routes
-  const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence');
+  const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence.js');
   app.use('/api/conversation-intelligence', conversationIntelligenceRoutes.default);
 
   // Knowledge Base routes
-  const knowledgeBaseRoutes = await import('./routes/knowledge-base');
+  const knowledgeBaseRoutes = await import('./routes/knowledge-base.js');
   app.use('/api/knowledge-base', knowledgeBaseRoutes.default);
 
   // KB Campaign Integration routes
-  const kbCampaignRoutes = await import('./routes/kb-campaign-integration');
+  const kbCampaignRoutes = await import('./routes/kb-campaign-integration.js');
   app.use('/api/kb-campaign', kbCampaignRoutes.default);
 
   // AI Persona Management routes
-  const aiPersonaRoutes = await import('./routes/ai-persona');
+  const aiPersonaRoutes = await import('./routes/ai-persona.js');
   app.use('/api/personas', aiPersonaRoutes.default);
 
   // SMS Integration Routes
@@ -2031,7 +2031,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // System health endpoint aggregating key service states
   app.get('/api/health', async (_req, res) => {
     try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor');
+      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
       const emailStatus = enhancedEmailMonitor.getStatus();
       // Expand later with DB & external checks
       res.json({
@@ -2249,7 +2249,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // Dashboard Intelligence Route (Phase 1/2 Integration)
   app.get("/api/dashboard", async (req: TenantRequest, res) => {
     try {
-      const { LightweightDashboardIntelligence } = await import('./services/lightweight-dashboard-intelligence');
+      const { LightweightDashboardIntelligence } = await import('./services/lightweight-dashboard-intelligence.js');
       const intel = new LightweightDashboardIntelligence();
 
       // Map leads to UI format

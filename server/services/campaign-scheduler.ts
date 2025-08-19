@@ -1,5 +1,5 @@
 import { db } from '../db';
-import { campaigns } from '../../shared/schema';
+import { campaigns } from '@shared/schema';
 import { eq, lte, and } from 'drizzle-orm';
 // Reliability knobs
 const SCHEDULER_INTERVAL_MS = Number(process.env.SCHEDULER_INTERVAL_MS ?? 60_000); // 1 min default

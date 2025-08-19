@@ -62,7 +62,7 @@ export class LLMClient {
     const explicit = process.env.OPENROUTER_SITE_URL || process.env.PUBLIC_APP_URL || process.env.APP_URL;
     const renderUrl = process.env.RENDER_EXTERNAL_URL; // auto-provided by Render
     const replit = process.env.REPLIT_DOMAINS; // legacy env name used earlier
-    return (explicit || renderUrl || replit || 'http://localhost:5000').replace(/\/$/, '');
+    return (explicit || renderUrl || replit || 'https://offerlogix.onrender.com').replace(/\/$/, '');
   }
 
   // Circuit Breaker Helper Methods

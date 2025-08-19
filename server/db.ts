@@ -16,7 +16,13 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  max: Number(process.env.DATABASE_POOL_MAX) || 20,
+  min: Number(process.env.DATABASE_POOL_MIN) || 5,
+  idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT) || 30000,
+  connectionTimeoutMillis: Number(process.env.DATABASE_CONNECTION_TIMEOUT) || 10000,
+  query_timeout: Number(process.env.DATABASE_QUERY_TIMEOUT) || 60000,
+  statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT) || 60000,
 });
 
 // Best-effort: ensure required extensions exist (Render Postgres supports these)
@@ -183,3 +189,19 @@ void ensureDatabaseReady();
 void applyLegacyPatches();
 
 export const db = drizzle(pool, { schema });
+
+// Graceful shutdown handling
+process.on('SIGINT', gracefulShutdown);
+process.on('SIGTERM', gracefulShutdown);
+
+async function gracefulShutdown(signal: string) {
+  console.log(`Received ${signal}, closing database connections...`);
+  try {
+    await pool.end();
+    console.log('Database connections closed successfully');
+    process.exit(0);
+  } catch (error) {
+    console.error('Error closing database connections:', error);
+    process.exit(1);
+  }
+}

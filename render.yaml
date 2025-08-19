@@ -36,6 +36,26 @@ services:
         sync: false
       - key: IMAP_PASSWORD
         sync: false
+      - key: MAILGUN_WEBHOOK_SIGNING_KEY
+        sync: false
+      - key: HANDOVER_EMAIL
+        value: sales@offerlogix.com
+      - key: EMAIL_FROM
+        value: noreply@mg.offerlogix.com
+      - key: APP_URL
+        value: https://final-offerlogix.onrender.com
+      - key: FRONTEND_URL
+        value: https://final-offerlogix.onrender.com
+      - key: CLIENT_URL
+        value: https://final-offerlogix.onrender.com
+      - key: CORS_ORIGIN
+        value: https://final-offerlogix.onrender.com
+      - key: PUBLIC_APP_URL
+        value: https://final-offerlogix.onrender.com
+      - key: MAILGUN_FROM_EMAIL
+        value: noreply@mg.offerlogix.com
+      - key: PORT
+        value: 10000
     healthCheckPath: /api/health/system
 
 databases:
