@@ -118,12 +118,12 @@ export default function ConversationsPage() {
     <div className="p-6 h-[calc(100vh-3rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Conversations</h1>
-          <p className="text-gray-600 mt-1">Manage customer conversations and support requests</p>
+          <h1 className="text-2xl font-bold text-gray-900">Customer Interactions</h1>
+          <p className="text-gray-600 mt-1">Manage customer interactions and support requests</p>
         </div>
         
         <div className="text-sm text-gray-500">
-          Conversations are created automatically when campaigns are launched
+          Customer interactions are created automatically when campaigns are launched
         </div>
       </div>
 
@@ -190,8 +190,8 @@ export default function ConversationsPage() {
               <CardContent className="p-6 flex items-center justify-center h-full">
                 <div className="text-center">
                   <MessageCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">Select a Conversation</h3>
-                  <p className="text-gray-500">Choose a conversation from the list to view messages</p>
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">Select an Interaction</h3>
+                  <p className="text-gray-500">Choose an interaction from the list to view messages</p>
                 </div>
               </CardContent>
             </Card>

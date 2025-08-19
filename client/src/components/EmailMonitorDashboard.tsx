@@ -141,7 +141,7 @@ export function EmailMonitorDashboard() {
         throw new Error('Failed to save rule');
       }
     } catch (error) {
-      toast({ title: 'Error', description: 'Failed to save email rule', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Failed to save communication rule', variant: 'destructive' });
     }
   };
 
@@ -162,9 +162,9 @@ export function EmailMonitorDashboard() {
         <div>
           <h1 className="text-3xl font-bold flex items-center">
             <Mail className="h-8 w-8 mr-3 text-blue-600" />
-            Email Monitor Dashboard
+            Communication Monitor Dashboard
           </h1>
-          <p className="text-gray-600">Monitor incoming emails and automatically process leads</p>
+          <p className="text-gray-600">Monitor incoming communications and automatically process leads</p>
         </div>
       </div>
 
@@ -241,7 +241,7 @@ export function EmailMonitorDashboard() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Email Processing Rules</span>
+            <span>Communication Processing Rules</span>
             <Dialog open={showRuleDialog} onOpenChange={setShowRuleDialog}>
               <DialogTrigger asChild>
                 <Button className="flex items-center">

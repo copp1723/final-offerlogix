@@ -125,7 +125,7 @@ export default function CampaignsPage() {
     return (
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-semibold text-gray-900">Campaigns</h1>
+          <h1 className="text-2xl font-semibold text-gray-900">Credit Campaigns</h1>
         </div>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {[...Array(6)].map((_, i) => (
@@ -141,10 +141,10 @@ export default function CampaignsPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Campaigns</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Credit Campaigns</h1>
         <Button onClick={() => setNewCampaignOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          New Campaign
+          New Credit Campaign
         </Button>
       </div>
 

@@ -10,8 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays, Check } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign as SharedCampaign } from "@shared/schema";
@@ -42,6 +43,7 @@ const formSchema = insertCampaignSchema.extend({
   originalCampaignId: z.string().nullable().optional(),
   isTemplate: z.boolean().optional().default(false),
   agentConfigId: z.string().nullable().optional(),
+  personaId: z.string().nullable().optional(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -84,12 +86,20 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
       isTemplate: false,
       originalCampaignId: null,
       agentConfigId: null,
+      personaId: null,
       communicationType: "email",
       scheduleType: "immediate",
     },
   });
 
   const { data: agentConfigs } = useQuery({ queryKey: ['/api/ai-agent-configs'] });
+
+  // Fetch available personas for selection
+  const { data: personas = [], isLoading: personasLoading, error: personasError } = useQuery({
+    queryKey: ['/api/personas'],
+    queryFn: () => apiRequest('/api/personas?isActive=true'),
+    select: (response: any) => response?.data || []
+  });
 
   // Load campaign data when we have a campaignId (for steps 3 and 4)
   const { data: campaignData } = useQuery<FormData | null>({
@@ -590,22 +600,68 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
               </div>
               <div>
                 <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Response Mode</h4>
-        {/* AI Agent Selector */}
+        {/* AI Agent & Persona Selection */}
         <div className="border-t border-gray-200 pt-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Select AI Agent</h3>
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">AI Configuration</h3>
+          
+          {/* AI Persona Selector */}
+          <FormField
+            control={form.control}
+            name="personaId"
+            render={({ field }) => (
+              <FormItem className="mb-6">
+                <FormLabel>AI Persona</FormLabel>
+                <Select 
+                  onValueChange={field.onChange} 
+                  value={field.value || ''}
+                  disabled={personasLoading}
+                >
+                  <FormControl>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select AI persona for this campaign" />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value="">Use Default Persona</SelectItem>
+                    {personas.map((persona: any) => (
+                      <SelectItem key={persona.id} value={persona.id}>
+                        <div className="flex flex-col">
+                          <span className="font-medium">{persona.name}</span>
+                          <span className="text-xs text-gray-500">
+                            {persona.targetAudience} • {persona.tonality}
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <FormDescription>
+                  Choose the AI persona that will handle conversations for this campaign
+                </FormDescription>
+                {personasError && (
+                  <p className="text-sm text-red-600">
+                    Failed to load personas. Using default persona.
+                  </p>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+
+          {/* AI Agent Selector */}
           <FormField
             control={form.control}
             name="agentConfigId"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Agent Profile</FormLabel>
+                <FormLabel>Agent Profile (Advanced)</FormLabel>
                 <FormControl>
                   <select
                     className="w-full border rounded-md px-3 py-2 text-sm"
                     value={field.value || ''}
                     onChange={(e) => field.onChange(e.target.value || null)}
                   >
-                    <option value="">Use Active Agent</option>
+                    <option value="">Use Default Agent Settings</option>
                     {Array.isArray(agentConfigs) && agentConfigs.map((cfg: any) => (
                       <option key={cfg.id} value={cfg.id}>
                         {cfg.name} {cfg.isActive ? '(Active)' : ''}
@@ -613,6 +669,9 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
                     ))}
                   </select>
                 </FormControl>
+                <FormDescription>
+                  Optional: Override default agent settings with custom configuration
+                </FormDescription>
                 <FormMessage />
               </FormItem>
             )}

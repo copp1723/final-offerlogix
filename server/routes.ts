@@ -1736,6 +1736,10 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   const kbCampaignRoutes = await import('./routes/kb-campaign-integration');
   app.use('/api/kb-campaign', kbCampaignRoutes.default);
 
+  // AI Persona Management routes
+  const aiPersonaRoutes = await import('./routes/ai-persona');
+  app.use('/api/personas', aiPersonaRoutes.default);
+
   // SMS Integration Routes
   app.post("/api/sms/opt-in", async (req, res) => {
     try {

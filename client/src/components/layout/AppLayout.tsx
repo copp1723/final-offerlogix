@@ -27,9 +27,29 @@ const navigation: NavItem[] = [
     icon: Brain,
   },
   {
+    name: "AI Personas",
+    href: "/personas",
+    icon: Target,
+  },
+  {
     name: "Knowledge Base",
     href: "/knowledge-base",
     icon: Database,
+  },
+  {
+    name: "Credit Campaigns",
+    href: "/campaigns",
+    icon: Zap,
+  },
+  {
+    name: "Customer Interactions",
+    href: "/conversations",
+    icon: MessageSquare,
+  },
+  {
+    name: "Communication Monitor",
+    href: "/email-monitor",
+    icon: Mail,
   },
   {
     name: "Customers",

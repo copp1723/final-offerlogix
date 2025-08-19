@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: onekeel-swarm
+    name: offerlogix
     env: node
     plan: starter
     buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npm run build:render
@@ -12,12 +12,12 @@ services:
         value: production
       - key: DATABASE_URL
         fromDatabase:
-          name: onekeel-postgres
+          name: offerlogix-db
           property: connectionString
       - key: MAILGUN_API_KEY
         sync: false
       - key: MAILGUN_DOMAIN
-        value: mg.watchdogai.us
+        value: mg.offerlogix.com
       - key: OPENROUTER_API_KEY
         sync: false
       - key: TWILIO_ACCOUNT_SID
@@ -39,7 +39,7 @@ services:
     healthCheckPath: /api/health/system
 
 databases:
-  - name: onekeel-postgres
-    databaseName: onekeel_swarm
-    user: onekeel_user
+  - name: offerlogix-db
+    databaseName: offerlogix_db
+    user: offerlogix_db_user
     plan: starter

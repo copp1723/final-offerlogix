@@ -90,6 +90,9 @@ export const campaigns = pgTable("campaigns", {
 
   // Agent selection (optional)
   agentConfigId: varchar("agent_config_id").references(() => aiAgentConfig.id),
+  
+  // AI Persona assignment for multi-persona campaigns
+  personaId: uuid("persona_id").references(() => aiPersonas.id),
 
   clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -157,6 +160,7 @@ export const insertCampaignSchema = createInsertSchema(campaigns).pick({
   isTemplate: true,
   originalCampaignId: true,
   agentConfigId: true,
+  personaId: true,           // Added for multi-persona support
 });
 
 export const insertAiAgentConfigSchema = createInsertSchema(aiAgentConfig).omit({
@@ -300,6 +304,84 @@ export const insertCampaignKnowledgeBaseSchema = createInsertSchema(campaignKnow
   createdAt: true,
 });
 
+// AI Personas table for multi-persona agent system
+export const aiPersonas = pgTable("ai_personas", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  targetAudience: varchar("target_audience", { length: 255 }), // dealers, vendors, customers, etc.
+  industry: varchar("industry", { length: 100 }).default("automotive"),
+  
+  // Persona personality and behavior
+  tonality: text("tonality").notNull().default("professional"), // professional, friendly, technical, consultative
+  personality: text("personality"), // Detailed personality description
+  communicationStyle: text("communication_style").default("helpful"), // helpful, consultative, direct, technical
+  
+  // AI configuration
+  model: text("model").default("openai/gpt-4o"), // AI model to use
+  temperature: integer("temperature").default(70), // Temperature * 100 (0.7 = 70)
+  maxTokens: integer("max_tokens").default(300),
+  
+  // Persona-specific prompts
+  systemPrompt: text("system_prompt"), // Base system prompt for this persona
+  responseGuidelines: jsonb("response_guidelines").default(sql`'[]'::jsonb`).notNull(), // Array of response guidelines
+  escalationCriteria: jsonb("escalation_criteria").default(sql`'[]'::jsonb`).notNull(), // When to escalate conversations
+  
+  // Communication preferences
+  preferredChannels: jsonb("preferred_channels").default(sql`'["email"]'::jsonb`).notNull(), // email, sms, phone
+  handoverSettings: jsonb("handover_settings").default(sql`'{}'::jsonb`).notNull(), // Persona-specific handover config
+  
+  // Knowledge base associations
+  knowledgeBaseAccessLevel: varchar("kb_access_level", { length: 50 }).default("campaign_only"), // "campaign_only", "client_all", "persona_filtered"
+  
+  // Status and settings
+  isActive: boolean("is_active").default(true).notNull(),
+  isDefault: boolean("is_default").default(false).notNull(),
+  priority: integer("priority").default(100), // Higher number = higher priority
+  
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+// Junction table for personas to knowledge bases (persona-specific KB filtering)
+export const personaKnowledgeBases = pgTable("persona_knowledge_bases", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  personaId: uuid("persona_id").references(() => aiPersonas.id).notNull(),
+  knowledgeBaseId: uuid("knowledge_base_id").references(() => knowledgeBases.id).notNull(),
+  accessLevel: varchar("access_level", { length: 50 }).default("read"), // read, write, admin
+  priority: integer("priority").default(100), // Priority for this KB for this persona
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Update KB documents to support persona tagging
+export const kbDocumentPersonaTags = pgTable("kb_document_persona_tags", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: uuid("document_id").references(() => kbDocuments.id).notNull(),
+  personaId: uuid("persona_id").references(() => aiPersonas.id).notNull(),
+  relevanceScore: integer("relevance_score").default(100), // 0-100 relevance for this persona
+  tags: varchar("tags").array().default(sql`'{}'`), // Additional tags for this persona-document association
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Schema validation for AI personas
+export const insertAiPersonaSchema = createInsertSchema(aiPersonas).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertPersonaKnowledgeBaseSchema = createInsertSchema(personaKnowledgeBases).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertKbDocumentPersonaTagSchema = createInsertSchema(kbDocumentPersonaTags).omit({
+  id: true,
+  createdAt: true,
+});
+
 // Types
 export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
 export type KnowledgeBase = typeof knowledgeBases.$inferSelect;
@@ -309,3 +391,9 @@ export type InsertKbDocumentChunk = z.infer<typeof insertKbDocumentChunkSchema>;
 export type KbDocumentChunk = typeof kbDocumentChunks.$inferSelect;
 export type InsertCampaignKnowledgeBase = z.infer<typeof insertCampaignKnowledgeBaseSchema>;
 export type CampaignKnowledgeBase = typeof campaignKnowledgeBases.$inferSelect;
+export type InsertAiPersona = z.infer<typeof insertAiPersonaSchema>;
+export type AiPersona = typeof aiPersonas.$inferSelect;
+export type InsertPersonaKnowledgeBase = z.infer<typeof insertPersonaKnowledgeBaseSchema>;
+export type PersonaKnowledgeBase = typeof personaKnowledgeBases.$inferSelect;
+export type InsertKbDocumentPersonaTag = z.infer<typeof insertKbDocumentPersonaTagSchema>;
+export type KbDocumentPersonaTag = typeof kbDocumentPersonaTags.$inferSelect;

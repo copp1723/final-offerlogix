@@ -1,6 +1,7 @@
 import { knowledgeBaseService } from './knowledge-base';
 import { supermemory, isRAGEnabled } from '../integrations/supermemory';
 import { storage } from '../storage';
+import { aiPersonaManagementService } from './ai-persona-management';
 import type { ConversationContext, ResponseGenerationOptions } from './enhanced-conversation-ai';
 
 /**
@@ -17,6 +18,8 @@ export interface KBContextOptions {
   maxResults?: number;
   threshold?: number;
   includeGeneral?: boolean; // Include general knowledge bases
+  personaId?: string; // Filter by persona-specific knowledge bases
+  personaFiltered?: boolean; // Whether to apply persona filtering
 }
 
 export interface KBContextResult {
@@ -44,7 +47,7 @@ class KnowledgeBaseAIIntegration {
   }
 
   /**
-   * Get knowledge base context for AI agents
+   * Get knowledge base context for AI agents with persona filtering support
    */
   async getKBContext(options: KBContextOptions): Promise<KBContextResult> {
     const result: KBContextResult = {
@@ -65,10 +68,31 @@ class KnowledgeBaseAIIntegration {
           .filter((id): id is string => !!id);
       }
 
+      // Apply persona filtering if specified
+      if (options.personaFiltered && options.personaId) {
+        const personaKBs = await aiPersonaManagementService.getPersonaKnowledgeBases(options.personaId);
+        const personaKBIds = personaKBs.map(kb => kb.id);
+        
+        // If we have campaign KBs, intersect with persona KBs, otherwise use persona KBs
+        if (knowledgeBaseIds.length > 0) {
+          knowledgeBaseIds = knowledgeBaseIds.filter(id => personaKBIds.includes(id));
+        } else {
+          knowledgeBaseIds = personaKBIds;
+        }
+      }
+
       // If no campaign-specific KBs or includeGeneral is true, get client's general KBs
       if (knowledgeBaseIds.length === 0 || options.includeGeneral) {
         const clientKBs = await knowledgeBaseService.getKnowledgeBases(options.clientId);
-        const generalKBIds = clientKBs.map(kb => kb.id);
+        let generalKBIds = clientKBs.map(kb => kb.id);
+        
+        // Apply persona filtering to general KBs if specified
+        if (options.personaFiltered && options.personaId) {
+          const personaKBs = await aiPersonaManagementService.getPersonaKnowledgeBases(options.personaId);
+          const personaKBIds = personaKBs.map(kb => kb.id);
+          generalKBIds = generalKBIds.filter(id => personaKBIds.includes(id));
+        }
+        
         knowledgeBaseIds = Array.from(new Set([...knowledgeBaseIds, ...generalKBIds]));
       }
 
@@ -127,7 +151,7 @@ class KnowledgeBaseAIIntegration {
   }
 
   /**
-   * Enhanced context for campaign chat with KB integration
+   * Enhanced context for campaign chat with KB integration and persona support
    */
   async getCampaignChatContextWithKB(args: {
     clientId: string;
@@ -135,17 +159,31 @@ class KnowledgeBaseAIIntegration {
     userTurn: string;
     context?: string;
     goals?: string;
+    personaId?: string;
   }) {
     try {
       // Get KB context based on user input and campaign context
       const query = `${args.userTurn} ${args.context || ''} ${args.goals || ''}`.trim();
+      
+      // Determine persona filtering if personaId is provided
+      let personaFiltered = false;
+      if (args.personaId) {
+        try {
+          const persona = await aiPersonaManagementService.getPersona(args.personaId);
+          personaFiltered = persona?.knowledgeBaseAccessLevel === 'persona_filtered';
+        } catch (error) {
+          console.warn('Could not get persona for filtering:', error);
+        }
+      }
       
       const kbContext = await this.getKBContext({
         campaignId: args.campaignId,
         clientId: args.clientId,
         query,
         maxResults: 3,
-        includeGeneral: true
+        includeGeneral: true,
+        personaId: args.personaId,
+        personaFiltered
       });
 
       return {
@@ -166,7 +204,7 @@ class KnowledgeBaseAIIntegration {
   }
 
   /**
-   * Enhanced conversation context with KB integration
+   * Enhanced conversation context with KB integration and persona filtering
    */
   async getConversationContextWithKB(
     context: ConversationContext,
@@ -186,17 +224,24 @@ class KnowledgeBaseAIIntegration {
       try {
         const conversations = await storage.getConversations();
         const conversation = conversations.find(c => c.id === context.conversationId);
-        campaignId = conversation?.campaignId || undefined;
+        campaignId = conversation?.campaignId || context.campaignId;
       } catch (error) {
         console.warn('Could not get campaign ID for conversation:', error);
+        campaignId = context.campaignId;
       }
+
+      // Determine if persona filtering should be applied
+      const shouldApplyPersonaFiltering = context.persona && 
+        context.persona.knowledgeBaseAccessLevel === 'persona_filtered';
 
       const kbContext = await this.getKBContext({
         campaignId,
         clientId: context.leadProfile.clientId || 'default',
         query,
         maxResults: 4,
-        includeGeneral: true
+        includeGeneral: true,
+        personaId: context.persona?.id,
+        personaFiltered: shouldApplyPersonaFiltering
       });
 
       return {

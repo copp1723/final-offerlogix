@@ -4,7 +4,8 @@ import { leadScoringService } from './lead-scoring';
 import { storage } from '../storage';
 import { searchMemories, extractMemoryContent } from './supermemory';
 import { kbAIIntegration } from './kb-ai-integration';
-import type { Conversation, ConversationMessage, Lead, AiAgentConfig } from '@shared/schema';
+import { aiPersonaManagementService } from './ai-persona-management';
+import type { Conversation, ConversationMessage, Lead, AiAgentConfig, AiPersona } from '@shared/schema';
 
 /**
  * Enhanced Conversation AI Service
@@ -31,6 +32,8 @@ export interface ConversationContext {
   priority: 'hot' | 'warm' | 'cold';
   previousResponses: string[];
   memoryContext?: string;
+  persona?: AiPersona; // AI persona for this conversation
+  campaignId?: string; // Campaign ID to determine persona
 }
 
 export interface ResponseGenerationOptions {
@@ -98,6 +101,46 @@ export class EnhancedConversationAI {
   }
 
   /**
+   * Enhance conversation context with persona information
+   */
+  async enhanceContextWithPersona(context: ConversationContext): Promise<ConversationContext> {
+    // If persona is already set, return as-is
+    if (context.persona) {
+      return context;
+    }
+
+    try {
+      // Get persona from campaign if available
+      if (context.campaignId) {
+        const campaigns = await storage.getCampaigns();
+        const campaign = campaigns.find(c => c.id === context.campaignId);
+        
+        if (campaign?.personaId) {
+          const persona = await aiPersonaManagementService.getPersona(campaign.personaId);
+          if (persona) {
+            context.persona = persona;
+            return context;
+          }
+        }
+      }
+
+      // Fall back to default persona for the client
+      const clientId = context.leadProfile.clientId;
+      if (clientId) {
+        const defaultPersona = await aiPersonaManagementService.getDefaultPersona(clientId);
+        if (defaultPersona) {
+          context.persona = defaultPersona;
+        }
+      }
+
+      return context;
+    } catch (error) {
+      console.error('Failed to enhance context with persona:', error);
+      return context;
+    }
+  }
+
+  /**
    * Generate enhanced AI response with automotive expertise and context awareness
    */
   async generateContextAwareResponse(
@@ -106,25 +149,28 @@ export class EnhancedConversationAI {
     options: ResponseGenerationOptions
   ): Promise<EnhancedResponse> {
     
+    // Enhance context with persona information
+    const enhancedContext = await this.enhanceContextWithPersona(conversationContext);
+    
     // Analyze the new message for intent and buying signals
-    const messageAnalysis = await this.analyzeIncomingMessage(newMessage, conversationContext);
+    const messageAnalysis = await this.analyzeIncomingMessage(newMessage, enhancedContext);
     
     // Get relevant memories and context
     const memoryContext = await this.retrieveRelevantMemories(
-      conversationContext.leadId, 
+      enhancedContext.leadId, 
       newMessage,
-      conversationContext.leadProfile?.vehicleInterest || undefined
+      enhancedContext.leadProfile?.vehicleInterest || undefined
     );
 
-    // Get knowledge base context
+    // Get knowledge base context (with persona filtering)
     const kbContext = await kbAIIntegration.getConversationContextWithKB(
-      conversationContext, 
+      enhancedContext, 
       options
     );
     
-    // Generate the response using advanced prompting with KB context
-    const response = await this.generateAutomotiveResponse(
-      conversationContext,
+    // Generate the response using persona-specific prompting with KB context
+    const response = await this.generatePersonaAwareResponse(
+      enhancedContext,
       newMessage,
       messageAnalysis,
       memoryContext,
@@ -133,17 +179,17 @@ export class EnhancedConversationAI {
     );
     
     // Calculate quality score and enhancements
-    const qualityScore = await this.calculateResponseQuality(response, conversationContext);
-    const personalizationElements = this.identifyPersonalizationElements(response, conversationContext);
+    const qualityScore = await this.calculateResponseQuality(response, enhancedContext);
+    const personalizationElements = this.identifyPersonalizationElements(response, enhancedContext);
     
     return {
       content: response,
       responseType: options.responseType,
-      confidence: this.calculateConfidence(messageAnalysis, conversationContext),
-      suggestedFollowUpActions: await this.generateFollowUpActions(messageAnalysis, conversationContext),
-      escalationRecommended: this.shouldEscalate(messageAnalysis, conversationContext),
+      confidence: this.calculateConfidence(messageAnalysis, enhancedContext),
+      suggestedFollowUpActions: await this.generateFollowUpActions(messageAnalysis, enhancedContext),
+      escalationRecommended: this.shouldEscalate(messageAnalysis, enhancedContext),
       buyingSignalsDetected: messageAnalysis.buyingSignals,
-      nextStepSuggestions: this.generateNextSteps(messageAnalysis, conversationContext, options),
+      nextStepSuggestions: this.generateNextSteps(messageAnalysis, enhancedContext, options),
       qualityScore,
       personalizationElements
     };
@@ -224,7 +270,69 @@ export class EnhancedConversationAI {
   }
 
   /**
-   * Generate automotive-focused AI response with industry expertise
+   * Generate persona-aware AI response with enhanced prompting
+   */
+  private async generatePersonaAwareResponse(
+    context: ConversationContext,
+    newMessage: string,
+    messageAnalysis: any,
+    memoryContext: string,
+    options: ResponseGenerationOptions,
+    kbContext?: any
+  ): Promise<string> {
+    const client = getOpenAIClient();
+    
+    // Use persona-specific settings if available, fall back to default automotive response
+    if (context.persona) {
+      const personaSettings = aiPersonaManagementService.getPersonaAISettings(context.persona);
+      const systemPrompt = this.buildPersonaSystemPrompt(context, options);
+      const userPrompt = this.buildPersonaContextualizedPrompt(
+        context,
+        newMessage,
+        messageAnalysis,
+        memoryContext,
+        options,
+        kbContext
+      );
+
+      try {
+        const response = await client.chat.completions.create({
+          model: personaSettings.model,
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt }
+          ],
+          temperature: personaSettings.temperature,
+          max_tokens: personaSettings.maxTokens,
+          presence_penalty: 0.1,
+          frequency_penalty: 0.1
+        });
+
+        const generatedResponse = response.choices[0].message.content || "I'd be happy to help you with that. Let me get more information for you.";
+        
+        // Apply quality validation if enabled
+        if (EnhancedConversationAI.ENABLE_QUALITY_VALIDATION) {
+          try {
+            return await this.validateAndEnhanceResponse(generatedResponse, context, messageAnalysis);
+          } catch (validationError) {
+            console.warn('Quality validation failed, returning original response:', validationError);
+            return generatedResponse;
+          }
+        }
+        
+        return generatedResponse;
+      } catch (error) {
+        console.error('Persona-aware response generation error:', error);
+        return this.generateFallbackResponse(messageAnalysis, context);
+      }
+    } else {
+      // Fall back to original automotive response generation
+      return this.generateAutomotiveResponse(context, newMessage, messageAnalysis, memoryContext, options, kbContext);
+    }
+  }
+
+  /**
+   * Generate automotive-focused AI response with industry expertise (legacy method)
    */
   private async generateAutomotiveResponse(
     context: ConversationContext,
@@ -282,7 +390,115 @@ export class EnhancedConversationAI {
   }
 
   /**
-   * Build comprehensive automotive system prompt
+   * Build persona-specific system prompt
+   */
+  private buildPersonaSystemPrompt(
+    context: ConversationContext,
+    options: ResponseGenerationOptions
+  ): string {
+    if (!context.persona) {
+      return this.buildAutomotiveSystemPrompt(context, options);
+    }
+
+    const { leadProfile, currentAnalysis, persona } = context;
+    
+    // Generate base persona prompt
+    const basePrompt = aiPersonaManagementService.generatePersonaSystemPrompt(persona, {
+      targetAudience: persona.targetAudience,
+      campaignContext: context.campaignId ? `Campaign ID: ${context.campaignId}` : undefined,
+      leadInfo: leadProfile
+    });
+
+    // Add conversation-specific enhancements
+    const conversationEnhancements = `
+
+CURRENT CONVERSATION CONTEXT:
+- Customer: ${leadProfile.firstName} ${leadProfile.lastName}
+- Vehicle Interest: ${leadProfile.vehicleInterest || 'Exploring options'}
+- Lead Source: ${leadProfile.leadSource || 'Website'}
+- Current Mood: ${currentAnalysis.mood}
+- Buying Intent: ${currentAnalysis.intent}
+- Priority Level: ${context.priority.toUpperCase()}
+- Response Type: ${options.responseType.replace('_', ' ')}
+- Urgency Level: ${options.urgency}
+
+PERSONA-SPECIFIC REQUIREMENTS:
+${persona.responseGuidelines.map(guideline => `- ${guideline}`).join('\n')}
+
+ESCALATION CRITERIA FOR THIS PERSONA:
+${persona.escalationCriteria.map(criteria => `- ${criteria}`).join('\n')}
+
+EMAIL FORMATTING REQUIREMENTS:
+- Use proper paragraph breaks with double line breaks (\\n\\n)
+- Keep paragraphs to 1-3 sentences each
+- Use bullet points for lists (- item 1\\n- item 2)
+- Start with appropriate greeting for ${persona.targetAudience}
+- End with clear call-to-action relevant to ${persona.targetAudience}
+- Maximum ${persona.maxTokens} words total
+- ${persona.tonality} and ${persona.communicationStyle} tone
+- NO wall of text - break up content for easy reading
+
+Respond as the ${persona.name} persona, maintaining consistency with your defined personality and communication style.`;
+
+    return basePrompt + conversationEnhancements;
+  }
+
+  /**
+   * Build persona-specific contextualized prompt
+   */
+  private buildPersonaContextualizedPrompt(
+    context: ConversationContext,
+    newMessage: string,
+    messageAnalysis: any,
+    memoryContext: string,
+    options: ResponseGenerationOptions,
+    kbContext?: any
+  ): string {
+    const recentHistory = context.conversationHistory.slice(-5).map(m => 
+      `${m.isFromAI ? 'You' : 'Customer'}: ${m.content}`
+    ).join('\n');
+
+    return `
+RECENT CONVERSATION HISTORY:
+${recentHistory}
+
+CUSTOMER'S NEW MESSAGE:
+"${newMessage}"
+
+MESSAGE ANALYSIS:
+- Intent: ${messageAnalysis.intent}
+- Urgency: ${messageAnalysis.urgency}
+- Buying Signals: ${messageAnalysis.buyingSignals.join(', ') || 'None detected'}
+- Questions Asked: ${messageAnalysis.questions.join(', ') || 'None'}
+- Concerns Raised: ${messageAnalysis.concerns.join(', ') || 'None'}
+- Info Requested: ${messageAnalysis.requestedInfo.join(', ') || 'None'}
+
+${memoryContext ? `RELEVANT CONTEXT FROM MEMORY:\n${memoryContext}` : ''}
+
+${kbContext?.hasKBData ? `KNOWLEDGE BASE CONTEXT:\n${kbContext.kbContext}\n\nKnowledge Sources: ${kbContext.kbSources.map((s: any) => s.title).join(', ')}` : ''}
+
+${context.persona ? `PERSONA CONTEXT:
+You are responding as the ${context.persona.name} persona, designed for ${context.persona.targetAudience}.
+Your communication style should be ${context.persona.communicationStyle} with a ${context.persona.tonality} tone.
+Remember your personality: ${context.persona.personality}` : ''}
+
+RESPONSE REQUIREMENTS:
+${options.includeVehicleDetails ? '- Include specific vehicle details and features' : ''}
+${options.includeFinancingOptions ? '- Mention relevant financing options' : ''}
+${options.includeIncentives ? '- Include current incentives or offers' : ''}
+
+Generate a response that:
+1. Addresses their message directly and professionally
+2. Reflects your persona's expertise with ${context.persona?.targetAudience || 'customers'}
+3. Moves the conversation toward ${options.responseType === 'sales_focused' ? 'a sale' : options.responseType === 'service_oriented' ? 'service resolution' : 'information fulfillment'}
+4. Maintains consistency with your persona's communication style
+
+Keep response under ${options.maxResponseLength || context.persona?.maxTokens || 300} words and ensure it's personalized and actionable.
+`;
+  }
+
+  /**
+   * Build comprehensive automotive system prompt (legacy method)
    */
   private buildAutomotiveSystemPrompt(
     context: ConversationContext,
