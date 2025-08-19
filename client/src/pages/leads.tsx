@@ -440,6 +440,14 @@ export default function Leads() {
         </Select>
       </div>
 
+      {/* TEST BUTTON OUTSIDE TABLE */}
+      <button
+        className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 mb-4"
+        onClick={() => alert('TEST: Button outside table clicked!')}
+      >
+        TEST BUTTON (Should Work)
+      </button>
+
       {/* Leads Table */}
       <Card>
         <CardHeader>
@@ -526,26 +534,29 @@ export default function Leads() {
                         );
                       })()}
                     </TableCell>
-                    <TableCell className="flex items-center gap-2">
-                      <button
-                        className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
-                        onClick={() => {
-                          console.log('View button clicked for lead:', lead.id);
-                          setSelectedLead(lead);
-                        }}
-                      >
-                        View
-                      </button>
-
-                      <button
-                        className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                        onClick={() => {
-                          console.log('Menu button clicked for lead:', lead.id);
-                          alert('Menu clicked for: ' + (lead.firstName || 'Unknown'));
-                        }}
-                      >
-                        ⋯
-                      </button>
+                    <TableCell>
+                      <div style={{padding: '10px'}}>
+                        <button
+                          className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
+                          onClick={() => {
+                            console.log('View button clicked for lead:', lead.id);
+                            setSelectedLead(lead);
+                          }}
+                          style={{pointerEvents: 'auto', zIndex: 1000}}
+                        >
+                          View
+                        </button>
+                        <button
+                          className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                          onClick={() => {
+                            console.log('Menu button clicked for lead:', lead.id);
+                            alert('Menu clicked for: ' + (lead.firstName || 'Unknown'));
+                          }}
+                          style={{pointerEvents: 'auto', zIndex: 1000}}
+                        >
+                          ⋯
+                        </button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
