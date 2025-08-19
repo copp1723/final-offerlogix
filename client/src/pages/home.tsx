@@ -14,21 +14,21 @@ export default function HomePage() {
       <div className="flex justify-between items-start">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold">Welcome to OfferLogix</h1>
-          <p className="text-sm text-gray-600">Instant credit decisions and customer communication powered by AI</p>
+          <p className="text-sm text-gray-600">AI-powered dealer outreach and payment display solutions</p>
         </div>
         
         {/* Top-right metrics */}
         <div className="flex gap-3">
           <Card className="min-w-[140px] bg-blue-50 border-blue-200">
             <CardContent className="p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">Active credit campaigns</div>
+              <div className="text-xs text-gray-500 mb-1">Active dealer outreach campaigns</div>
               <div className="text-2xl text-gray-900">{liveCampaigns}</div>
             </CardContent>
           </Card>
           
           <Card className="min-w-[140px] bg-green-50 border-green-200">
             <CardContent className="p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">Credit applications</div>
+              <div className="text-xs text-gray-500 mb-1">Dealer conversations</div>
               <div className="text-2xl text-gray-900">{handovers}</div>
             </CardContent>
           </Card>
@@ -48,7 +48,7 @@ export default function HomePage() {
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-700">Carol Davis interested in credit options</span>
+              <span className="text-sm text-gray-700">Carol Davis (Metro Motors) asked about payment widget integration</span>
               <span className="text-xs text-red-600 font-medium">High Priority</span>
             </div>
           </CardContent>
@@ -60,7 +60,7 @@ export default function HomePage() {
         >
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
-              <span className="text-sm text-gray-700">Bob Brown needs financing approval</span>
+              <span className="text-sm text-gray-700">Bob Brown (Sunrise Auto Group) requested API access for a pilot</span>
               <span className="text-xs text-orange-600 font-medium">Urgent</span>
             </div>
           </CardContent>
