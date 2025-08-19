@@ -346,21 +346,6 @@ export default function Leads() {
           <CardContent>
             <div className="text-2xl font-bold text-green-600">{leadStats.qualified}</div>
           </CardContent>
-
-      {/* Actionable Intelligence (no vanity metrics) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            Recommended Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          When conversation data is available, this section will list concrete next actions
-          like “Call Sarah (asked for April follow‑up)” or “Email Bob (opened last 5 emails, no reply)”.
-        </CardContent>
-      </Card>
-
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -372,6 +357,20 @@ export default function Leads() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Actionable Intelligence (no vanity metrics) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Lightbulb className="h-5 w-5" />
+            Recommended Actions
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="text-sm text-muted-foreground">
+          When conversation data is available, this section will list concrete next actions
+          like "Call Sarah (asked for April follow‑up)" or "Email Bob (opened last 5 emails, no reply)".
+        </CardContent>
+      </Card>
 
       {/* CSV Upload Section */}
       <Card>
