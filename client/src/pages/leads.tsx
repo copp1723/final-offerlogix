@@ -456,6 +456,12 @@ export default function Leads() {
             Leads ({filteredLeads.length})
           </CardTitle>
         </CardHeader>
+        <button
+          className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 mb-4 ml-4"
+          onClick={() => alert('CARD BUTTON: This is inside the Card but outside table')}
+        >
+          CARD TEST BUTTON
+        </button>
         <CardContent>
           {isLoading ? (
             <div className="text-center py-8">Loading leads...</div>
@@ -464,7 +470,8 @@ export default function Leads() {
               No leads found. Add leads manually or upload a CSV file.
             </div>
           ) : (
-            <Table>
+            <div className="test-table-wrapper">
+              <table className="w-full caption-bottom text-sm">
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
@@ -561,7 +568,8 @@ export default function Leads() {
                   </TableRow>
                 ))}
               </TableBody>
-            </Table>
+              </table>
+            </div>
           )}
         </CardContent>
       </Card>
