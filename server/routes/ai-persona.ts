@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { aiPersonaManagementService, type PersonaConfig } from '../services/ai-persona-management';
 import { validateRequest } from '../middleware/validation';
+import { db } from '../db';
+import { clients, aiPersonas } from '@shared/schema';
+import { eq } from 'drizzle-orm';
 
 const router = Router();
 
@@ -88,7 +91,34 @@ const searchPersonasSchema = z.object({
  */
 router.get('/', validateRequest(searchPersonasSchema), async (req, res) => {
   try {
-    const clientId = req.headers['x-client-id'] as string || 'default';
+    // Get client ID from header or look up default client
+    let clientId = req.headers['x-client-id'] as string;
+    
+    if (!clientId || clientId === 'default') {
+      // Look up the default client's actual UUID
+      const [defaultClient] = await db
+        .select()
+        .from(clients)
+        .where(eq(clients.name, 'Default Client'))
+        .limit(1);
+      
+      if (!defaultClient) {
+        // If no default client exists, create one
+        const [newClient] = await db
+          .insert(clients)
+          .values({
+            name: 'Default Client',
+            brandingConfig: {},
+            settings: {},
+            active: true
+          })
+          .returning();
+        clientId = newClient.id;
+      } else {
+        clientId = defaultClient.id;
+      }
+    }
+
     const { 
       targetAudience, 
       industry, 
