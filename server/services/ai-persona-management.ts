@@ -1,5 +1,5 @@
 import { eq, and, desc, asc } from 'drizzle-orm';
-import { db } from '../db.js';
+import { db } from '../db';
 import { 
   aiPersonas, 
   personaKnowledgeBases, 
@@ -137,46 +137,33 @@ class AIPersonaManagementService {
   async getPersonas(options: PersonaSearchOptions): Promise<PersonaWithKBs[]> {
     try {
       console.log('getPersonas called with options:', options);
-      console.log('db object:', db);
       
       if (!db) {
         throw new Error('Database connection is undefined');
       }
       
-      let query = db
-        .select()
-        .from(aiPersonas)
-        .where(eq(aiPersonas.clientId, options.clientId));
+      // Build conditions array
+      const conditions = [eq(aiPersonas.clientId, options.clientId)];
 
       // Apply filters
       if (options.targetAudience) {
-        query = query.where(
-          and(
-            eq(aiPersonas.clientId, options.clientId),
-            eq(aiPersonas.targetAudience, options.targetAudience)
-          )
-        );
+        conditions.push(eq(aiPersonas.targetAudience, options.targetAudience));
       }
 
       if (options.industry) {
-        query = query.where(
-          and(
-            eq(aiPersonas.clientId, options.clientId),
-            eq(aiPersonas.industry, options.industry)
-          )
-        );
+        conditions.push(eq(aiPersonas.industry, options.industry));
       }
 
       if (options.isActive !== undefined) {
-        query = query.where(
-          and(
-            eq(aiPersonas.clientId, options.clientId),
-            eq(aiPersonas.isActive, options.isActive)
-          )
-        );
+        conditions.push(eq(aiPersonas.isActive, options.isActive));
       }
 
-      const personas = await query.orderBy(desc(aiPersonas.priority), asc(aiPersonas.name));
+      // Execute query with all conditions
+      const personas = await db
+        .select()
+        .from(aiPersonas)
+        .where(and(...conditions))
+        .orderBy(desc(aiPersonas.priority), asc(aiPersonas.name));
 
       // Enhance with additional data if requested
       const enhancedPersonas: PersonaWithKBs[] = [];
