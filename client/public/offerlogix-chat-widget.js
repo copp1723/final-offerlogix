@@ -253,7 +253,13 @@
           color: #374151;
           align-self: flex-start;
           border-bottom-left-radius: 4px;
+          white-space: normal;
         }
+
+        .message.agent p { margin: 8px 0 0 0; }
+        .message.agent p:first-child { margin-top: 0; }
+        .message.agent ul, .message.agent ol { margin: 8px 0; padding-left: 18px; }
+        .message.agent li { margin: 4px 0; }
 
         .message.system {
           background: #fef3c7;
@@ -712,14 +718,30 @@
       // Limit allowed HTML tags for agent responses
       const allowedTags = ['b', 'i', 'em', 'strong', 'br', 'p', 'ul', 'ol', 'li'];
       const tagPattern = /<\/?(\w+)[^>]*>/g;
-      
+
+      // Preserve allowed opening/closing tags and strip attributes
       sanitized = sanitized.replace(tagPattern, (match, tagName) => {
-        if (allowedTags.includes(tagName.toLowerCase())) {
-          // Remove any attributes from allowed tags
-          return `<${tagName.toLowerCase()}>`;
+        const lower = tagName.toLowerCase();
+        if (allowedTags.includes(lower)) {
+          const isClosing = match.startsWith('</');
+          return isClosing ? `</${lower}>` : `<${lower}>`;
         }
-        return ''; // Remove disallowed tags
+        return '';
       });
+
+      // Convert newlines to readable HTML (paragraphs/line breaks)
+      sanitized = sanitized.replace(/\r\n/g, '\n');
+      const containsAllowedHtml = /<\/?(p|ul|ol|li|br|strong|em|b|i)\b/i.test(sanitized);
+      if (containsAllowedHtml) {
+        sanitized = sanitized.replace(/\n/g, '<br>');
+      } else {
+        const paragraphs = sanitized.split(/\n{2,}/).map(s => s.trim()).filter(Boolean);
+        if (paragraphs.length > 1) {
+          sanitized = paragraphs.map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+        } else {
+          sanitized = sanitized.replace(/\n/g, '<br>');
+        }
+      }
 
       return sanitized;
     }
