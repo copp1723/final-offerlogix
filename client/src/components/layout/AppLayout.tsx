@@ -60,11 +60,6 @@ const navigation: NavItem[] = [
 
   // Monitoring & Analytics
   {
-    name: "Communication Monitor",
-    href: "/email-monitor",
-    icon: Mail,
-  },
-  {
     name: "Reports",
     href: "/reports",
     icon: FileText,
@@ -75,6 +70,13 @@ const navigation: NavItem[] = [
     name: "Settings",
     href: "/settings",
     icon: Settings,
+    children: [
+      {
+        name: "Communication Monitor",
+        href: "/email-monitor",
+        icon: Mail,
+      }
+    ]
   },
 ];
 
@@ -184,7 +186,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1">
             {navigation.map((item, index) => {
-              const needsDivider = index === 3 || index === 6 || index === 8; // After core, AI, monitoring sections
+              const needsDivider = index === 3 || index === 6 || index === 7; // After core, AI, monitoring sections
               
               return (
                 <div key={item.name}>
