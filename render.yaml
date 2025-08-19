@@ -3,7 +3,7 @@ services:
     name: offerlogix
     env: node
     plan: starter
-    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npm run build:render
+    buildCommand: NPM_CONFIG_PRODUCTION=false npm ci && npx vite build --config vite.config.render.ts && npx esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist && cp client/public/offerlogix-chat-widget.js dist/public/ && cp client/public/chat-widget-demo.html dist/public/
     preDeployCommand: npm run db:push && npm run db:sql
     startCommand: npm start
     region: oregon
