@@ -2,7 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db";
 import { campaigns, conversations, conversationMessages, leads } from "@shared/schema";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNull } from "drizzle-orm";
 import { processCampaignChat } from "../services/ai-chat";
 
 const router = Router();
@@ -193,7 +193,7 @@ router.post("/messages", async (req, res) => {
         .from(conversations)
         .where(
           and(
-            actualCampaignId ? eq(conversations.campaignId, actualCampaignId) : eq(conversations.campaignId, null),
+            actualCampaignId ? eq(conversations.campaignId, actualCampaignId) : isNull(conversations.campaignId),
             eq(conversations.status, "active")
           )
         )
@@ -268,7 +268,7 @@ router.post("/messages", async (req, res) => {
     // Save AI response
     await db.insert(conversationMessages).values({
       conversationId: conversation.id,
-      content: aiResponse.response,
+      content: aiResponse.response || (aiResponse as any).message,
       senderId: "offerlogix-ai-agent",
       messageType: "text",
       isFromAI: 1,
@@ -281,7 +281,7 @@ router.post("/messages", async (req, res) => {
                           messageData.content.toLowerCase().includes("talk to agent");
 
     res.json({
-      content: aiResponse.response,
+      content: aiResponse.response || (aiResponse as any).message,
       shouldHandover,
       handoverReason: shouldHandover ? "User requested human assistance" : undefined,
       sessionToken: messageData.sessionToken,
