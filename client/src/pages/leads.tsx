@@ -458,34 +458,34 @@ export default function Leads() {
           ) : (
             <div className="test-table-wrapper">
               <table className="w-full caption-bottom text-sm">
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead>Email</TableHead>
-                  <TableHead>Phone</TableHead>
-                  <TableHead>Vehicle Interest</TableHead>
-                  <TableHead>Source</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Created</TableHead>
-                  <TableHead>Priority</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
+              <thead>
+                <tr>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Name</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Email</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Phone</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Vehicle Interest</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Source</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Status</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Created</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Priority</th>
+                  <th style={{padding: '16px', textAlign: 'left'}}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
                 {filteredLeads.map((lead: Lead) => (
-                  <TableRow key={lead.id}>
-                    <TableCell>
+                  <tr key={lead.id}>
+                    <td style={{padding: '16px'}}>
                       {lead.firstName || lead.lastName
                         ? `${lead.firstName || ""} ${lead.lastName || ""}`.trim()
 
                         : "—"
                       }
-                    </TableCell>
-                    <TableCell>{lead.email}</TableCell>
-                    <TableCell>{lead.phone || "—"}</TableCell>
-                    <TableCell>{lead.vehicleInterest || "—"}</TableCell>
-                    <TableCell>{lead.leadSource || "—"}</TableCell>
-                    <TableCell>
+                    </td>
+                    <td style={{padding: '16px'}}>{lead.email}</td>
+                    <td style={{padding: '16px'}}>{lead.phone || "—"}</td>
+                    <td style={{padding: '16px'}}>{lead.vehicleInterest || "—"}</td>
+                    <td style={{padding: '16px'}}>{lead.leadSource || "—"}</td>
+                    <td style={{padding: '16px'}}>
                       <Select
                         value={lead.status || "new"}
                         onValueChange={(status) =>
@@ -505,14 +505,14 @@ export default function Leads() {
                           <SelectItem value="lost">Lost</SelectItem>
                         </SelectContent>
                       </Select>
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td style={{padding: '16px'}}>
                       {lead.createdAt
                         ? new Date(lead.createdAt).toLocaleDateString()
                         : "—"
                       }
-                    </TableCell>
-                    <TableCell>
+                    </td>
+                    <td style={{padding: '16px'}}>
                       {/* Priority badge based on simple heuristics: recent question or 3+ msgs no reply or vehicle interest */}
                       {(() => {
                         const recent = (lead as any).lastInboundText?.toLowerCase?.() || "";
@@ -526,63 +526,30 @@ export default function Leads() {
                           <span className="text-xs text-muted-foreground">—</span>
                         );
                       })()}
-                    </TableCell>
-                    <TableCell className="flex items-center gap-2">
+                    </td>
+                    <td style={{padding: '16px'}}>
                       <button
                         className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 mr-2"
-                        onClick={() => setSelectedLead(lead)}
+                        onClick={() => {
+                          console.log('BUTTON CLICKED!');
+                          setSelectedLead(lead);
+                        }}
+                        style={{pointerEvents: 'auto', cursor: 'pointer', zIndex: '1000'}}
                       >
                         View
                       </button>
 
-                      <div className="relative">
-                        <button
-                          className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            const menu = e.currentTarget.nextElementSibling;
-                            menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
-                          }}
-                        >
-                          ⋯
-                        </button>
-                        <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50" style={{display: 'none'}}>
-                          <div className="py-1">
-                            <button
-                              className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                              onClick={() => {
-                                if (lead.campaignId) {
-                                  assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: "" });
-                                }
-                              }}
-                              disabled={!lead.campaignId}
-                            >
-                              Remove from Campaign
-                            </button>
-                            {campaigns.filter((campaign: Campaign) => campaign.status === "draft").map((campaign: Campaign) => (
-                              <button
-                                key={campaign.id}
-                                className="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                                onClick={() => assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: campaign.id })}
-                                disabled={lead.campaignId === campaign.id}
-                              >
-                                Assign to {campaign.name}
-                              </button>
-                            ))}
-                            <button
-                              className="block w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100"
-                              onClick={() => deleteLeadMutation.mutate(lead.id)}
-                              disabled={deleteLeadMutation.isPending}
-                            >
-                              {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
+                      <button
+                        className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+                        onClick={() => alert('Menu for: ' + (lead.firstName || 'Unknown'))}
+                        style={{pointerEvents: 'auto', cursor: 'pointer', zIndex: '1000'}}
+                      >
+                        ⋯
+                      </button>
+                    </td>
+                  </tr>
                 ))}
-              </TableBody>
+              </tbody>
               </table>
             </div>
           )}
