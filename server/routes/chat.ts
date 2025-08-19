@@ -38,11 +38,32 @@ router.get("/campaigns/:campaignId/config", async (req, res) => {
       .where(eq(campaigns.id, campaignId))
       .limit(1);
 
+    // If campaign not found but it's a demo, return demo configuration
     if (!campaign) {
+      if (campaignId.includes('demo')) {
+        return res.json({
+          campaign: {
+            id: campaignId,
+            name: "OfferLogix Demo Assistant",
+            description: "Demonstration of OfferLogix AI Assistant capabilities",
+          },
+          branding: {
+            primaryColor: "#0066cc",
+            title: "OfferLogix Demo Assistant",
+            greeting: "Hello! I'm the OfferLogix AI Assistant demo. I can help you understand our platform capabilities and answer questions about our services. How can I assist you?",
+          },
+          settings: {
+            autoOpen: false,
+            autoOpenDelay: 5000,
+            position: "bottom-right",
+            theme: "default",
+          },
+        });
+      }
       return res.status(404).json({ message: "Campaign not found" });
     }
 
-    // Return widget configuration
+    // Return widget configuration for real campaigns
     res.json({
       campaign: {
         id: campaign.id,
@@ -83,12 +104,18 @@ router.post("/sessions/init", async (req, res) => {
       .where(eq(campaigns.id, sessionData.campaignId))
       .limit(1);
 
+    // Handle demo campaigns - use null campaignId to avoid foreign key constraints
+    let actualCampaignId = sessionData.campaignId;
+    if (sessionData.campaignId.includes('demo') && !campaign) {
+      actualCampaignId = null;
+    }
+
     // Create conversation record
     const [conversation] = await db
       .insert(conversations)
       .values({
         leadId: sessionData.visitorId, // Use visitor ID as lead ID for now
-        campaignId: sessionData.campaignId,
+        campaignId: actualCampaignId,
         status: "active",
         metadata: {
           sessionToken,
@@ -97,12 +124,15 @@ router.post("/sessions/init", async (req, res) => {
           referrer: sessionData.referrer,
           userAgent: sessionData.metadata?.userAgent,
           chatWidget: true,
+          originalCampaignId: sessionData.campaignId, // Store original for reference
         },
       })
       .returning();
 
     const greeting = campaign
       ? `Hello! I'm your ${campaign.name} assistant. I can help you learn about our offers, answer questions, and guide you through our services. What would you like to know?`
+      : sessionData.campaignId.includes('demo')
+      ? "Hello! I'm the OfferLogix AI Assistant demo. I can help you understand our platform capabilities and answer questions about our services. How can I assist you?"
       : "Hello! I'm your OfferLogix AI Assistant. How can I help you find the perfect offer today?";
 
     res.json({
@@ -125,6 +155,22 @@ router.post("/messages", async (req, res) => {
   try {
     const messageData = sendMessageSchema.parse(req.body);
 
+    // Check if campaign exists, if not and it's a demo, create a default campaign
+    let actualCampaignId = messageData.campaignId;
+    if (messageData.campaignId.includes('demo')) {
+      // For demo campaigns, check if campaign exists, if not create a demo one or use null
+      const [existingCampaign] = await db
+        .select()
+        .from(campaigns)
+        .where(eq(campaigns.id, messageData.campaignId))
+        .limit(1);
+      
+      if (!existingCampaign) {
+        // Use null for demo conversations to avoid foreign key constraints
+        actualCampaignId = null;
+      }
+    }
+
     // Find conversation by session token or campaign ID
     let conversation;
     if (messageData.sessionToken) {
@@ -133,7 +179,7 @@ router.post("/messages", async (req, res) => {
         .from(conversations)
         .where(
           and(
-            eq(conversations.campaignId, messageData.campaignId),
+            actualCampaignId ? eq(conversations.campaignId, actualCampaignId) : eq(conversations.campaignId, null),
             eq(conversations.status, "active")
           )
         )
@@ -150,11 +196,12 @@ router.post("/messages", async (req, res) => {
         .insert(conversations)
         .values({
           leadId: visitorId,
-          campaignId: messageData.campaignId,
+          campaignId: actualCampaignId,
           status: "active",
           metadata: {
             sessionToken,
             chatWidget: true,
+            originalCampaignId: messageData.campaignId, // Store original for reference
           },
         })
         .returning();
@@ -171,16 +218,28 @@ router.post("/messages", async (req, res) => {
     });
 
     // Get AI response using existing campaign chat service
-    const aiResponse = await processCampaignChat(
-      messageData.content,
-      messageData.campaignId,
-      conversation.leadId,
-      {
-        conversationId: conversation.id,
-        source: "chat_widget",
-        previousMessages: [], // You might want to load previous messages for context
-      }
-    );
+    // Use actualCampaignId or fallback to a generic demo response
+    let aiResponse;
+    try {
+      aiResponse = await processCampaignChat(
+        messageData.content,
+        actualCampaignId || messageData.campaignId,
+        conversation.leadId,
+        {
+          conversationId: conversation.id,
+          source: "chat_widget",
+          previousMessages: [], // You might want to load previous messages for context
+        }
+      );
+    } catch (error) {
+      console.error("AI response error:", error);
+      // Fallback response for demo
+      aiResponse = {
+        response: "Hello! I'm the OfferLogix AI Assistant. I can help you with information about our services, answer questions, and guide you through our offerings. How can I assist you today?",
+        model: "fallback",
+        shouldHandover: false
+      };
+    }
 
     // Save AI response
     await db.insert(conversationMessages).values({
