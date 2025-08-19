@@ -113,10 +113,18 @@ router.get('/', validateRequest(searchPersonasSchema), async (req, res) => {
     });
   } catch (error) {
     console.error('Get personas error:', error);
+    console.error('Error stack:', error instanceof Error ? error.stack : 'No stack trace');
+    console.error('Request query:', JSON.stringify(req.query, null, 2));
+    console.error('Client ID:', req.headers['x-client-id'] || 'default');
     res.status(500).json({
       success: false,
       error: 'Failed to get personas',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      details: error instanceof Error ? error.message : 'Unknown error',
+      debug: process.env.NODE_ENV === 'development' ? {
+        stack: error instanceof Error ? error.stack : undefined,
+        query: req.query,
+        clientId: req.headers['x-client-id'] || 'default'
+      } : undefined
     });
   }
 });
@@ -448,6 +456,35 @@ router.get('/:id/system-prompt', async (req, res) => {
       success: false,
       error: 'Failed to generate system prompt',
       details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+/**
+ * GET /api/personas/health
+ * Health check for personas API
+ */
+router.get('/health', async (req, res) => {
+  try {
+    // Test database connection and table access
+    const testQuery = await db.select().from(aiPersonas).limit(1);
+    
+    res.json({
+      status: 'healthy',
+      timestamp: new Date().toISOString(),
+      service: 'ai-personas-api',
+      database: 'connected',
+      personasTable: 'accessible',
+      samplePersonasCount: testQuery.length
+    });
+  } catch (error) {
+    console.error('Personas API health check failed:', error);
+    res.status(500).json({
+      status: 'unhealthy',
+      timestamp: new Date().toISOString(),
+      service: 'ai-personas-api',
+      database: error instanceof Error && error.message.includes('does not exist') ? 'table_missing' : 'connection_failed',
+      error: error instanceof Error ? error.message : 'Unknown error'
     });
   }
 });

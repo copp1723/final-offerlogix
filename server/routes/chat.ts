@@ -139,7 +139,13 @@ router.post("/sessions/init", async (req, res) => {
       return res.status(400).json({ message: "Invalid request data", errors: error.errors });
     }
     console.error("Error initializing chat session:", error);
-    res.status(500).json({ message: "Failed to initialize chat session" });
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("Session data:", JSON.stringify(req.body, null, 2));
+    res.status(500).json({ 
+      message: "Failed to initialize chat session",
+      error: error instanceof Error ? error.message : "Unknown error",
+      details: process.env.NODE_ENV === 'development' ? error : undefined
+    });
   }
 });
 
@@ -292,12 +298,27 @@ router.post("/sessions/end", async (req, res) => {
 });
 
 // GET /api/chat/health - Health check endpoint
-router.get("/health", (req, res) => {
-  res.json({ 
-    status: "healthy",
-    timestamp: new Date().toISOString(),
-    service: "offerlogix-chat-api"
-  });
+router.get("/health", async (req, res) => {
+  try {
+    // Test database connection
+    await db.select().from(campaigns).limit(1);
+    
+    res.json({ 
+      status: "healthy",
+      timestamp: new Date().toISOString(),
+      service: "offerlogix-chat-api",
+      database: "connected"
+    });
+  } catch (error) {
+    console.error("Chat API health check failed:", error);
+    res.status(500).json({
+      status: "unhealthy",
+      timestamp: new Date().toISOString(),
+      service: "offerlogix-chat-api",
+      database: "disconnected",
+      error: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
 });
 
 export default router;
