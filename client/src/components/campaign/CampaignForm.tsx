@@ -192,10 +192,13 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
     createCampaign.mutate(campaignData);
   };
 
+  // OfferLogix B2B SaaS context suggestions for dealership outreach
   const contextSuggestions = [
-    "Promote the latest SUV models with special financing offers",
-    "Highlight seasonal service offers and maintenance packages",
-    "Announce upcoming dealership events and test drive opportunities"
+    "Promote OfferLogix payment calculator and credit tools to dealership decision-makers",
+    "Highlight integration benefits of OfferLogix software for F&I and sales managers",
+    "Showcase real-time credit/payment quoting for dealership websites",
+    "Educate dealerships on improving customer experience with OfferLogix SaaS solutions",
+    "Announce new features for dealership CRM and lead management integrations"
   ];
 
   const fillContextSuggestion = (suggestion: string) => {
@@ -256,7 +259,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
             <div>
               <h4 className="text-sm font-semibold text-blue-900 mb-1">AI Campaign Tips</h4>
               <p className="text-sm text-blue-700 leading-relaxed">
-                Be specific about vehicle models, services, or offers. Include target audience details and clear objectives for best AI-generated content.
+                Focus on dealership decision-makers. Be specific about OfferLogix software features, integration benefits, and dealership pain points. Include clear objectives for best AI-generated outreach content.
               </p>
             </div>
           </div>
@@ -373,13 +376,14 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
           control={form.control}
           name="handoverGoals"
           render={({ field }) => {
+            // OfferLogix B2B SaaS handover scenarios for dealership outreach
             const handoverScenarios = [
-              { id: "pricing", label: "Asks pricing questions" },
-              { id: "test_drive", label: "Mentions test drive or demo" },
-              { id: "trade_in", label: "Asks trade-in value" },
-              { id: "financing", label: "Inquires about financing" },
-              { id: "availability", label: "Asks about vehicle availability" },
-              { id: "urgent", label: "Shows urgency (wants to buy soon)" }
+              { id: "demo_request", label: "Requests a demo of OfferLogix software" },
+              { id: "integration_question", label: "Asks about integration with dealership systems" },
+              { id: "pricing_interest", label: "Shows interest in pricing for dealership tools" },
+              { id: "feature_inquiry", label: "Inquires about specific software features" },
+              { id: "decision_maker", label: "Identifies as a dealership decision-maker" },
+              { id: "followup_call", label: "Requests a follow-up call or meeting" }
             ];
 
             const handleScenarioChange = (scenarioId: string, checked: boolean) => {
@@ -417,7 +421,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
 
             return (
               <FormItem>
-                <FormLabel>Handover Goals - Hand over to sales when a lead:</FormLabel>
+                <FormLabel>Handover Goals - Hand over to sales when a dealership prospect:</FormLabel>
                 <div className="space-y-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {handoverScenarios.map((scenario) => (
