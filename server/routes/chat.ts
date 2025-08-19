@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { db } from "../db";
-import { campaigns, conversations, conversationMessages } from "@shared/schema";
+import { campaigns, conversations, conversationMessages, leads } from "@shared/schema";
 import { eq, and, desc } from "drizzle-orm";
 import { processCampaignChat } from "../services/ai-chat";
 
@@ -110,11 +110,26 @@ router.post("/sessions/init", async (req, res) => {
       actualCampaignId = null;
     }
 
-    // Create conversation record
+    // Create a lead record first (required by foreign key constraint)
+    const placeholderEmail = `chat-widget-${Date.now()}@visitor.offerlogix.com`;
+    const [lead] = await db
+      .insert(leads)
+      .values({
+        email: placeholderEmail,
+        firstName: "Chat",
+        lastName: "Visitor", 
+        leadSource: "chat_widget",
+        status: "new",
+        campaignId: actualCampaignId,
+        notes: `Chat widget visitor from ${sessionData.pageUrl || 'unknown page'}`,
+      })
+      .returning();
+
+    // Create conversation record using the lead ID
     const [conversation] = await db
       .insert(conversations)
       .values({
-        leadId: sessionData.visitorId, // Use visitor ID as lead ID for now
+        leadId: lead.id, // Use actual lead ID
         campaignId: actualCampaignId,
         subject: `Chat Widget Conversation - ${new Date().toISOString().split('T')[0]}`,
         status: "active",
@@ -189,12 +204,26 @@ router.post("/messages", async (req, res) => {
     // If no conversation found, create a new one
     if (!conversation) {
       const sessionToken = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      const visitorId = `visitor_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Create a lead record first (required by foreign key constraint)
+      const placeholderEmail = `chat-message-${Date.now()}@visitor.offerlogix.com`;
+      const [lead] = await db
+        .insert(leads)
+        .values({
+          email: placeholderEmail,
+          firstName: "Chat",
+          lastName: "Visitor", 
+          leadSource: "chat_widget",
+          status: "new",
+          campaignId: actualCampaignId,
+          notes: `Chat widget visitor - direct message`,
+        })
+        .returning();
 
       [conversation] = await db
         .insert(conversations)
         .values({
-          leadId: visitorId,
+          leadId: lead.id, // Use actual lead ID
           campaignId: actualCampaignId,
           subject: `Chat Widget Message - ${new Date().toISOString().split('T')[0]}`,
           status: "active",
