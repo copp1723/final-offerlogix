@@ -1,6 +1,7 @@
   import { LLMClient } from "./llm-client";
   import { CampaignPromptService } from "./campaign-prompts";
   import { getAiChatSchemaPrompt } from "./prompt-schemas";
+  import { kbAIIntegration } from "./kb-ai-integration";
   
   function getPersonalityGuidance(personality: string): string {
     const guidance: Record<string, string> = {
@@ -89,9 +90,30 @@
 
   ${getAiChatSchemaPrompt()}`;
 
+    // Fetch KB context without requiring a real campaign (uses client 'default', optional campaignId if provided)
+    let kbContextBlock = '';
+    try {
+      const typicalSteps = new Set(["welcome","campaign_type","target_audience","goals","details","complete"]);
+      const campaignId = currentStep && !typicalSteps.has(currentStep) ? currentStep : undefined;
+      const kb = await kbAIIntegration.getCampaignChatContextWithKB({
+        clientId: 'default',
+        campaignId,
+        userTurn: userMessage,
+        context: typeof campaignData === 'object' ? campaignData?.context : undefined,
+        goals: typeof campaignData === 'object' ? campaignData?.handoverGoals : undefined
+      });
+      if (kb?.hasKBData && kb.kbContext) {
+        const trimmed = kb.kbContext.slice(0, 2000);
+        kbContextBlock = `\n\nKnowledge Base Context (truncated):\n${trimmed}\n`;
+      }
+    } catch (e) {
+      console.warn('KB context unavailable for chat widget:', e);
+    }
+
     const userPayload = `Current step or campaignId: ${currentStep}
   Current campaign data (includes any KB context if available): ${JSON.stringify(campaignData)}
   User message: ${userMessage}
+  ${kbContextBlock}
 
   Guidelines:
   - Keep responses conversational and professional
