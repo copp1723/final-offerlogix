@@ -530,8 +530,6 @@ export default function Leads() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onMouseEnter={() => setSelectedLead(lead)}
-                        onFocus={() => setSelectedLead(lead)}
                         onClick={() => setSelectedLead(lead)}
                       >
                         View
