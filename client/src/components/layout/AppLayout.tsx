@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database } from "lucide-react";
+import { ReactNode, useState } from "react";
+import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database, ChevronDown, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
@@ -13,23 +13,39 @@ interface NavItem {
   href: string;
   icon: any;
   children?: NavItem[];
+  isGroup?: boolean;
 }
 
 const navigation: NavItem[] = [
+  // Core Operations
   {
     name: "Dashboard",
     href: "/",
     icon: BarChart3,
   },
   {
+    name: "Customers",
+    href: "/leads",
+    icon: Users,
+  },
+  {
+    name: "Customer Interactions",
+    href: "/conversations",
+    icon: MessageSquare,
+  },
+
+  // AI & Automation  
+  {
     name: "AI Management",
     href: "/ai-settings",
     icon: Brain,
-  },
-  {
-    name: "AI Personas",
-    href: "/personas",
-    icon: Target,
+    children: [
+      {
+        name: "AI Personas",
+        href: "/personas",
+        icon: Target,
+      }
+    ]
   },
   {
     name: "Knowledge Base",
@@ -41,26 +57,20 @@ const navigation: NavItem[] = [
     href: "/campaigns",
     icon: Zap,
   },
-  {
-    name: "Customer Interactions",
-    href: "/conversations",
-    icon: MessageSquare,
-  },
+
+  // Monitoring & Analytics
   {
     name: "Communication Monitor",
     href: "/email-monitor",
     icon: Mail,
   },
   {
-    name: "Customers",
-    href: "/leads",
-    icon: Users,
-  },
-  {
     name: "Reports",
     href: "/reports",
     icon: FileText,
   },
+
+  // System
   {
     name: "Settings",
     href: "/settings",
@@ -68,9 +78,66 @@ const navigation: NavItem[] = [
   },
 ];
 
-function SidebarNavItem({ item, isActive }: { item: NavItem; isActive: boolean }) {
+function SidebarNavItem({ item, isActive, currentPath }: { item: NavItem; isActive: boolean; currentPath: string }) {
+  const [isExpanded, setIsExpanded] = useState(
+    item.children?.some(child => currentPath === child.href) || false
+  );
   const Icon = item.icon;
   
+  // Check if any child is active
+  const hasActiveChild = item.children?.some(child => currentPath === child.href);
+  
+  if (item.children && item.children.length > 0) {
+    return (
+      <div>
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className={cn(
+            "w-full flex items-center justify-between space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+            isActive || hasActiveChild
+              ? "bg-blue-50 text-blue-700"
+              : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+          )}
+        >
+          <div className="flex items-center space-x-3">
+            <Icon className="flex-shrink-0 w-5 h-5" />
+            <span>{item.name}</span>
+          </div>
+          {isExpanded ? (
+            <ChevronDown className="w-4 h-4" />
+          ) : (
+            <ChevronRight className="w-4 h-4" />
+          )}
+        </button>
+        
+        {isExpanded && (
+          <div className="ml-8 mt-1 space-y-1">
+            {item.children.map((child) => {
+              const childIcon = child.icon;
+              const isChildActive = currentPath === child.href;
+              
+              return (
+                <Link key={child.name} href={child.href}>
+                  <div
+                    className={cn(
+                      "flex items-center space-x-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+                      isChildActive
+                        ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600"
+                        : "text-gray-500 hover:text-gray-900 hover:bg-gray-50"
+                    )}
+                  >
+                    <childIcon className="flex-shrink-0 w-4 h-4" />
+                    <span>{child.name}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <Link href={item.href}>
       <div
@@ -115,14 +182,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-6 space-y-2">
-            {navigation.map((item) => (
-              <SidebarNavItem 
-                key={item.name}
-                item={item} 
-                isActive={location === item.href}
-              />
-            ))}
+          <nav className="flex-1 px-4 py-6 space-y-1">
+            {navigation.map((item, index) => {
+              const needsDivider = index === 3 || index === 6 || index === 8; // After core, AI, monitoring sections
+              
+              return (
+                <div key={item.name}>
+                  {needsDivider && (
+                    <div className="border-t border-gray-200 my-3"></div>
+                  )}
+                  <SidebarNavItem 
+                    item={item} 
+                    isActive={location === item.href}
+                    currentPath={location}
+                  />
+                </div>
+              );
+            })}
           </nav>
 
           {/* User section */}
