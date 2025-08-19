@@ -81,7 +81,7 @@ export default function PersonasPage() {
       const response = await fetch('/api/personas?includeKnowledgeBases=true&includeCampaignCounts=true', {
         headers: {
           'Content-Type': 'application/json',
-          'x-client-id': 'default' // TODO: Get from context
+          'x-client-id': '00000000-0000-0000-0000-000000000001'
         }
       });
 
@@ -108,7 +108,7 @@ export default function PersonasPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-client-id': 'default' // TODO: Get from context
+          'x-client-id': '00000000-0000-0000-0000-000000000001'
         }
       });
 
@@ -131,7 +131,7 @@ export default function PersonasPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-client-id': 'default' // TODO: Get from context
+          'x-client-id': '00000000-0000-0000-0000-000000000001'
         },
         body: JSON.stringify({ isActive })
       });
@@ -153,7 +153,7 @@ export default function PersonasPage() {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          'x-client-id': 'default' // TODO: Get from context
+          'x-client-id': '00000000-0000-0000-0000-000000000001'
         },
         body: JSON.stringify({ isDefault: true })
       });
