@@ -613,7 +613,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
                 <FormLabel>AI Persona</FormLabel>
                 <Select 
                   onValueChange={field.onChange} 
-                  value={field.value || ''}
+                  value={field.value || 'default'}
                   disabled={personasLoading}
                 >
                   <FormControl>
@@ -622,7 +622,7 @@ export default function CampaignForm({ onClose, currentStep, onStepChange, campa
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value="">Use Default Persona</SelectItem>
+                    <SelectItem value="default">Use Default Persona</SelectItem>
                     {personas.map((persona: any) => (
                       <SelectItem key={persona.id} value={persona.id}>
                         <div className="flex flex-col">
