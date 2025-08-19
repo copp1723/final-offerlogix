@@ -7,11 +7,10 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Input } from "../components/ui/input";
 import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
 import { Separator } from "../components/ui/separator";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Loader2, Plus, Settings, Users, Brain, MessageSquare, Database, Star, Target, Zap } from "lucide-react";
+import { Loader2, Plus, Settings, Users, Brain, MessageSquare, Star, Target, Zap } from "lucide-react";
 
 /**
  * AI Personas Management Page
@@ -64,9 +63,7 @@ export default function PersonasPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  const [selectedPersona, setSelectedPersona] = useState<Persona | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [showEditDialog, setShowEditDialog] = useState(false);
+  // Note: dialog state not currently used; model selection UI removed per request
 
   // Load personas on component mount
   useEffect(() => {
@@ -236,7 +233,7 @@ export default function PersonasPage() {
                 )}
               </Button>
             )}
-            <Button onClick={() => setShowCreateDialog(true)} disabled={isCreating}>
+            <Button disabled title="Create persona coming soon">
               <Plus className="h-4 w-4 mr-2" />
               New Persona
             </Button>
@@ -326,10 +323,6 @@ export default function PersonasPage() {
                           <span className="font-medium capitalize">{persona.tonality}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-500">Model:</span>
-                          <span className="font-medium">{persona.model}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-sm">
                           <span className="text-gray-500">KB Access:</span>
                           <span className="font-medium capitalize">{persona.knowledgeBaseAccessLevel.replace('_', ' ')}</span>
                         </div>
@@ -367,10 +360,8 @@ export default function PersonasPage() {
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSelectedPersona(persona);
-                              setShowEditDialog(true);
-                            }}
+                            disabled
+                            title="Editing coming soon"
                           >
                             <Settings className="h-4 w-4" />
                           </Button>
@@ -412,7 +403,7 @@ export default function PersonasPage() {
                   <div className="text-center py-12 text-gray-500">
                     <Settings className="h-16 w-16 mx-auto mb-4 text-gray-300" />
                     <p>Global settings coming soon...</p>
-                    <p className="text-sm">Configure default models, temperature settings, and more</p>
+                    <p className="text-sm">Configure default AI settings</p>
                   </div>
                 </CardContent>
               </Card>
