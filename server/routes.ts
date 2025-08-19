@@ -1730,35 +1730,35 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app.use('/api/ai', aiConversationRoutes);
 
   // Chat widget routes
-  const chatRoutes = await import('./routes/chat.js');
+  const chatRoutes = await import('./routes/chat');
   app.use('/api/chat', chatRoutes.default);
 
   // Health check routes
-  const healthRoutes = await import('./routes/health.js');
+  const healthRoutes = await import('./routes/health');
   app.use('/api/health', healthRoutes.default);
 
   // IMAP health check
-  const imapHealthRoutes = await import('./routes/health-imap.js');
+  const imapHealthRoutes = await import('./routes/health-imap');
   app.use('/api/health', imapHealthRoutes.default);
 
   // Agent runtime routes
-  const agentRoutes = await import('./routes/agent.js');
+  const agentRoutes = await import('./routes/agent');
   app.use('/api/agent', agentRoutes.default);
 
   // Conversation Intelligence routes
-  const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence.js');
+  const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence');
   app.use('/api/conversation-intelligence', conversationIntelligenceRoutes.default);
 
   // Knowledge Base routes
-  const knowledgeBaseRoutes = await import('./routes/knowledge-base.js');
+  const knowledgeBaseRoutes = await import('./routes/knowledge-base');
   app.use('/api/knowledge-base', knowledgeBaseRoutes.default);
 
   // KB Campaign Integration routes
-  const kbCampaignRoutes = await import('./routes/kb-campaign-integration.js');
+  const kbCampaignRoutes = await import('./routes/kb-campaign-integration');
   app.use('/api/kb-campaign', kbCampaignRoutes.default);
 
   // AI Persona Management routes
-  const aiPersonaRoutes = await import('./routes/ai-persona.js');
+  const aiPersonaRoutes = await import('./routes/ai-persona');
   app.use('/api/personas', aiPersonaRoutes.default);
 
   // SMS Integration Routes
