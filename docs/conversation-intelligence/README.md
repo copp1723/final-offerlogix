@@ -1,8 +1,8 @@
-# MailMind Conversation Intelligence System
+# OfferLogix Conversation Intelligence System
 
 ## Overview
 
-MailMind's Conversation Intelligence System provides advanced AI-powered conversation analysis, response optimization, and coaching capabilities specifically designed for automotive sales and customer service teams. The system enhances customer interactions through real-time insights, intelligent response routing, and continuous optimization.
+OfferLogix's Conversation Intelligence System provides advanced AI-powered conversation analysis, response optimization, and coaching capabilities specifically designed for automotive sales and customer service teams. The system enhances customer interactions through real-time insights, intelligent response routing, and continuous optimization.
 
 ## Key Features
 

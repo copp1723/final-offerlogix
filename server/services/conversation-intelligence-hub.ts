@@ -11,7 +11,7 @@ import type { Conversation, ConversationMessage, Lead } from '@shared/schema';
  * Conversation Intelligence Hub
  * 
  * Central integration layer that connects all enhanced conversation intelligence services
- * and provides a unified API for the MailMind platform. This service orchestrates
+ * and provides a unified API for the OfferLogix platform. This service orchestrates
  * the interaction between all conversation AI components.
  * 
  * Features:

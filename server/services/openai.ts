@@ -216,10 +216,12 @@ CRITICAL:
 Each email needs:
 1. A subject line (max 55 chars, no emojis, conversational)
 2. Email content with proper spacing:
-   - Opening line/paragraph
-   - Middle section (if needed)
-   - Closing with question
-   - Use <br><br> between paragraphs for spacing
+   - Opening line/paragraph (friendly greeting)
+   - Middle section with key points (1-2 sentences each)
+   - Closing with clear question/next step
+   - Use \\n\\n between paragraphs for clean spacing
+   - Use bullet points for multiple items (- Point 1\\n- Point 2)
+   - NO wall of text - break into digestible chunks
 
 Format each email:
 - Under 80 words total

@@ -3,6 +3,7 @@ import { dynamicResponseIntelligenceService, type ConversationAnalysis } from '.
 import { leadScoringService } from './lead-scoring';
 import { storage } from '../storage';
 import { searchMemories, extractMemoryContent } from './supermemory';
+import { kbAIIntegration } from './kb-ai-integration';
 import type { Conversation, ConversationMessage, Lead, AiAgentConfig } from '@shared/schema';
 
 /**
@@ -114,14 +115,21 @@ export class EnhancedConversationAI {
       newMessage,
       conversationContext.leadProfile?.vehicleInterest || undefined
     );
+
+    // Get knowledge base context
+    const kbContext = await kbAIIntegration.getConversationContextWithKB(
+      conversationContext, 
+      options
+    );
     
-    // Generate the response using advanced prompting
+    // Generate the response using advanced prompting with KB context
     const response = await this.generateAutomotiveResponse(
       conversationContext,
       newMessage,
       messageAnalysis,
       memoryContext,
-      options
+      options,
+      kbContext
     );
     
     // Calculate quality score and enhancements
@@ -223,20 +231,22 @@ export class EnhancedConversationAI {
     newMessage: string,
     messageAnalysis: any,
     memoryContext: string,
-    options: ResponseGenerationOptions
+    options: ResponseGenerationOptions,
+    kbContext?: any
   ): Promise<string> {
     const client = getOpenAIClient();
     
     // Build comprehensive automotive system prompt
     const systemPrompt = this.buildAutomotiveSystemPrompt(context, options);
     
-    // Build contextualized user prompt
+    // Build contextualized user prompt with KB context
     const userPrompt = this.buildContextualizedPrompt(
       context,
       newMessage,
       messageAnalysis,
       memoryContext,
-      options
+      options,
+      kbContext
     );
 
     try {
@@ -313,6 +323,16 @@ export class EnhancedConversationAI {
     7. Create urgency without being pushy
     8. Ask qualifying questions to move the sale forward
 
+    EMAIL FORMATTING REQUIREMENTS:
+    - Use proper paragraph breaks with double line breaks (\n\n)
+    - Keep paragraphs to 1-3 sentences each
+    - Use bullet points for lists (- item 1\n- item 2)
+    - Start with friendly greeting
+    - End with clear call-to-action
+    - Maximum 150 words total
+    - Professional but conversational tone
+    - NO wall of text - break up content for easy reading
+
     ESCALATION TRIGGERS:
     - High-value buying signals detected
     - Customer ready to schedule test drive or visit
@@ -331,7 +351,8 @@ export class EnhancedConversationAI {
     newMessage: string,
     messageAnalysis: any,
     memoryContext: string,
-    options: ResponseGenerationOptions
+    options: ResponseGenerationOptions,
+    kbContext?: any
   ): string {
     const recentHistory = context.conversationHistory.slice(-5).map(m => 
       `${m.isFromAI ? 'You' : 'Customer'}: ${m.content}`
@@ -353,6 +374,8 @@ export class EnhancedConversationAI {
     - Info Requested: ${messageAnalysis.requestedInfo.join(', ') || 'None'}
 
     ${memoryContext ? `RELEVANT CONTEXT FROM MEMORY:\n${memoryContext}` : ''}
+
+    ${kbContext?.hasKBData ? `KNOWLEDGE BASE CONTEXT:\n${kbContext.kbContext}\n\nKnowledge Sources: ${kbContext.kbSources.map((s: any) => s.title).join(', ')}` : ''}
 
     RESPONSE REQUIREMENTS:
     ${options.includeVehicleDetails ? '- Include specific vehicle details and features' : ''}

@@ -4,7 +4,7 @@ import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Clients table for white label multi-tenancy
+// Clients table for multi-tenant OfferLogix platform
 export const clients = pgTable("clients", {
   id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
   name: varchar("name", { length: 255 }).notNull(),
@@ -50,7 +50,7 @@ export const conversations = pgTable("conversations", {
 export const conversationMessages = pgTable("conversation_messages", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   conversationId: varchar("conversation_id").references(() => conversations.id),
-  senderId: varchar("sender_id").references(() => users.id),
+  senderId: varchar("sender_id"),
   content: text("content").notNull(),
   messageType: text("message_type").notNull().default("text"), // text, system, email_template
   isFromAI: integer("is_from_ai").notNull().default(0), // 0 = human, 1 = AI
@@ -209,3 +209,103 @@ export type InsertConversation = z.infer<typeof insertConversationSchema>;
 export type Conversation = typeof conversations.$inferSelect;
 export type InsertConversationMessage = z.infer<typeof insertConversationMessageSchema>;
 export type ConversationMessage = typeof conversationMessages.$inferSelect;
+
+// Knowledge Base tables - using existing structure with Supermemory integration
+export const knowledgeBases = pgTable("knowledge_bases", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  clientId: uuid("client_id").references(() => clients.id).notNull(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  version: integer("version").default(1),
+  status: varchar("status", { length: 50 }).default("active"),
+  indexStatus: varchar("index_status", { length: 50 }).default("pending"),
+  documentCount: integer("document_count").default(0),
+  totalChunks: integer("total_chunks").default(0),
+  lastIndexedAt: timestamp("last_indexed_at"),
+  settings: jsonb("settings").default(sql`'{}'::jsonb`).notNull(),
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const kbDocuments = pgTable("kb_documents", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  kbId: uuid("kb_id").references(() => knowledgeBases.id).notNull(),
+  title: varchar("title", { length: 500 }).notNull(),
+  sourceType: varchar("source_type", { length: 50 }).notNull(),
+  sourceUri: text("source_uri"),
+  contentHash: varchar("content_hash", { length: 64 }).notNull(),
+  rawContent: text("raw_content"),
+  processedContent: text("processed_content"),
+  chunkCount: integer("chunk_count").default(0),
+  processingStatus: varchar("processing_status", { length: 50 }).default("pending"),
+  processingError: text("processing_error"),
+  version: integer("version").default(1),
+  fileSizeBytes: integer("file_size_bytes"),
+  
+  // Supermemory integration fields
+  supermemoryId: varchar("supermemory_id"),
+  supermemoryStatus: varchar("supermemory_status", { length: 20 }),
+  containerTags: varchar("container_tags").array().default(sql`'{}'`),
+  
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  processedAt: timestamp("processed_at"),
+});
+
+export const kbDocumentChunks = pgTable("kb_document_chunks", {
+  id: uuid("id").primaryKey().default(sql`gen_random_uuid()`),
+  documentId: uuid("document_id").references(() => kbDocuments.id).notNull(),
+  kbId: uuid("kb_id").references(() => knowledgeBases.id).notNull(),
+  chunkIndex: integer("chunk_index").notNull(),
+  content: text("content").notNull(),
+  summary: text("summary"),
+  tokenCount: integer("token_count"),
+  supermemoryId: varchar("supermemory_id", { length: 255 }),
+  embeddingStatus: varchar("embedding_status", { length: 50 }).default("pending"),
+  metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Junction table for campaigns to knowledge bases  
+export const campaignKnowledgeBases = pgTable("campaign_knowledge_bases", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  campaignId: varchar("campaign_id").references(() => campaigns.id),
+  knowledgeBaseId: uuid("knowledge_base_id").references(() => knowledgeBases.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// Schema validation
+export const insertKnowledgeBaseSchema = createInsertSchema(knowledgeBases).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertKbDocumentSchema = createInsertSchema(kbDocuments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  processedAt: true,
+});
+
+export const insertKbDocumentChunkSchema = createInsertSchema(kbDocumentChunks).omit({
+  id: true,
+  createdAt: true,
+});
+
+export const insertCampaignKnowledgeBaseSchema = createInsertSchema(campaignKnowledgeBases).omit({
+  id: true,
+  createdAt: true,
+});
+
+// Types
+export type InsertKnowledgeBase = z.infer<typeof insertKnowledgeBaseSchema>;
+export type KnowledgeBase = typeof knowledgeBases.$inferSelect;
+export type InsertKbDocument = z.infer<typeof insertKbDocumentSchema>;
+export type KbDocument = typeof kbDocuments.$inferSelect;
+export type InsertKbDocumentChunk = z.infer<typeof insertKbDocumentChunkSchema>;
+export type KbDocumentChunk = typeof kbDocumentChunks.$inferSelect;
+export type InsertCampaignKnowledgeBase = z.infer<typeof insertCampaignKnowledgeBaseSchema>;
+export type CampaignKnowledgeBase = typeof campaignKnowledgeBases.$inferSelect;

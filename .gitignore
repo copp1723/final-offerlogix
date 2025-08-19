@@ -6,3 +6,7 @@ vite.config.ts.*
 *.tar.gz
 # Amazon Q
 .amazonq/
+# Build artifacts and test output
+dist-test/
+test-*.js
+test-*.json

@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Centralized JSON Schema Management System
  * 
  * This module provides type-safe, reusable JSON schemas for all AI prompt responses
- * across the MailMind codebase. Each schema includes TypeScript interfaces,
+ * across the OfferLogix codebase. Each schema includes TypeScript interfaces,
  * Zod validation schemas, template generation functions, and validation helpers.
  * 
  * DESIGN PRINCIPLES:

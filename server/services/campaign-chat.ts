@@ -2,6 +2,7 @@ import { LLMClient } from './llm-client';
 import { MemoryMapper } from '../integrations/supermemory';
 import { getCampaignChatContext } from './memory-orchestrator';
 import { AutomotivePromptService } from './automotive-prompts';
+import { kbAIIntegration } from './kb-ai-integration';
 
 import * as crypto from 'crypto';
 
@@ -39,15 +40,42 @@ export class CampaignChatService {
   /** LLM-first extraction flow (experimental) */
   private static async llmFirstProcess(
     userMessage: string,
-    existingData: any
+    existingData: any,
+    clientId: string = 'default'
   ): Promise<CampaignChatResponse> {
     const data = { ...existingData };
     if (!Array.isArray(data._history)) data._history = [];
     data._history.push({ role: 'user', content: userMessage, ts: Date.now() });
 
+    // Get KB context for better extraction
+    let kbContextSection = '';
+    try {
+      const kbResult = await kbAIIntegration.getCampaignChatContextWithKB({
+        clientId,
+        campaignId: data.id,
+        userTurn: userMessage,
+        context: data.context,
+        goals: data.handoverGoals
+      });
+
+      if (kbResult.hasKBData) {
+        kbContextSection = `
+
+## KNOWLEDGE BASE CONTEXT
+${kbResult.kbContext}
+
+Use this knowledge base information to better understand campaign requirements and provide more informed extraction.
+
+---
+`;
+      }
+    } catch (error) {
+      console.warn('Failed to get KB context for campaign chat:', error);
+    }
+
     // Build extraction prompt with currently known fields
     const missing = this.REQUIRED_FIELDS.filter(f => data[f] === undefined || data[f] === null || (typeof data[f] === 'string' && data[f].trim() === ''));
-    const extractionPrompt = `You are an advanced automotive campaign architect. Extract any campaign fields from the latest user message.
+    const extractionPrompt = `You are an advanced automotive campaign architect. Extract any campaign fields from the latest user message.${kbContextSection}
 Return STRICT JSON ONLY with shape:
 {
   "extracted": { optional present fields },
@@ -634,7 +662,7 @@ User Message: ${userMessage}`;
       // Experimental LLM-first unified extraction mode
       const looksLikeOneShot = /campaign\s*name|context|strategy|audience|templates?|subject\s*lines?|cadence|days\s*between|re[- ]?opening|grand\s*opening/i.test(userMessage) || userMessage.includes('\n');
       if (process.env.CAMPAIGN_CHAT_MODE === 'llm_first' || looksLikeOneShot) {
-        return await this.llmFirstProcess(userMessage, existingData);
+        return await this.llmFirstProcess(userMessage, existingData, existingData.clientId || 'default');
       }
       const runId = (crypto as any).randomUUID ? crypto.randomUUID() : String(Date.now()) + '-' + Math.random().toString(36).slice(2);
       const startMs = Date.now();

@@ -1,5 +1,5 @@
 import { ReactNode } from "react";
-import { Car, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain } from "lucide-react";
+import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
@@ -17,17 +17,22 @@ interface NavItem {
 
 const navigation: NavItem[] = [
   {
-    name: "AI Campaign Agent",
+    name: "Dashboard",
     href: "/",
     icon: BarChart3,
   },
   {
-    name: "AI Management Center",
+    name: "AI Management",
     href: "/ai-settings",
     icon: Brain,
   },
   {
-    name: "Leads",
+    name: "Knowledge Base",
+    href: "/knowledge-base",
+    icon: Database,
+  },
+  {
+    name: "Customers",
     href: "/leads",
     icon: Users,
   },
@@ -82,7 +87,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                   className="w-8 h-8 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: branding.primaryColor }}
                 >
-                  <Car className="w-4 h-4 text-white" />
+                  <CreditCard className="w-4 h-4 text-white" />
                 </div>
               )}
               <span className="text-lg font-semibold text-gray-900">{branding.companyName}</span>
@@ -108,7 +113,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 truncate">Admin User</p>
-                <p className="text-xs text-gray-500 truncate">admin@autocampaigns.ai</p>
+                <p className="text-xs text-gray-500 truncate">admin@offerlogix.com</p>
               </div>
               <button className="p-1 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 transition-colors">
                 <Bell className="w-4 h-4" />
@@ -130,7 +135,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 className="w-6 h-6 rounded flex items-center justify-center"
                 style={{ backgroundColor: branding.primaryColor }}
               >
-                <Car className="w-3 h-3 text-white" />
+                <CreditCard className="w-3 h-3 text-white" />
               </div>
             )}
             <span className="font-semibold text-gray-900">{branding.companyName}</span>

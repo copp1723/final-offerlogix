@@ -1,6 +1,6 @@
 # Conversation Intelligence Usage Examples
 
-This document provides practical examples of how to use MailMind's Conversation Intelligence System in real automotive dealership scenarios.
+This document provides practical examples of how to use OfferLogix's Conversation Intelligence System in real automotive dealership scenarios.
 
 ## Table of Contents
 - [Basic Message Processing](#basic-message-processing)
@@ -490,7 +490,7 @@ async function buildExecutiveDashboard() {
   };
 
   // Render executive summary
-  console.log('=== MailMind Conversation Intelligence Dashboard ===');
+  console.log('=== OfferLogix Conversation Intelligence Dashboard ===');
   console.log(`Total Conversations: ${kpis.conversationVolume}`);
   console.log(`Average Quality Score: ${kpis.averageQuality}/100`);
   console.log(`Conversion Rate: ${kpis.conversionRate}%`);
@@ -976,7 +976,7 @@ export default {
 </style>
 ```
 
-These examples demonstrate practical implementation of MailMind's Conversation Intelligence System across various scenarios and technologies. The system provides comprehensive conversation analysis, real-time coaching, and optimization capabilities that can significantly improve automotive sales and customer service operations.
+These examples demonstrate practical implementation of OfferLogix's Conversation Intelligence System across various scenarios and technologies. The system provides comprehensive conversation analysis, real-time coaching, and optimization capabilities that can significantly improve automotive sales and customer service operations.
 
 <function_calls>
 <invoke name="TodoWrite">

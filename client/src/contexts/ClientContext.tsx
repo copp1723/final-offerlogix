@@ -18,10 +18,10 @@ interface BrandingConfig {
 }
 
 const DEFAULT_BRANDING: BrandingConfig = {
-  primaryColor: '#2563eb',
-  secondaryColor: '#1e40af', 
-  logoUrl: '/onekeel-logo.svg',
-  companyName: 'OneKeel Swarm',
+  primaryColor: '#009CA6',
+  secondaryColor: '#F58220', 
+  logoUrl: '',
+  companyName: 'OfferLogix',
   favicon: '',
   customCss: ''
 };
@@ -81,7 +81,7 @@ export const ClientProvider = ({ children }: ClientProviderProps) => {
       
       // Update page title
       if (branding.companyName) {
-        document.title = `${branding.companyName} - Automotive Email Campaigns`;
+        document.title = `${branding.companyName} - Instant Credit & Customer Communication Platform`;
       }
     }
   }, [activeClient]);

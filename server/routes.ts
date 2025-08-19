@@ -58,12 +58,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Return default branding
         res.json({
           id: 'default',
-          name: 'OneKeel Swarm',
+          name: 'OfferLogix',
           brandingConfig: {
-            primaryColor: '#2563eb',
-            secondaryColor: '#1e40af',
+            primaryColor: '#009CA6',
+            secondaryColor: '#F58220',
             logoUrl: '',
-            companyName: 'OneKeel Swarm',
+            companyName: 'OfferLogix',
             favicon: '',
             customCss: ''
           }
@@ -351,7 +351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         subject,
         htmlContent,
         textContent || '',
-        fromName || 'AutoCampaigns AI'
+        fromName || 'OfferLogix'
       );
       res.json(result);
     } catch (error) {
@@ -1727,6 +1727,14 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // Conversation Intelligence routes
   const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence');
   app.use('/api/conversation-intelligence', conversationIntelligenceRoutes.default);
+
+  // Knowledge Base routes
+  const knowledgeBaseRoutes = await import('./routes/knowledge-base');
+  app.use('/api/knowledge-base', knowledgeBaseRoutes.default);
+
+  // KB Campaign Integration routes
+  const kbCampaignRoutes = await import('./routes/kb-campaign-integration');
+  app.use('/api/kb-campaign', kbCampaignRoutes.default);
 
   // SMS Integration Routes
   app.post("/api/sms/opt-in", async (req, res) => {

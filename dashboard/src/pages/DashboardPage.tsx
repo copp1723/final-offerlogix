@@ -74,7 +74,7 @@ export function DashboardPage() {
                 </div>
                 <div>
                   <h1 className="text-3xl font-bold">
-                    <span className="text-gradient">MailMind</span>
+                    <span className="text-gradient">OfferLogix</span>
                   </h1>
                   <p className="text-sm text-gray-600">Intelligent Email Campaign Platform</p>
                 </div>

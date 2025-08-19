@@ -13,8 +13,8 @@ export default function HomePage() {
       {/* Page heading with top-right metrics */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Welcome to OneKeel Swarm</h1>
-          <p className="text-sm text-gray-600">Create intelligent automotive email campaigns with conversational AI guidance</p>
+          <h1 className="text-2xl md:text-3xl font-bold">Welcome to OfferLogix</h1>
+          <p className="text-sm text-gray-600">Instant credit decisions and customer communication powered by AI</p>
         </div>
         
         {/* Top-right metrics */}

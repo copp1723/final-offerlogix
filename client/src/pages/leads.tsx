@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb, Trash2 } from "lucide-react";
+import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb, Trash2, MoreHorizontal } from "lucide-react";
 import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
 import ConversationView from "@/components/conversations/ConversationView";
@@ -149,6 +150,20 @@ export default function Leads() {
     },
     onError: () => {
       toast({ title: "Failed to delete lead", variant: "destructive" });
+    },
+  });
+
+  // Assign individual lead to campaign mutation
+  const assignLeadToCampaignMutation = useMutation({
+    mutationFn: async ({ leadId, campaignId }: { leadId: string; campaignId: string }) => {
+      return await apiRequest(`/api/leads/${leadId}`, "PUT", { campaignId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
+      toast({ title: "Lead assigned to campaign" });
+    },
+    onError: () => {
+      toast({ title: "Failed to assign lead", variant: "destructive" });
     },
   });
 
@@ -523,31 +538,44 @@ export default function Leads() {
                         View
                       </Button>
 
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
                           <Button variant="outline" size="sm">
-                            <Trash2 className="h-4 w-4" />
+                            <MoreHorizontal className="h-4 w-4" />
                           </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
-                            <AlertDialogDescription>
-                              Are you sure you want to delete this lead? This action cannot be undone.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Cancel</AlertDialogCancel>
-                            <AlertDialogAction
-                              onClick={() => deleteLeadMutation.mutate(lead.id)}
-                              className="bg-red-600 hover:bg-red-700"
-                              disabled={deleteLeadMutation.isPending}
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem
+                            onClick={() => {
+                              if (lead.campaignId) {
+                                assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: "" });
+                              }
+                            }}
+                            disabled={!lead.campaignId}
+                          >
+                            <Target className="h-4 w-4 mr-2" />
+                            Remove from Campaign
+                          </DropdownMenuItem>
+                          {campaigns.filter((campaign: Campaign) => campaign.status === "draft").map((campaign: Campaign) => (
+                            <DropdownMenuItem
+                              key={campaign.id}
+                              onClick={() => assignLeadToCampaignMutation.mutate({ leadId: lead.id, campaignId: campaign.id })}
+                              disabled={lead.campaignId === campaign.id}
                             >
-                              {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                              <Target className="h-4 w-4 mr-2" />
+                              Assign to {campaign.name}
+                            </DropdownMenuItem>
+                          ))}
+                          <DropdownMenuItem
+                            onClick={() => deleteLeadMutation.mutate(lead.id)}
+                            className="text-red-600 focus:text-red-600"
+                            disabled={deleteLeadMutation.isPending}
+                          >
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            {deleteLeadMutation.isPending ? "Deleting..." : "Delete"}
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -10,7 +10,7 @@ import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
 import EmailMonitorPage from "@/pages/email-monitor";
 import UserManagementPage from "@/pages/user-management";
-import WhiteLabelPage from "@/pages/white-label";
+import KnowledgeBasePage from "@/pages/knowledge-base";
 import AiSettingsPage from "@/pages/ai-settings";
 import ConversationsPage from "@/pages/conversations";
 import NotFound from "@/pages/not-found";
@@ -28,10 +28,10 @@ function Router() {
   <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/ai-settings" component={AiSettingsPage} />
+        <Route path="/knowledge-base" component={KnowledgeBasePage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
   <Route path="/conversations" component={ConversationsPage} />
         <Route path="/users" component={UserManagementPage} />
-        <Route path="/white-label" component={WhiteLabelPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>

@@ -1,8 +1,8 @@
-# MailMind
+# OfferLogix
 
-[![CI](https://github.com/joshcopp/MailMind/actions/workflows/ci.yml/badge.svg)](https://github.com/joshcopp/MailMind/actions/workflows/ci.yml)
+[![CI](https://github.com/joshcopp/OfferLogix/actions/workflows/ci.yml/badge.svg)](https://github.com/joshcopp/OfferLogix/actions/workflows/ci.yml)
 
-AI-powered email campaign platform with intelligent conversation management and automated lead engagement.
+AI-powered offer management platform with intelligent knowledge base integration and automated lead engagement.
 
 ## Features
 
@@ -51,8 +51,8 @@ AI-powered email campaign platform with intelligent conversation management and 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/mailmind.git
-cd mailmind
+git clone https://github.com/yourusername/offerlogix.git
+cd offerlogix
 ```
 
 2. Install dependencies:
@@ -99,7 +99,7 @@ The application will be available at `http://localhost:3000`
 ### Project Structure
 
 ```
-mailmind/
+offerlogix/
 ├── client/           # React frontend
 │   ├── src/
 │   │   ├── components/
@@ -150,4 +150,4 @@ For issues, feature requests, or questions, please open an issue on GitHub or co
 
 ---
 
-*MailMind - Intelligent Email Campaign Automation*
+*OfferLogix - Intelligent Offer Management & Knowledge Base*

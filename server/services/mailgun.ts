@@ -37,6 +37,27 @@ function capHtmlSize(html?: string): string {
   return html.slice(0, cut) + '\n<!-- truncated to stay under size cap -->';
 }
 
+function formatEmailContent(content: string): string {
+  if (!content) return '';
+  
+  // Convert line breaks to HTML breaks for email
+  let formatted = content
+    // Convert double line breaks to proper paragraph spacing
+    .replace(/\n\n/g, '<br><br>')
+    // Convert single line breaks to HTML breaks
+    .replace(/\n/g, '<br>')
+    // Clean up excessive spacing
+    .replace(/(<br\s*\/?>\s*){3,}/gi, '<br><br>');
+  
+  // Ensure proper paragraph structure
+  if (!formatted.includes('<br>') && formatted.length > 50) {
+    // Add breaks for long single paragraphs
+    formatted = formatted.replace(/\. ([A-Z])/g, '.<br><br>$1');
+  }
+  
+  return formatted;
+}
+
 function toPlainText(html?: string): string {
   if (!html) return '';
   // very light HTML -> text; avoids heavy DOM work in Node
@@ -139,7 +160,7 @@ export async function sendCampaignEmail(
 
     const fromEmail = options.isAutoResponse 
       ? `OneKeel Swarm <noreply@${domain}>`
-      : (options?.isAutoResponse === false && typeof variables?.from === 'string' ? variables.from : `OneKeel Swarm <campaigns@${domain}>`);
+      : (options?.isAutoResponse === false && typeof variables?.from === 'string' ? variables.from : process.env.MAILGUN_FROM_EMAIL || `OneKeel Swarm <swarm@${domain}>`);
 
     if (MAILGUN_AUTH_SUPPRESSED_UNTIL && Date.now() < MAILGUN_AUTH_SUPPRESSED_UNTIL) {
       // Only log once per minute while suppressed
@@ -150,7 +171,7 @@ export async function sendCampaignEmail(
       return false;
     }
 
-    const html = capHtmlSize(content || '');
+    const html = capHtmlSize(formatEmailContent(content || ''));
     const text = toPlainText(html);
 
     const body = new URLSearchParams({

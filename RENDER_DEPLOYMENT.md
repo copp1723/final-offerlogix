@@ -4,6 +4,37 @@
 
 This guide will help you deploy OneKeel Swarm to Render, a modern cloud platform with automatic builds, deployments, and scaling.
 
+## 🚀 5-Minute Quick Start
+
+If you want to deploy immediately without reading the full guide:
+
+1. **Fork this repository** to your GitHub account
+2. Go to [render.com](https://render.com) → **"New"** → **"Blueprint"**  
+3. Connect your GitHub and select the forked repository
+4. **Add these environment variables** after deployment:
+   ```bash
+   MAILGUN_API_KEY=your_mailgun_key
+   MAILGUN_DOMAIN=mg.watchdogai.us
+   SESSION_SECRET=generate_random_32_char_string
+   ```
+5. **Visit health check**: `https://your-app.onrender.com/api/health/system`
+
+**Expected Response**:
+```json
+{
+  "ok": true,
+  "timestamp": "2025-01-08T...",
+  "checks": {
+    "database": {"ok": true},
+    "email": {"ok": true},
+    "realtime": {"ok": true},
+    "ai": {"ok": true}
+  }
+}
+```
+
+**Cost**: ~$14/month (Web Service + PostgreSQL starter plans)
+
 ---
 
 ## 📋 Prerequisites
@@ -87,9 +118,10 @@ The included `render.yaml` will automatically create a PostgreSQL database.
 ```yaml
 Name: onekeel-swarm
 Environment: Node
-Build Command: npm install && npm run build
+Build Command: npm ci && vite build --config vite.config.render.ts && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
 Start Command: npm start
 Health Check Path: /api/health/system
+Pre-Deploy Command: npm run db:push (optional)
 ```
 
 4. Add environment variables in the dashboard
@@ -203,7 +235,9 @@ RUN npm ci --only=production
 ### Common Issues
 
 **Build Failures**
-- Check Node.js version compatibility
+- **Replit Dependencies Issue**: The project uses `vite.config.render.ts` to avoid Replit-specific plugins (`@replit/vite-plugin-cartographer`, `@replit/vite-plugin-runtime-error-modal`) that don't exist on Render
+- **Solution**: Always use `vite.config.render.ts` in the build command, not the regular `vite.config.ts`
+- Check Node.js version compatibility (requires Node.js 18+)
 - Verify all dependencies are in package.json
 - Review build logs for specific errors
 

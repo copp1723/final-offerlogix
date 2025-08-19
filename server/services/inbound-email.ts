@@ -49,7 +49,7 @@ export class InboundEmailService {
       // Save the email as a conversation message
       const message = await storage.createConversationMessage({
         conversationId: conversation.id,
-        senderId: leadInfo.leadId,
+        senderId: 'lead-reply',
         messageType: 'email',
         content: event['stripped-text'] || event['body-plain'],
         isFromAI: 0
@@ -86,7 +86,7 @@ export class InboundEmailService {
       // Save SMS as conversation message
       const message = await storage.createConversationMessage({
         conversationId: conversation.id,
-        senderId: lead.id,
+        senderId: 'lead-sms',
         messageType: 'text',
         content: Body,
         isFromAI: 0

@@ -55,11 +55,26 @@ export class HandoverService {
     automotiveKeywords: [
       'test drive', 'financing', 'trade-in', 'lease', 'warranty',
       'maintenance', 'service appointment', 'parts', 'insurance',
-      'down payment', 'monthly payment', 'APR', 'credit score'
+      'down payment', 'monthly payment', 'APR', 'credit score',
+      // Enhanced keywords for better detection
+      'price', 'pricing', 'cost', 'quote', 'estimate', 'deal',
+      'trade in', 'trade value', 'appraisal', 'payoff',
+      'schedule', 'appointment', 'visit', 'come in', 'stop by',
+      'available', 'inventory', 'in stock', 'on lot',
+      'demo', 'demonstration', 'show me', 'see it',
+      'finance', 'loan', 'payment plan', 'interest rate',
+      'incentive', 'rebate', 'discount', 'special offer',
+      'ready to buy', 'looking to purchase', 'want to buy'
     ],
     urgentKeywords: [
       'urgent', 'ASAP', 'today', 'immediately', 'emergency',
-      'breakdown', 'accident', 'towing', 'repair needed'
+      'breakdown', 'accident', 'towing', 'repair needed',
+      // Enhanced urgency detection
+      'this week', 'this weekend', 'tomorrow', 'right now',
+      'need soon', 'quickly', 'fast', 'quick',
+      'deadline', 'time sensitive', 'limited time',
+      'leaving town', 'moving', 'current car died',
+      'ready now', 'can come today', 'available now'
     ]
   };
 

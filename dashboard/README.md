@@ -1,6 +1,6 @@
-# MailMind Smart Dashboard
+# OfferLogix Smart Dashboard
 
-A clean, fast React + TypeScript dashboard that implements the "memory over metrics" philosophy.
+A clean, fast React + TypeScript dashboard with integrated knowledge base that implements the "memory over metrics" philosophy.
 
 ## 🚀 Quick Start
 
