@@ -116,16 +116,9 @@ router.post("/sessions/init", async (req, res) => {
       .values({
         leadId: sessionData.visitorId, // Use visitor ID as lead ID for now
         campaignId: actualCampaignId,
+        subject: `Chat Widget Conversation - ${new Date().toISOString().split('T')[0]}`,
         status: "active",
-        metadata: {
-          sessionToken,
-          sessionId,
-          pageUrl: sessionData.pageUrl,
-          referrer: sessionData.referrer,
-          userAgent: sessionData.metadata?.userAgent,
-          chatWidget: true,
-          originalCampaignId: sessionData.campaignId, // Store original for reference
-        },
+        priority: "normal",
       })
       .returning();
 
@@ -197,12 +190,9 @@ router.post("/messages", async (req, res) => {
         .values({
           leadId: visitorId,
           campaignId: actualCampaignId,
+          subject: `Chat Widget Message - ${new Date().toISOString().split('T')[0]}`,
           status: "active",
-          metadata: {
-            sessionToken,
-            chatWidget: true,
-            originalCampaignId: messageData.campaignId, // Store original for reference
-          },
+          priority: "normal",
         })
         .returning();
     }
@@ -211,10 +201,9 @@ router.post("/messages", async (req, res) => {
     await db.insert(conversationMessages).values({
       conversationId: conversation.id,
       content: messageData.content,
-      sender: "user",
-      metadata: {
-        source: "chat_widget",
-      },
+      senderId: "chat-widget-user",
+      messageType: "text",
+      isFromAI: 0,
     });
 
     // Get AI response using existing campaign chat service
@@ -245,12 +234,9 @@ router.post("/messages", async (req, res) => {
     await db.insert(conversationMessages).values({
       conversationId: conversation.id,
       content: aiResponse.response,
-      sender: "agent",
-      metadata: {
-        source: "ai_chat",
-        model: aiResponse.model || "gpt-4o",
-        handoverDetected: aiResponse.shouldHandover || false,
-      },
+      senderId: "offerlogix-ai-agent",
+      messageType: "text",
+      isFromAI: 1,
     });
 
     // Check for handover signals
