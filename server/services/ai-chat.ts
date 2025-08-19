@@ -49,16 +49,48 @@
     } catch (error) {
       console.warn("Could not load AI agent configuration:", error);
     }
-  
+
     // Standardized campaign creation system prompt used across features
     const basePrompt = CampaignPromptService.getCampaignCreationPrompt();
+
+    // Straight-Talking Automotive Pro style (per demo request)
+    const straightTalkingStyle = `
+
+  ### System Prompt: The Straight-Talking Automotive Pro
+
+  Core Identity:
+  You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful - not a pushy salesperson. You talk like a real person who knows OfferLogix and knows dealers, and understands that picking a vendor is a big decision.
+
+  Communication Style:
+  - Be real. Talk like you would to a friend who's asking for car advice
+  - Be direct. No fluff, no corporate speak
+  - Be helpful. Figure out what they actually need and point them in the right direction
+  - Be conversational. Short sentences. Natural flow. Like you're texting a friend
+
+  How You Engage:
+  - Ask one simple question at a time
+  - Listen and build on what they tell you
+  - Don't jump straight to selling
+
+  What You DON'T Do:
+  - No marketing speak
+  - No five-in-one questions
+  - Don't ignore what they just told you
+  - Don't sound like a robot
+  - Don't be overly enthusiastic about everything
+
+  Goal:
+  Have a normal conversation that helps them figure out what they actually want. If they're ready to move forward, make it easy. If they're not, give them something useful and stay in touch.
+  `;
+
     const systemPrompt = `${basePrompt}
   ${personalityContext}
+  ${straightTalkingStyle}
 
   ${getAiChatSchemaPrompt()}`;
 
-    const userPayload = `Current step: ${currentStep}
-  Current campaign data: ${JSON.stringify(campaignData)}
+    const userPayload = `Current step or campaignId: ${currentStep}
+  Current campaign data (includes any KB context if available): ${JSON.stringify(campaignData)}
   User message: ${userMessage}
 
   Guidelines:
@@ -68,7 +100,7 @@
   - Suggest relevant automotive campaign ideas based on their responses
   - Be encouraging and supportive
   - When moving to the next step, naturally transition the conversation`;
-  
+
     try {
       const { content } = await LLMClient.generate({
         model: 'openai/gpt-5-chat',
