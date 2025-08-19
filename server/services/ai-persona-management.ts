@@ -1,5 +1,5 @@
 import { eq, and, desc, asc } from 'drizzle-orm';
-import { storage } from '../storage';
+import { db } from '../db';
 import { 
   aiPersonas, 
   personaKnowledgeBases, 
@@ -118,7 +118,7 @@ class AIPersonaManagementService {
         metadata: config.metadata
       };
 
-      const [persona] = await storage.db
+      const [persona] = await db
         .insert(aiPersonas)
         .values(personaData)
         .returning();
@@ -136,7 +136,7 @@ class AIPersonaManagementService {
    */
   async getPersonas(options: PersonaSearchOptions): Promise<PersonaWithKBs[]> {
     try {
-      let query = storage.db
+      let query = db
         .select()
         .from(aiPersonas)
         .where(eq(aiPersonas.clientId, options.clientId));
@@ -200,7 +200,7 @@ class AIPersonaManagementService {
    */
   async getPersona(personaId: string): Promise<PersonaWithKBs | null> {
     try {
-      const [persona] = await storage.db
+      const [persona] = await db
         .select()
         .from(aiPersonas)
         .where(eq(aiPersonas.id, personaId))
@@ -228,7 +228,7 @@ class AIPersonaManagementService {
     try {
       // If updating to default, unset other defaults
       if (updates.isDefault) {
-        const persona = await storage.db
+        const persona = await db
           .select({ clientId: aiPersonas.clientId })
           .from(aiPersonas)
           .where(eq(aiPersonas.id, personaId))
@@ -239,7 +239,7 @@ class AIPersonaManagementService {
         }
       }
 
-      const [updatedPersona] = await storage.db
+      const [updatedPersona] = await db
         .update(aiPersonas)
         .set({
           ...updates,
@@ -262,7 +262,7 @@ class AIPersonaManagementService {
   async deletePersona(personaId: string): Promise<void> {
     try {
       // Check if persona is assigned to any active campaigns
-      const activeCampaigns = await storage.db
+      const activeCampaigns = await db
         .select({ id: campaigns.id, name: campaigns.name })
         .from(campaigns)
         .where(and(
@@ -275,7 +275,7 @@ class AIPersonaManagementService {
       }
 
       // Soft delete by deactivating
-      await storage.db
+      await db
         .update(aiPersonas)
         .set({ 
           isActive: false, 
@@ -295,7 +295,7 @@ class AIPersonaManagementService {
    */
   async getDefaultPersona(clientId: string): Promise<AiPersona | null> {
     try {
-      const [defaultPersona] = await storage.db
+      const [defaultPersona] = await db
         .select()
         .from(aiPersonas)
         .where(and(
@@ -324,7 +324,7 @@ class AIPersonaManagementService {
   ): Promise<void> {
     try {
       // Check if association already exists
-      const existing = await storage.db
+      const existing = await db
         .select()
         .from(personaKnowledgeBases)
         .where(and(
@@ -335,7 +335,7 @@ class AIPersonaManagementService {
 
       if (existing.length > 0) {
         // Update existing association
-        await storage.db
+        await db
           .update(personaKnowledgeBases)
           .set({ accessLevel, priority })
           .where(and(
@@ -344,7 +344,7 @@ class AIPersonaManagementService {
           ));
       } else {
         // Create new association
-        await storage.db
+        await db
           .insert(personaKnowledgeBases)
           .values({
             personaId,
@@ -366,7 +366,7 @@ class AIPersonaManagementService {
    */
   async unlinkPersonaFromKnowledgeBase(personaId: string, knowledgeBaseId: string): Promise<void> {
     try {
-      await storage.db
+      await db
         .delete(personaKnowledgeBases)
         .where(and(
           eq(personaKnowledgeBases.personaId, personaId),
@@ -390,7 +390,7 @@ class AIPersonaManagementService {
     priority: number;
   }>> {
     try {
-      const associations = await storage.db
+      const associations = await db
         .select({
           id: knowledgeBases.id,
           name: knowledgeBases.name,
@@ -414,7 +414,7 @@ class AIPersonaManagementService {
    */
   async getPersonaCampaignCount(personaId: string): Promise<number> {
     try {
-      const result = await storage.db
+      const result = await db
         .select({ count: campaigns.id })
         .from(campaigns)
         .where(eq(campaigns.personaId, personaId));
@@ -616,7 +616,7 @@ PREFERRED CHANNELS: ${persona.preferredChannels.join(', ')}
   }
 
   private async unsetDefaultPersonas(clientId: string): Promise<void> {
-    await storage.db
+    await db
       .update(aiPersonas)
       .set({ isDefault: false })
       .where(and(
