@@ -6,6 +6,15 @@ await build({
   platform: 'node',
   format: 'esm',
   outdir: 'dist',
-  external: ['*'],
-  packages: 'external'
+  packages: 'external',
+  external: [
+    'pg',
+    'drizzle-orm',
+    'express',
+    'ws',
+    'supermemory',
+    'mailgun.js',
+    'twilio',
+    'openai'
+  ]
 }).catch(() => process.exit(1));
