@@ -126,7 +126,7 @@
       case "welcome":
       case "campaign_type":
         return {
-          message: "Welcome! I'm here to help you create an automotive email campaign. What type of campaign would you like to create? For example: new vehicle launch, service reminders, test drive follow-up, or seasonal promotions?",
+          message: "Welcome! I'm here to help you create an outreach campaign to connect with automotive dealerships. What type of dealership outreach campaign would you like to create? For example: credit calculator software demo, payment calculator trial, dealership management tools, or seasonal software promotions?",
           nextStep: "target_audience",
           campaignData: { ...campaignData, type: userMessage },
           isComplete: false
@@ -134,7 +134,7 @@
         
       case "target_audience":
         return {
-          message: "Great! Who is your target audience for this campaign? Are you targeting new buyers, existing customers, or a specific demographic?",
+          message: "Great! What type of automotive dealerships are you targeting? For example: new car dealerships, used car lots, luxury dealers, independent dealers, or dealership groups?",
           nextStep: "goals",
           campaignData: { ...campaignData, audience: userMessage },
           isComplete: false
@@ -142,7 +142,7 @@
         
       case "goals":
         return {
-          message: "Perfect! What are your main goals for this campaign? For example: schedule test drives, book service appointments, generate sales leads, or improve customer retention?",
+          message: "Perfect! What are your main goals for this dealership outreach campaign? For example: schedule software demos, book discovery calls, generate trial sign-ups, or onboard new dealership clients?",
           nextStep: "details",
           campaignData: { ...campaignData, goals: userMessage },
           isComplete: false
@@ -155,9 +155,9 @@
           campaignData: { 
             ...campaignData, 
             details: userMessage,
-            name: `${campaignData.type || 'Automotive'} Campaign`,
-            context: `${campaignData.type || 'Automotive'} campaign targeting ${campaignData.audience || 'customers'} with goals to ${campaignData.goals || 'increase engagement'}`,
-            handoverGoals: campaignData.goals || 'Increase customer engagement and drive sales',
+            name: `${campaignData.type || 'OfferLogix Dealership'} Campaign`,
+            context: `${campaignData.type || 'OfferLogix Software'} campaign targeting ${campaignData.audience || 'automotive dealerships'} with goals to ${campaignData.goals || 'generate software trials'}`,
+            handoverGoals: campaignData.goals || 'Generate software demos and trial sign-ups from automotive dealerships',
             numberOfTemplates: 5,
             daysBetweenMessages: 3
           },
@@ -166,7 +166,7 @@
         
       case "complete":
         return {
-          message: "Perfect! I have all the information needed to create your automotive email campaign. The campaign will be set up with your specifications.",
+          message: "Perfect! I have all the information needed to create your dealership outreach campaign. The campaign will be set up to connect with automotive dealerships and promote OfferLogix software solutions.",
           nextStep: "complete",
           campaignData: { 
             ...campaignData,
