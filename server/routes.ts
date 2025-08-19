@@ -56,6 +56,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Apply tenant middleware to all API routes
   app.use('/api', tenantMiddleware);
 
+  // DIAGNOSTIC: Basic server test (no database, no dependencies)
+  app.get('/api/debug/ping', (req, res) => {
+    res.json({ 
+      status: 'alive',
+      timestamp: new Date().toISOString(),
+      environment: process.env.NODE_ENV || 'unknown',
+      databaseUrl: process.env.DATABASE_URL ? 'present' : 'missing',
+      renderEnvironment: process.env.RENDER ? 'true' : 'false'
+    });
+  });
+
+  // DIAGNOSTIC: Test database connection
+  app.get('/api/debug/database', async (req, res) => {
+    try {
+      const testQuery = await db.select().from(clients).limit(1);
+      res.json({
+        status: 'connected',
+        timestamp: new Date().toISOString(),
+        clientsTable: 'accessible',
+        sampleRecordCount: testQuery.length
+      });
+    } catch (error) {
+      console.error('Database diagnostic error:', error);
+      res.status(500).json({
+        status: 'error',
+        timestamp: new Date().toISOString(),
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+    }
+  });
+
   // Branding API - public endpoint for fetching client branding
   app.get("/api/branding", async (req, res) => {
     try {
