@@ -25,7 +25,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
-import { Copy, Edit, Trash2, Plus, Eye, Play, FileText } from "lucide-react";
+import { Copy, Edit, Trash2, Plus, Eye, Play, FileText, Sparkles } from "lucide-react";
 import CampaignExecutionModal from "@/components/campaigns/CampaignExecutionModal";
 import type { Campaign } from "@shared/schema";
 import TemplateReviewModal from '@/components/campaigns/TemplateReviewModal';
@@ -49,6 +49,19 @@ export default function CampaignsPage() {
 
   const [viewOpen, setViewOpen] = useState(false);
   const [viewCampaign, setViewCampaign] = useState<Campaign | null>(null);
+
+  // Template generation mutation
+  const generateTemplatesMutation = useMutation({
+    mutationFn: (campaignId: string) => 
+      apiRequest('/api/templates/generate', 'POST', { campaignId }),
+    onSuccess: () => {
+      toast({ title: "Templates generated successfully!" });
+      queryClient.invalidateQueries({ queryKey: ["/api/campaigns"] });
+    },
+    onError: () => {
+      toast({ title: "Failed to generate templates", variant: "destructive" });
+    },
+  });
 
   const cloneMutation = useMutation({
     mutationFn: async ({ id, name }: { id: string; name?: string }) => {
@@ -141,10 +154,10 @@ export default function CampaignsPage() {
   return (
     <div className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-semibold text-gray-900">Credit Campaigns</h1>
+        <h1 className="text-2xl font-semibold text-gray-900">Email Campaigns</h1>
         <Button onClick={() => setNewCampaignOpen(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          New Credit Campaign
+          New Campaign
         </Button>
       </div>
 
@@ -176,6 +189,18 @@ export default function CampaignsPage() {
                 </div>
 
                 <div className="flex gap-2 flex-wrap">
+                  {/* Generate Templates Button */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1"
+                    onClick={() => generateTemplatesMutation.mutate(campaign.id)}
+                    disabled={generateTemplatesMutation.isPending}
+                  >
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    {generateTemplatesMutation.isPending ? "Generating..." : "Generate Templates"}
+                  </Button>
+                  
                   <CampaignExecutionModal campaign={{
                     id: campaign.id,
                     name: campaign.name,

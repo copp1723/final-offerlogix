@@ -57,6 +57,16 @@ export const conversationMessages = pgTable("conversation_messages", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+// Minimal handovers table for AI-to-human escalation
+export const handovers = pgTable("handovers", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  conversationId: varchar("conversation_id").references(() => conversations.id),
+  reason: text("reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  resolvedAt: timestamp("resolved_at"),
+});
+
+
 export const campaigns = pgTable("campaigns", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   name: text("name").notNull(),
@@ -90,7 +100,7 @@ export const campaigns = pgTable("campaigns", {
 
   // Agent selection (optional)
   agentConfigId: varchar("agent_config_id").references(() => aiAgentConfig.id),
-  
+
   // AI Persona assignment for multi-persona campaigns
   personaId: uuid("persona_id").references(() => aiPersonas.id),
 
@@ -193,11 +203,20 @@ export const insertLeadSchema = createInsertSchema(leads).omit({
 });
 
 // Client types and schemas
+
+export const insertHandoverSchema = createInsertSchema(handovers).pick({
+  conversationId: true,
+  reason: true,
+});
+
 export const insertClientSchema = createInsertSchema(clients).omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
+
+export type InsertHandover = z.infer<typeof insertHandoverSchema>;
+export type Handover = typeof handovers.$inferSelect;
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clients.$inferSelect;
@@ -246,12 +265,12 @@ export const kbDocuments = pgTable("kb_documents", {
   processingError: text("processing_error"),
   version: integer("version").default(1),
   fileSizeBytes: integer("file_size_bytes"),
-  
+
   // Supermemory integration fields
   supermemoryId: varchar("supermemory_id"),
   supermemoryStatus: varchar("supermemory_status", { length: 20 }),
   containerTags: varchar("container_tags").array().default(sql`'{}'`),
-  
+
   metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -272,7 +291,7 @@ export const kbDocumentChunks = pgTable("kb_document_chunks", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-// Junction table for campaigns to knowledge bases  
+// Junction table for campaigns to knowledge bases
 export const campaignKnowledgeBases = pgTable("campaign_knowledge_bases", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   campaignId: varchar("campaign_id").references(() => campaigns.id),
@@ -312,34 +331,34 @@ export const aiPersonas = pgTable("ai_personas", {
   description: text("description"),
   targetAudience: varchar("target_audience", { length: 255 }), // dealers, vendors, customers, etc.
   industry: varchar("industry", { length: 100 }).default("automotive"),
-  
+
   // Persona personality and behavior
   tonality: text("tonality").notNull().default("professional"), // professional, friendly, technical, consultative
   personality: text("personality"), // Detailed personality description
   communicationStyle: text("communication_style").default("helpful"), // helpful, consultative, direct, technical
-  
+
   // AI configuration
   model: text("model").default("openai/gpt-4o"), // AI model to use
   temperature: integer("temperature").default(70), // Temperature * 100 (0.7 = 70)
   maxTokens: integer("max_tokens").default(300),
-  
+
   // Persona-specific prompts
   systemPrompt: text("system_prompt"), // Base system prompt for this persona
   responseGuidelines: jsonb("response_guidelines").default(sql`'[]'::jsonb`).notNull(), // Array of response guidelines
   escalationCriteria: jsonb("escalation_criteria").default(sql`'[]'::jsonb`).notNull(), // When to escalate conversations
-  
+
   // Communication preferences
   preferredChannels: jsonb("preferred_channels").default(sql`'["email"]'::jsonb`).notNull(), // email, sms, phone
   handoverSettings: jsonb("handover_settings").default(sql`'{}'::jsonb`).notNull(), // Persona-specific handover config
-  
+
   // Knowledge base associations
   knowledgeBaseAccessLevel: varchar("kb_access_level", { length: 50 }).default("campaign_only"), // "campaign_only", "client_all", "persona_filtered"
-  
+
   // Status and settings
   isActive: boolean("is_active").default(true).notNull(),
   isDefault: boolean("is_default").default(false).notNull(),
   priority: integer("priority").default(100), // Higher number = higher priority
-  
+
   metadata: jsonb("metadata").default(sql`'{}'::jsonb`).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

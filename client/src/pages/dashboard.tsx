@@ -1,17 +1,16 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from 'wouter';
-import { Sparkles, Users, TrendingUp, AlertCircle, Mail, Zap, BarChart3, Activity } from 'lucide-react';
+import { Users, TrendingUp, AlertCircle, Mail, Zap, BarChart3, Activity } from 'lucide-react';
 import { useDashboard } from '@/hooks/useDashboard';
-import { AIAgentPanel } from '@/components/AIAgentPanel';
 import { LeadList } from '@/components/LeadList';
-import { InsightsPanel } from '@/components/InsightsPanel';
 import { useBranding } from "@/contexts/ClientContext";
+import RecentCampaigns from "@/components/dashboard/RecentCampaigns";
 
-type TabValue = 'agent' | 'leads' | 'insights';
+type TabValue = 'campaigns' | 'leads' | 'metrics';
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<TabValue>('agent');
+  const [activeTab, setActiveTab] = useState<TabValue>('campaigns');
   const { data, isLoading, error } = useDashboard();
   const branding = useBranding();
   const queryClient = useQueryClient();
@@ -58,14 +57,14 @@ export default function Dashboard() {
   }
 
   const tabs = [
-    { value: 'agent' as const, label: 'AI Campaign Agent', icon: Sparkles, count: null, color: 'from-purple-500 to-pink-500' },
-    { value: 'leads' as const, label: 'Smart Leads', icon: Users, count: data.leads.length, color: 'from-blue-500 to-cyan-500' },
-    { value: 'insights' as const, label: 'Insights', icon: TrendingUp, count: null, color: 'from-green-500 to-emerald-500' },
+    { value: 'campaigns' as const, label: 'Campaign Management', icon: Zap, count: null, color: 'from-purple-500 to-pink-500' },
+    { value: 'leads' as const, label: 'Leads', icon: Users, count: data.leads.length, color: 'from-blue-500 to-cyan-500' },
+    { value: 'metrics' as const, label: 'Simple Metrics', icon: TrendingUp, count: null, color: 'from-green-500 to-emerald-500' },
   ];
 
   return (
     <div className="min-h-screen">
-      {/* Premium Header */}
+      {/* Header */}
       <div className="glass border-b border-white/20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="py-6">
@@ -79,7 +78,7 @@ export default function Dashboard() {
                   <h1 className="text-3xl font-bold">
                     <span className="text-gradient">{branding.companyName}</span>
                   </h1>
-                  <p className="text-sm text-gray-600">Intelligent Email Campaign Platform</p>
+                  <p className="text-sm text-gray-600">B2B Email Campaign Platform for Dealers & Vendors</p>
                 </div>
               </div>
               
@@ -114,7 +113,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Premium Tabs */}
+            {/* Tabs */}
             <div className="flex gap-3 p-2 glass rounded-2xl shadow-lg">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
@@ -152,63 +151,6 @@ export default function Dashboard() {
                 );
               })}
             </div>
-
-            {/* Quick Stats Bar */}
-            <div className="grid grid-cols-4 gap-4 mt-6">
-              <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Total Leads</p>
-                    <p className="text-2xl font-bold text-gradient">{data.leads.length}</p>
-                  </div>
-                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                    <Users className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Hot Leads</p>
-                    <p className="text-2xl font-bold text-gradient">
-                      {data.leads.filter(l => l.status === 'hot').length}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
-                    <Zap className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Avg Score</p>
-                    <p className="text-2xl font-bold text-gradient">
-                      {Math.round(data.leads.reduce((acc, l) => acc + l.score, 0) / data.leads.length) || 0}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                    <BarChart3 className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
-              
-              <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Active Now</p>
-                    <p className="text-2xl font-bold text-gradient">
-                      {data.agent.recentActivity?.length || 0}
-                    </p>
-                  </div>
-                  <div className="w-10 h-10 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>
@@ -216,16 +158,15 @@ export default function Dashboard() {
       {/* Tab Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="animate-fadeIn">
-          {activeTab === 'agent' && (
-            <AIAgentPanel 
-              suggestions={data.agent.suggestions}
-              recentActivity={data.agent.recentActivity}
-            />
+          {activeTab === 'campaigns' && (
+            <div className="space-y-6">
+              <RecentCampaigns />
+            </div>
           )}
           
           {activeTab === 'leads' && (
             <div className="space-y-6">
-              {/* Urgent Alerts with Premium Design */}
+              {/* Urgent Alerts */}
               {(data.summary.competitorMentions.length > 0 || data.summary.expiringOpportunities.length > 0) && (
                 <div className="glass rounded-2xl p-6 border-l-4 border-yellow-500 shadow-glow">
                   <div className="flex items-center gap-3 mb-4">
@@ -256,12 +197,69 @@ export default function Dashboard() {
             </div>
           )}
           
-          {activeTab === 'insights' && (
-            <InsightsPanel
-              followUps={data.intelligence.followUps}
-              callList={data.intelligence.callList as any}
-              campaigns={data.intelligence.campaigns as any}
-            />
+          {activeTab === 'metrics' && (
+            <div className="space-y-6">
+              {/* Simple Metrics Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="glass rounded-xl p-6 hover:shadow-glow transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                      <Users className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-xs text-green-600 font-semibold">Active</span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">{data.leads.length}</p>
+                    <p className="text-sm text-gray-600">Total Leads</p>
+                  </div>
+                </div>
+                
+                <div className="glass rounded-xl p-6 hover:shadow-glow transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-red-500 to-orange-500 rounded-lg flex items-center justify-center">
+                      <Zap className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-xs text-red-600 font-semibold">Priority</span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {data.leads.filter(l => l.status === 'hot').length}
+                    </p>
+                    <p className="text-sm text-gray-600">Hot Leads</p>
+                  </div>
+                </div>
+                
+                <div className="glass rounded-xl p-6 hover:shadow-glow transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                      <BarChart3 className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-xs text-purple-600 font-semibold">Average</span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {Math.round(data.leads.reduce((acc, l) => acc + l.score, 0) / data.leads.length) || 0}
+                    </p>
+                    <p className="text-sm text-gray-600">Lead Score</p>
+                  </div>
+                </div>
+                
+                <div className="glass rounded-xl p-6 hover:shadow-glow transition-all duration-300">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-12 h-12 bg-gradient-to-br from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                      <Mail className="w-6 h-6 text-white" />
+                    </div>
+                    <span className="text-xs text-green-600 font-semibold">Campaign</span>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-900">
+                      {data.intelligence.campaigns?.filter(c => c.type).length || 0}
+                    </p>
+                    <p className="text-sm text-gray-600">Active Campaigns</p>
+                  </div>
+                </div>
+              </div>
+            </div>
           )}
         </div>
       </div>

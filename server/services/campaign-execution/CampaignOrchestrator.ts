@@ -1,6 +1,5 @@
 import { storage } from '../../storage';
 import { webSocketService } from '../websocket';
-import { userNotificationService } from '../user-notification';
 
 export interface CampaignExecutionOptions {
   campaignId: string;
@@ -114,13 +113,12 @@ export class CampaignOrchestrator {
         }
       );
 
-      // Record a send event for predictive insights (once per execution)
-      try {
-        const { predictiveOptimizationService } = await import('../predictive-optimization-instance');
-        predictiveOptimizationService.ingestSend(campaign.id, new Date());
-      } catch (e) {
-        console.warn('Predictive ingestion (send) failed:', e);
-      }
+      // Simplified execution - log results only
+      console.log('[Campaign Execution] Completed:', {
+        campaignId: campaign.id,
+        emailsSent: processingResult.emailsSent,
+        testMode
+      });
 
       // Create conversations for successful sends
       if (!testMode && processingResult.emailsSent > 0) {
@@ -145,17 +143,14 @@ export class CampaignOrchestrator {
           const templates = campaign.templates as any[] || [];
           const firstTemplate = templates[0];
           
-          await userNotificationService.notifyCampaignExecuted(
-            "075f86dc-d36e-4ef2-ab61-2919f9468515", // Default user ID - in real app, get from context
-            {
-              campaignName: campaign.name,
-              campaignId: campaignId,
-              emailsSent: processingResult.emailsSent,
-              leadsTargeted: targetLeads.length,
-              templateTitle: firstTemplate?.title || 'Email Template',
-              executedAt: new Date()
-            }
-          );
+        // Simplified notification - just log
+        console.log('[Campaign Notification] Campaign executed:', {
+          campaignName: campaign.name,
+          campaignId: campaignId,
+          emailsSent: processingResult.emailsSent,
+          leadsTargeted: targetLeads.length,
+          executedAt: new Date()
+        });
         } catch (notificationError) {
           console.error('Failed to send campaign notification:', notificationError);
         }

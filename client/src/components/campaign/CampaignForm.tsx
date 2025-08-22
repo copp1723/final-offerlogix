@@ -17,7 +17,6 @@ import { Lightbulb, Sparkles, Mail, Type, MessageSquare, CalendarDays, Check } f
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign as SharedCampaign } from "@shared/schema";
 
-import { SMSIntegration } from "@/components/SMSIntegration";
 import { CampaignScheduler } from "@/components/CampaignScheduler";
 import { z } from "zod";
 

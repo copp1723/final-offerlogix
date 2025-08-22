@@ -1,9 +1,25 @@
 import { Request, Response } from 'express';
 import { createHmac } from 'crypto';
 import { storage } from '../storage';
-import { liveConversationService } from './live-conversation';
-import { AutomotivePromptService } from './automotive-prompts';
-import { emailMonitorService } from './email-monitor';
+import { sendThreadedReply } from './mailgun-threaded';
+import { callOpenRouterJSON } from './call-openrouter';
+
+
+// Basic safeguards
+const REPLY_RATE_LIMIT_MINUTES = parseInt(process.env.AI_REPLY_RATE_LIMIT_MINUTES || '15', 10);
+function sanitizeHtmlBasic(html: string): string {
+  if (!html) return '';
+  let out = html;
+  // Strip script/style and active embeds
+  out = out.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
+  out = out.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
+  out = out.replace(/<(?:iframe|object|embed)[^>]*>[\s\S]*?<\/(?:iframe|object|embed)>/gi, '');
+  // Remove inline event handlers like onclick, onload
+  out = out.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '');
+  // Neutralize javascript: URLs
+  out = out.replace(/(href|src)\s*=\s*(['"])\s*javascript:[^'"]*\2/gi, '$1="#"');
+  return out;
+}
 
 interface MailgunInboundEvent {
   sender: string;
@@ -30,24 +46,65 @@ export class InboundEmailService {
       const event: MailgunInboundEvent = (req.headers['content-type'] || '').includes('application/json')
         ? req.body
         : (Object.fromEntries(Object.entries(req.body).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])) as any);
-      
+
       // Verify Mailgun webhook signature
       if (!this.verifyMailgunSignature(event)) {
         return res.status(401).json({ error: 'Unauthorized' });
       }
 
-      // Extract lead information from email
-      const leadInfo = await this.extractLeadFromEmail(event);
+      const REQUIRE_CAMPAIGN = String(process.env.INBOUND_REQUIRE_CAMPAIGN_REPLY || 'true').toLowerCase() !== 'false';
+      const recipient = (event.recipient || '').toLowerCase();
+      const match = recipient.match(/campaign-([a-z0-9-]+)@/i);
+      const ACCEPT_SUFFIX = (process.env.INBOUND_ACCEPT_DOMAIN_SUFFIX || 'offerlogix.me').toLowerCase();
+      const recipientDomain = recipient.split('@')[1] || '';
+      const ACCEPT_BY_DOMAIN = recipientDomain.endsWith(ACCEPT_SUFFIX);
+
+      // If strict mode is on, only process replies to a campaign address unless recipient domain is allowed
+      if (REQUIRE_CAMPAIGN && !match && !ACCEPT_BY_DOMAIN) {
+        return res.status(200).json({ message: 'Ignored: not a campaign reply' });
+      }
+
+      let leadInfo: { leadId: string; lead: any } | null = null;
+      let campaignId: string | undefined;
+      if (match) {
+        campaignId = match[1];
+        // Verify campaign exists and sender is a lead on it
+        const campaign = await storage.getCampaign(campaignId);
+        if (!campaign) {
+          return res.status(200).json({ message: 'Ignored: unknown campaign' });
+        }
+        const leads = await storage.getLeadsByCampaign(campaignId);
+        const senderEmail = (event.sender || '').toLowerCase();
+        const matchingLead = leads.find(l => (l.email || '').toLowerCase() === senderEmail);
+        if (!matchingLead) {
+          return res.status(200).json({ message: 'Ignored: sender not a lead on campaign' });
+        }
+        leadInfo = { leadId: matchingLead.id, lead: matchingLead };
+      } else {
+        // Legacy: try to resolve lead without campaign binding (only if allowed)
+        leadInfo = await this.extractLeadFromEmail(event);
+      }
+
+      // Accept any recipient in allowed domain suffix; auto-create lead if missing
+      if (!leadInfo && ACCEPT_BY_DOMAIN) {
+        const senderEmail = (event.sender || '').toLowerCase();
+        let lead = await storage.getLeadByEmail(senderEmail);
+        if (!lead) {
+          lead = await storage.createLead({ email: senderEmail, leadSource: 'email_inbound', status: 'new' } as any);
+        }
+        leadInfo = { leadId: (lead as any).id, lead } as any;
+      }
+
       if (!leadInfo) {
         console.log('Could not identify lead from email:', event.sender);
         return res.status(200).json({ message: 'Email processed but lead not identified' });
       }
 
-      // Create or update conversation
-      const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject);
-      
+      // Create or update conversation bound to campaign if available
+      const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+
       // Save the email as a conversation message
-      const message = await storage.createConversationMessage({
+      await storage.createConversationMessage({
         conversationId: conversation.id,
         senderId: 'lead-reply',
         messageType: 'email',
@@ -55,10 +112,78 @@ export class InboundEmailService {
         isFromAI: 0
       });
 
-      // Trigger AI auto-response if enabled
-      await this.processAutoResponse(leadInfo.leadId, conversation.id, message);
+      // Call AI JSON loop with last N messages
+      const recentMessages = await storage.getConversationMessages(conversation.id, 10);
 
-      res.status(200).json({ message: 'Email processed successfully' });
+      // Guard: block only consecutive AI replies within cooldown; never block after a lead message
+      const now = Date.now();
+      const lastMsg = recentMessages[recentMessages.length - 1];
+      if (lastMsg && lastMsg.isFromAI && (now - new Date((lastMsg as any).createdAt).getTime()) < REPLY_RATE_LIMIT_MINUTES * 60 * 1000) {
+        console.log(`[AI Reply Guard] Skipping consecutive AI reply (cooldown ${REPLY_RATE_LIMIT_MINUTES}m)`);
+        return res.status(200).json({ message: 'Rate-limited; no consecutive AI reply' });
+      }
+
+      const systemPrompt = `System Prompt: The Straight-Talking Sales Pro
+Core Identity:
+You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful. You talk like a real person who knows the industry and understands that picking a vendor is a big decision.
+
+Communication Style:
+Be real. Talk like you would to a friend who's asking for advice
+Be direct. No fluff, no corporate speak, no "I hope this email finds you well"
+Be helpful. Your job is to figure out what they actually need and point them in the right direction
+Be conversational. Short sentences. Natural flow. Like you're texting a friend
+
+Have a normal conversation that helps them figure out what they actually want. If they're ready to move forward, make it easy. If they're not, give them something useful and stay in touch.
+
+Output strictly JSON only with keys: should_reply (boolean), handover (boolean), reply_subject (string), reply_body_html (string), rationale (string).`;
+      const aiResult = await callOpenRouterJSON<{ should_reply: boolean; handover: boolean; reply_subject?: string; reply_body_html?: string; rationale?: string }>({
+        model: 'openai/gpt-5-mini',
+        system: systemPrompt,
+        messages: [
+          { role: 'user', content: `Latest inbound email from ${event.sender}:\n${event['stripped-text'] || event['body-plain'] || ''}\n\nLast messages:\n${recentMessages.map(m => (m.isFromAI ? 'AI: ' : 'Lead: ') + (m.content || '')).join('\n').slice(0, 4000)}` }
+        ],
+        temperature: 0.2,
+        maxTokens: 800,
+      });
+
+      // Sanitize reply HTML and log rationale
+      const safeHtml = sanitizeHtmlBasic(aiResult.reply_body_html || '');
+      console.log('[AI Reply Decision]', {
+        conversationId: conversation.id,
+        should_reply: aiResult.should_reply,
+        handover: aiResult.handover,
+        rationale: aiResult.rationale?.slice(0, 300)
+      });
+
+
+      // Decision: reply vs handover
+      if (aiResult?.handover || !aiResult?.should_reply) {
+        await storage.createHandover({ conversationId: conversation.id, reason: aiResult?.rationale || 'AI requested handover' });
+        return res.status(200).json({ message: 'Handover created' });
+      }
+
+      // Send reply via Mailgun with threading
+      const headers = JSON.parse(event['message-headers'] || '[]') as Array<[string, string]>;
+      const messageId = headers.find(h => h[0].toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '') || undefined;
+      await sendThreadedReply({
+        to: event.sender,
+        subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
+        html: aiResult.reply_body_html || '',
+        inReplyTo: messageId ? `<${messageId}>` : undefined,
+        references: messageId ? [ `<${messageId}>` ] : undefined,
+        domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || undefined,
+      });
+
+      // Persist AI reply
+      await storage.createConversationMessage({
+        conversationId: conversation.id,
+        senderId: 'ai-agent',
+        messageType: 'email',
+        content: aiResult.reply_body_html || '',
+        isFromAI: 1,
+      });
+
+      res.status(200).json({ message: 'Email processed and replied' });
     } catch (error) {
       console.error('Inbound email processing error:', error);
       res.status(500).json({ error: 'Failed to process inbound email' });
@@ -66,49 +191,11 @@ export class InboundEmailService {
   }
 
   /**
-   * Handle incoming SMS responses from leads  
-   * This webhook endpoint processes Twilio inbound SMS
+   * SMS is de-scoped in outbound-only refactor. Keeping stub for backwards-compat.
    */
   static async handleInboundSMS(req: Request, res: Response) {
-    try {
-      const { From, To, Body, MessageSid } = req.body;
-      
-      // Find lead by phone number
-      const lead = await storage.getLeadByPhone(From);
-      if (!lead) {
-        console.log('Could not identify lead from phone:', From);
-        return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-      }
-
-      // Get or create SMS conversation
-      const conversation = await this.getOrCreateConversation(lead.id, 'SMS Conversation');
-      
-      // Save SMS as conversation message
-      const message = await storage.createConversationMessage({
-        conversationId: conversation.id,
-        senderId: 'lead-sms',
-        messageType: 'text',
-        content: Body,
-        isFromAI: 0
-      });
-
-      // Process auto-response
-      const aiResponse = await this.processAutoResponse(lead.id, conversation.id, message);
-      
-      // Send SMS reply if AI generated a response
-      if (aiResponse) {
-        const smsService = await import('./twilio');
-        await smsService.sendSMS({
-          to: From,
-          message: aiResponse
-        });
-      }
-
-      res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
-    } catch (error) {
-      console.error('Inbound SMS processing error:', error);
-      res.status(500).send('<?xml version="1.0" encoding="UTF-8"?><Response><Message>Error processing message</Message></Response>');
-    }
+    // SMS path is disabled in outbound-only mode
+    return res.status(200).send('<?xml version="1.0" encoding="UTF-8"?><Response></Response>');
   }
 
   private static verifyMailgunSignature(event: MailgunInboundEvent): boolean {
@@ -157,75 +244,25 @@ export class InboundEmailService {
     return null;
   }
 
-  private static async getOrCreateConversation(leadId: string, subject: string) {
+  private static async getOrCreateConversation(leadId: string, subject: string, campaignId?: string) {
     // Try to find existing conversation for this lead
     const conversations = await storage.getConversationsByLead(leadId);
-    
+
     if (conversations.length > 0) {
       // Return most recent conversation
       return conversations[0];
     }
 
-    // Create new conversation
-    // storage.insertConversation schema does not include assignedAgentId; omit it.
+    // Create new conversation (bind to campaign if provided)
     return await storage.createConversation({
       leadId,
+      campaignId,
       subject: subject || 'Email Conversation',
       status: 'active'
     } as any);
   }
 
-  private static async processAutoResponse(leadId: string, conversationId: string, incomingMessage: any): Promise<string | null> {
-    try {
-      // Get lead and conversation context
-      const lead = await storage.getLead(leadId);
-      const conversation = await storage.getConversation(conversationId);
-      const recentMessages = await storage.getConversationMessages(conversationId, 5);
-
-      if (!lead || !conversation) {
-        return null;
-      }
-
-      // Check if auto-response is enabled for this lead/campaign
-      const shouldAutoRespond = await this.shouldGenerateAutoResponse(lead, conversation);
-      if (!shouldAutoRespond) {
-        return null;
-      }
-
-      // Create automotive context
-      const context = AutomotivePromptService.createConversationContext(
-        [lead.firstName, lead.lastName].filter(Boolean).join(" ") || lead.email,
-        lead.vehicleInterest || undefined,
-        incomingMessage.content,
-        recentMessages.map(m => m.content)
-      );
-
-      // Generate AI response using OpenRouter
-      const aiResponse = await this.generateAIResponse(context, incomingMessage.content);
-      
-      if (aiResponse) {
-        // Save AI response
-        await storage.createConversationMessage({
-          conversationId,
-          senderId: 'ai-agent',
-          messageType: 'text',
-          content: aiResponse,
-          isFromAI: 1
-        });
-
-        // Send via live conversation service if connected
-        if (liveConversationService) {
-          await liveConversationService.sendMessageToLead(leadId, conversationId, aiResponse, 'text');
-        }
-      }
-
-      return aiResponse;
-    } catch (error) {
-      console.error('Auto-response processing error:', error);
-      return null;
-    }
-  }
-
+  // Legacy auto-response is deprecated. Kept for reference but unused.
   private static async shouldGenerateAutoResponse(lead: any, conversation: any): Promise<boolean> {
     // Check business hours
     const now = new Date();
@@ -237,7 +274,7 @@ export class InboundEmailService {
 
     // Check if lead has urgent indicators
     const recentMessages = await storage.getConversationMessages(conversation.id, 3);
-    const hasUrgentKeywords = recentMessages.some(m => 
+    const hasUrgentKeywords = recentMessages.some(m =>
       m.content.toLowerCase().includes('urgent') ||
       m.content.toLowerCase().includes('today') ||
       m.content.toLowerCase().includes('asap')
@@ -246,48 +283,7 @@ export class InboundEmailService {
     return hasUrgentKeywords;
   }
 
-  private static async generateAIResponse(context: any, messageContent: string): Promise<string | null> {
-    try {
-      const config = AutomotivePromptService.getDefaultDealershipConfig();
-      const systemPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
-        config,
-        context,
-        {
-          useStraightTalkingStyle: true,
-          season: this.getCurrentSeason(),
-          brand: this.extractBrandFromContext(context)
-        }
-      );
-
-      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
-          'Content-Type': 'application/json',
-          'X-Title': 'OneKeel Swarm - Email Auto Response'
-        },
-        body: JSON.stringify({
-          model: 'anthropic/claude-3.5-sonnet',
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: messageContent }
-          ],
-          max_tokens: 300,
-          temperature: 0.7
-        })
-      });
-
-      if (!response.ok) {
-        throw new Error(`OpenRouter error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      return data.choices?.[0]?.message?.content || null;
-    } catch (error) {
-      console.error('AI response generation error:', error);
-      return null;
-    }
-  }
+  // Legacy generation path removed in outbound-only flow.
 
   private static getCurrentSeason(): 'spring' | 'summer' | 'fall' | 'winter' {
     const month = new Date().getMonth();
@@ -297,6 +293,7 @@ export class InboundEmailService {
     return 'winter';
   }
 
+  // Legacy helper retained for compatibility
   private static extractBrandFromContext(context: any): string | undefined {
     const text = (context.vehicleInterest || '').toLowerCase();
     const brands = ['honda', 'toyota', 'ford', 'chevrolet', 'jeep'];

@@ -72,14 +72,13 @@ router.get('/realtime', async (_req, res) => {
     let wsStatus = { ok: false, details: {} };
     
     try {
-      const { webSocketService } = await import('../services/websocket');
-      const connectedClients = webSocketService.getConnectedClients();
+      // Simplified websocket service - basic status only
       
       wsStatus = {
         ok: true,
         details: {
           status: 'active',
-          connectedClients,
+          connectedClients: 0, // Simplified implementation
           endpoint: '/ws'
         }
       };

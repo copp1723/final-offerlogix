@@ -2,40 +2,37 @@
 
 [![CI](https://github.com/joshcopp/OfferLogix/actions/workflows/ci.yml/badge.svg)](https://github.com/joshcopp/OfferLogix/actions/workflows/ci.yml)
 
-AI-powered offer management platform with intelligent knowledge base integration and automated lead engagement.
+B2B email campaign platform with AI template generation for dealers and vendors.
 
 ## Features
 
-### 🤖 AI Agent System
-- **Per-Campaign AI Agents**: Assign different AI agents to each campaign for specialized responses
-- **Agent Email Domains**: Configure Mailgun subdomains per agent for professional sending
-- **Preview as Agent**: Test how agents will respond before campaign launch
-- **Conversational Intelligence**: Natural language campaign creation and management
-
 ### 📧 Campaign Management
-- **Template System**: Create and preserve email body content with dynamic personalization
-- **One-Shot Specifications**: AI detects specifications and formats bulleted summaries
-- **Inline Template Preview**: Review templates without leaving the workflow
-- **Campaign Chat**: Interactive AI assistant for campaign optimization
+- **AI Template Generation**: Automatically create personalized email templates using AI
+- **Campaign Creation**: Easy-to-use campaign builder for B2B outreach
+- **Lead Management**: Track and manage prospect responses
+- **Send Flow**: Streamlined email sending with Mailgun integration
 
-### 🔄 Automated Workflows
-- **Lead Handover**: Automatic alerts to sales teams when leads require human attention
-- **Response Management**: Intelligent routing and response generation
-- **Deliverability Controls**: Mailgun integration with domain verification
+### 🤖 AI Integration
+- **Template Generation**: POST `/api/templates/generate` endpoint for AI-powered content creation
+- **OpenRouter Integration**: GPT-5-mini model for high-quality template generation
+- **B2B Focused**: Templates optimized for dealer and vendor communications
 
-### 📊 Analytics & Monitoring
-- **Campaign Performance**: Track open rates, responses, and conversions
-- **Agent Activity**: Monitor AI agent interactions and effectiveness
-- **Lead Scoring**: Intelligent prioritization based on engagement
+### � Simple Metrics
+- **Campaign Performance**: Basic open rates and response tracking
+- **Lead Scoring**: Simple prioritization system
+- **Dashboard**: Clean, focused interface for campaign management
+
+### � Optional Views
+- **Conversations**: Read-only transcript view of email interactions
+- **Handover Queue**: Simple list of cases requiring human attention with resolve functionality
 
 ## Tech Stack
 
 - **Frontend**: React + TypeScript + Vite
 - **Backend**: Node.js + Express
 - **Database**: PostgreSQL with Drizzle ORM
-- **AI Integration**: OpenRouter API (GPT-4o and other models)
+- **AI Integration**: OpenRouter API (GPT-5-mini)
 - **Email**: Mailgun API
-- **Memory System**: Supermemory for persistent context
 - **Styling**: Tailwind CSS + shadcn/ui components
 
 ## Getting Started
@@ -66,11 +63,17 @@ cp .env.example .env
 ```
 
 Configure the following in your `.env`:
+
+**Required:**
 - `DATABASE_URL` - PostgreSQL connection string
-- `OPENROUTER_API_KEY` - Your OpenRouter API key
+- `OPENROUTER_API_KEY` - Your OpenRouter API key (for GPT-5-mini)
 - `MAILGUN_API_KEY` - Your Mailgun API key
 - `MAILGUN_DOMAIN` - Your verified Mailgun domain
-- Additional agent-specific domains as needed
+
+**Removed (no longer needed):**
+- SMS/Twilio integration
+- Supermemory service
+- Complex AI agent configurations
 
 4. Initialize the database:
 ```bash
@@ -108,9 +111,6 @@ offerlogix/
 ├── server/           # Express backend
 │   ├── routes.ts
 │   ├── services/
-│   │   ├── campaign-chat.ts
-│   │   ├── handover-service.ts
-│   │   └── ...
 │   └── db/
 ├── shared/           # Shared types and schemas
 │   └── schema.ts
@@ -118,15 +118,31 @@ offerlogix/
 └── drizzle/         # Database migrations
 ```
 
+## Key Flows
+
+### Campaign Creation → Template Generation → Send
+1. Create campaign with target context
+2. Click "Generate Templates" button → calls `POST /api/templates/generate`
+3. Review generated templates
+4. Launch campaign to send emails
+5. Monitor basic metrics in dashboard
+
+### AI Response or Handover
+1. Recipients reply to campaign emails
+2. AI processes responses automatically
+3. Complex cases appear in Handover Queue for human review
+4. Simple resolve/dismiss workflow
+
 ## Recent Updates
 
-### Latest Features
-- ✅ Per-campaign AI agent selection with UI and schema updates
-- ✅ Mailgun subdomain configuration per agent
-- ✅ Agent email domain as single source of truth for all sending
-- ✅ One-shot specification detection with bulleted summaries
-- ✅ Improved template preview system
-- ✅ Enhanced chat UI with numbered/nested list rendering
+### Latest Changes (Part 2 - Frontend & Docs)
+- ✅ Simplified UI to focus on campaign management with AI template generation
+- ✅ Removed complex AI chat interfaces, SMS integration, and automotive language
+- ✅ Added "Generate Templates" button calling POST /api/templates/generate
+- ✅ Created read-only Conversations view for transcript review
+- ✅ Added simple Handover queue with list + resolve functionality
+- ✅ Updated copy to B2B dealer/vendor positioning
+- ✅ Updated README: OpenRouter GPT-5-mini, Mailgun, DB; no SMS, no Supermemory
 
 ## API Documentation
 

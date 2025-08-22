@@ -207,6 +207,18 @@ async function applyLegacyPatches() {
         updated_at timestamp DEFAULT now() NOT NULL
       )`);
     }
+    // Ensure handovers table exists (idempotent)
+    if (!(await tableExists(client, 'handovers'))) {
+      console.log('[DB Patch] Creating missing handovers table');
+      await client.query(`CREATE TABLE IF NOT EXISTS handovers (
+        id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+        conversation_id varchar REFERENCES conversations(id),
+        reason text,
+        created_at timestamp DEFAULT now() NOT NULL,
+        resolved_at timestamp
+      )`);
+    }
+
 
     // Ensure persona_knowledge_bases table exists
     if (!(await tableExists(client, 'persona_knowledge_bases'))) {

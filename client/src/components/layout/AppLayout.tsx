@@ -1,9 +1,8 @@
 import { ReactNode, useState } from "react";
-import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database, ChevronDown, ChevronRight } from "lucide-react";
+import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database, ChevronDown, ChevronRight, ClipboardList } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
-import ChatWidget from "@/components/ChatWidget";
 
 interface AppLayoutProps {
   children: ReactNode;
@@ -25,48 +24,46 @@ const navigation: NavItem[] = [
     icon: BarChart3,
   },
   {
-    name: "Customers",
-    href: "/leads",
-    icon: Users,
-  },
-  {
-    name: "Customer Interactions",
-    href: "/conversations",
-    icon: MessageSquare,
-  },
-
-  // AI & Automation
-  {
-    name: "AI Management",
-    href: "/ai-settings",
-    icon: Brain,
-    children: [
-      {
-        name: "AI Personas",
-        href: "/personas",
-        icon: Target,
-      }
-    ]
-  },
-  {
-    name: "Knowledge Base",
-    href: "/knowledge-base",
-    icon: Database,
-  },
-  {
-    name: "Credit Campaigns",
+    name: "Email Campaigns",
     href: "/campaigns",
     icon: Zap,
   },
+  {
+    name: "Leads",
+    href: "/leads",
+    icon: Users,
+  },
 
-  // System
+  // Optional Views
+  {
+    name: "Conversations",
+    href: "/conversations",
+    icon: MessageSquare,
+  },
+  {
+    name: "Handover Queue",
+    href: "/handovers",
+    icon: ClipboardList,
+  },
+
+  // Configuration
   {
     name: "Settings",
     href: "/settings",
     icon: Settings,
     children: [
       {
-        name: "Communication Monitor",
+        name: "AI Personas",
+        href: "/personas",
+        icon: Target,
+      },
+      {
+        name: "Knowledge Base",
+        href: "/knowledge-base",
+        icon: Database,
+      },
+      {
+        name: "Email Monitor",
         href: "/email-monitor",
         icon: Mail,
       }
@@ -180,7 +177,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1">
             {navigation.map((item, index) => {
-              const needsDivider = index === 3 || index === 6 || index === 7; // After core, AI, monitoring sections
+              const needsDivider = index === 3 || index === 5; // After core operations and optional views
               
               return (
                 <div key={item.name}>
@@ -247,16 +244,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {children}
         </main>
       </div>
-      
-      {/* Chat Widget - Demo Integration */}
-      <ChatWidget 
-        campaignId="demo-offerlogix-campaign"
-        position="bottom-right"
-        theme="default"
-        autoOpen={false}
-        autoOpenDelay={3000}
-        debug={true}
-      />
     </div>
   );
 }

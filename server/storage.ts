@@ -5,6 +5,7 @@ import {
   conversationMessages,
   leads,
   aiAgentConfig,
+  handovers,
   type Campaign,
   type InsertCampaign,
   type User,
@@ -17,6 +18,8 @@ import {
   type InsertLead,
   type AiAgentConfig,
   type InsertAiAgentConfig,
+  type Handover,
+  type InsertHandover,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
@@ -64,6 +67,12 @@ export interface IStorage {
   getActiveAiAgentConfig(): Promise<AiAgentConfig | undefined>;
   getAiAgentConfig(id: string): Promise<AiAgentConfig | undefined>;
   createAiAgentConfig(config: InsertAiAgentConfig): Promise<AiAgentConfig>;
+
+  // Handover methods
+  getHandovers(): Promise<Handover[]>;
+  createHandover(h: InsertHandover): Promise<Handover>;
+  resolveHandover(id: string): Promise<Handover | null>;
+
   updateAiAgentConfig(id: string, config: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig>;
   deleteAiAgentConfig(id: string): Promise<void>;
   setActiveAiAgentConfig(id: string): Promise<AiAgentConfig>;
@@ -162,11 +171,11 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .returning() as Campaign[];
+      .returning();
     if (result.length === 0) {
       throw new Error('Failed to create campaign');
     }
-    const newCampaign = result[0];
+    const newCampaign = result[0] as Campaign;
 
     // Store campaign in Supermemory for AI recall
     try {
@@ -197,7 +206,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(campaigns.id, id))
       .returning();
-    return updatedCampaign;
+    return updatedCampaign as Campaign;
   }
 
   async deleteCampaign(id: string): Promise<void> {
@@ -264,11 +273,11 @@ export class DatabaseStorage implements IStorage {
         createdAt: new Date(),
         updatedAt: new Date(),
       })
-      .returning() as Conversation[];
+      .returning();
     if (result.length === 0) {
       throw new Error('Failed to create conversation');
     }
-    return result[0];
+    return result[0] as Conversation;
   }
 
   async updateConversation(id: string, conversation: Partial<InsertConversation>): Promise<Conversation> {
@@ -280,7 +289,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(conversations.id, id))
       .returning();
-    return updatedConversation;
+    return updatedConversation as Conversation;
   }
 
   async deleteConversation(id: string): Promise<void> {
@@ -319,11 +328,11 @@ export class DatabaseStorage implements IStorage {
         ...message,
         createdAt: new Date(),
       })
-      .returning() as ConversationMessage[];
+      .returning();
     if (result.length === 0) {
       throw new Error('Failed to create conversation message');
     }
-    const newMessage = result[0];
+    const newMessage = result[0] as ConversationMessage;
 
     // Store human messages in Supermemory for AI recall
     if (!newMessage.isFromAI && newMessage.content && typeof newMessage.content === 'string') {
@@ -363,11 +372,11 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createLead(lead: InsertLead): Promise<Lead> {
-    const result = await db.insert(leads).values(lead).returning() as Lead[];
+    const result = await db.insert(leads).values(lead).returning();
     if (result.length === 0) {
       throw new Error('Failed to create lead');
     }
-    return result[0];
+    return result[0] as Lead;
   }
 
   async createLeads(leadList: InsertLead[]): Promise<Lead[]> {
@@ -381,7 +390,7 @@ export class DatabaseStorage implements IStorage {
       .set({ ...lead, updatedAt: new Date() })
       .where(eq(leads.id, id))
       .returning();
-    return updatedLead;
+    return updatedLead as Lead;
   }
 
   async deleteLead(id: string): Promise<void> {
@@ -435,11 +444,11 @@ export class DatabaseStorage implements IStorage {
       ...config,
       createdAt: new Date(),
       updatedAt: new Date(),
-    }).returning() as AiAgentConfig[];
+    }).returning();
     if (result.length === 0) {
       throw new Error('Failed to create AI agent config');
     }
-    return result[0];
+    return result[0] as AiAgentConfig;
   }
 
   async updateAiAgentConfig(id: string, config: Partial<InsertAiAgentConfig>): Promise<AiAgentConfig> {
@@ -451,7 +460,7 @@ export class DatabaseStorage implements IStorage {
       })
       .where(eq(aiAgentConfig.id, id))
       .returning();
-    return updatedConfig;
+    return updatedConfig as AiAgentConfig;
   }
 
   async deleteAiAgentConfig(id: string): Promise<void> {
@@ -459,16 +468,35 @@ export class DatabaseStorage implements IStorage {
   }
 
   async setActiveAiAgentConfig(id: string): Promise<AiAgentConfig> {
-    // First, deactivate all configs
+    // First, set all configs to inactive
     await db.update(aiAgentConfig).set({ isActive: false });
-
-    // Then activate the selected config
+    
+    // Then set the specified config to active
     const [activeConfig] = await db
       .update(aiAgentConfig)
       .set({ isActive: true, updatedAt: new Date() })
       .where(eq(aiAgentConfig.id, id))
       .returning();
-    return activeConfig;
+    return activeConfig as AiAgentConfig;
+  }
+
+  // Handover methods
+  async getHandovers(): Promise<Handover[]> {
+    return await db.select().from(handovers).orderBy(desc(handovers.createdAt));
+  }
+
+  async createHandover(h: InsertHandover): Promise<Handover> {
+    const [created] = await db.insert(handovers).values({ ...h, createdAt: new Date() }).returning();
+    return created as Handover;
+  }
+
+  async resolveHandover(id: string): Promise<Handover | null> {
+    const [updated] = await db
+      .update(handovers)
+      .set({ resolvedAt: new Date() })
+      .where(eq(handovers.id, id))
+      .returning();
+    return (updated as Handover) || null;
   }
 }
 

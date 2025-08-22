@@ -1,4 +1,4 @@
-import { Car, Wrench, Calendar } from "lucide-react";
+import { Mail, Target, Calendar } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import type { Campaign } from "@shared/schema";
 
@@ -40,7 +40,7 @@ export default function RecentCampaigns() {
   };
 
   const getIcon = (index: number) => {
-    const icons = [Car, Wrench, Calendar];
+    const icons = [Mail, Target, Calendar];
     const colors = ['text-blue-600', 'text-orange-600', 'text-green-600'];
     const backgrounds = ['bg-blue-100', 'bg-orange-100', 'bg-green-100'];
     
@@ -65,16 +65,16 @@ export default function RecentCampaigns() {
 
   return (
     <div>
-      <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Campaigns</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Email Campaigns</h3>
       <div className="bg-white rounded-xl shadow-sm border border-gray-200">
         <div className="p-6">
           {!campaigns || campaigns.length === 0 ? (
             <div className="text-center py-12">
               <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center mx-auto mb-4">
-                <Car className="w-6 h-6 text-gray-400" />
+                <Mail className="w-6 h-6 text-gray-400" />
               </div>
               <h4 className="text-lg font-medium text-gray-900 mb-2">No campaigns yet</h4>
-              <p className="text-gray-500">Create your first automotive email campaign using the AI Campaign Agent</p>
+              <p className="text-gray-500">Create your first B2B email campaign to reach dealers and vendors</p>
             </div>
           ) : (
             <div className="space-y-4">

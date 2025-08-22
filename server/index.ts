@@ -100,13 +100,8 @@ app.use((req, res, next) => {
   }, async () => {
     log(`serving on port ${port}`);
     
-    // Initialize services after server starts
-    try {
-      const { initializeSystem } = await import('./services/system-initializer.js');
-      await initializeSystem(server);
-    } catch (error) {
-      console.error('Failed to initialize services:', error);
-    }
+    // Services initialized inline during route registration
+    log('✅ Server started successfully');
   });
 
   // Graceful shutdown
