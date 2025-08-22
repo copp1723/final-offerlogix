@@ -2,17 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { insertCampaignSchema, insertConversationSchema, insertConversationMessageSchema, insertLeadSchema, insertAiAgentConfigSchema, insertClientSchema, type AiAgentConfig, type Client } from "@shared/schema";
-import { suggestCampaignGoals, enhanceEmailTemplates, generateSubjectLines, suggestCampaignNames, generateEmailTemplates } from "./services/openai";
-import { processCampaignChat } from "./services/ai-chat";
+
 import { sendCampaignEmail, sendBulkEmails, validateEmailAddresses } from "./services/mailgun";
 // NOTE: There are two Mailgun integrations in this codebase:
 //  1) ./services/mailgun (returns { success, sent, failed, errors })
 //  2) ./services/email/mailgun-service (class-based, returns { sent, failed, errors } for bulk)
 // Be careful not to mix return shapes across endpoints.
 import { mailgunService } from "./services/email/mailgun-service";
-import { sendSMS, sendCampaignAlert, validatePhoneNumber } from "./services/twilio";
 import { campaignScheduler } from "./services/campaign-scheduler";
-import { smsIntegration } from "./services/sms-integration";
 import { tenantMiddleware, type TenantRequest } from "./tenant";
 import { db } from "./db";
 import { clients } from "@shared/schema";
@@ -21,38 +18,17 @@ import { webSocketService } from "./services/websocket";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { CSVValidationService } from "./services/csv/csv-validation";
-import notificationRoutes from "./routes/notifications";
-import deliverabilityRoutes from "./routes/deliverability";
-import aiConversationRoutes from "./routes/ai-conversation";
-import { leadScoringService } from "./services/lead-scoring";
-import { predictiveOptimizationService } from "./services/predictive-optimization";
-import { dynamicResponseIntelligenceService } from "./services/dynamic-response-intelligence";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Serve chat widget files from client/public directory during development
-  if (app.get("env") === "development") {
-    const path = await import("path");
-    const clientPublicPath = path.resolve(process.cwd(), "client", "public");
-    
-    app.get('/offerlogix-chat-widget.js', (req, res) => {
-      res.setHeader('Content-Type', 'application/javascript');
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.sendFile(path.resolve(clientPublicPath, 'offerlogix-chat-widget.js'));
-    });
-    
-    app.get('/chat-widget-demo.html', (req, res) => {
-      res.setHeader('Content-Type', 'text/html');
-      res.sendFile(path.resolve(clientPublicPath, 'chat-widget-demo.html'));
-    });
-  }
+
 
   // Apply tenant middleware to all API routes
   app.use('/api', tenantMiddleware);
 
   // DIAGNOSTIC: Basic server test (no database, no dependencies)
   app.get('/api/debug/ping', (req, res) => {
-    res.json({ 
+    res.json({
       status: 'alive',
       timestamp: new Date().toISOString(),
       environment: process.env.NODE_ENV || 'unknown',
@@ -305,81 +281,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Enhancement routes
-  app.post("/api/ai/enhance-templates", async (req, res) => {
-    try {
-      const { context, name } = req.body;
-      if (!context || !name) {
-        return res.status(400).json({ message: "Context and name are required" });
-      }
 
-      const result = await enhanceEmailTemplates(context, name);
-      res.json(result);
-    } catch (error) {
-      console.error('AI enhance templates error:', error);
-      res.status(500).json({ message: "Failed to generate templates" });
-    }
-  });
 
-  app.post("/api/ai/generate-subjects", async (req, res) => {
-    try {
-      const { context, name } = req.body;
-      if (!context || !name) {
-        return res.status(400).json({ message: "Context and name are required" });
-      }
+  // Templates generation
+  const templateRoutes = await import('./routes/templates');
+  app.use('/api/templates', templateRoutes.default);
 
-      const subjectLines = await generateSubjectLines(context, name);
-      res.json({ subjectLines });
-    } catch (error) {
-      console.error('AI generate subjects error:', error);
-      res.status(500).json({ message: "Failed to generate subject lines" });
-    }
-  });
-
-  app.post("/api/ai/suggest-goals", async (req, res) => {
-    try {
-      const { context } = req.body;
-      if (!context) {
-        return res.status(400).json({ message: "Context is required" });
-      }
-
-      const goals = await suggestCampaignGoals(context);
-      res.json({ goals });
-    } catch (error) {
-      console.error('AI suggest goals error:', error);
-      res.status(500).json({ message: "Failed to generate goals" });
-    }
-  });
-
-  app.post("/api/ai/suggest-names", async (req, res) => {
-    try {
-      const { context } = req.body;
-      if (!context) {
-        return res.status(400).json({ message: "Context is required" });
-      }
-
-      const names = await suggestCampaignNames(context);
-      res.json({ names });
-    } catch (error) {
-      console.error('AI suggest names error:', error);
-      res.status(500).json({ message: "Failed to generate campaign names" });
-    }
-  });
-
-  app.post("/api/ai/generate-templates", async (req, res) => {
-    try {
-      const { context, name, numberOfTemplates = 5 } = req.body;
-      if (!context || !name) {
-        return res.status(400).json({ message: "Context and campaign name are required" });
-      }
-
-      const templates = await generateEmailTemplates(context, name, numberOfTemplates);
-      res.json({ templates });
-    } catch (error) {
-      console.error('AI generate templates error:', error);
-      res.status(500).json({ message: "Failed to generate email templates" });
-    }
-  });
+  // Unsubscribe routes (for email deliverability compliance)
+  const unsubscribeRoutes = await import('./routes/unsubscribe');
+  app.use('/', unsubscribeRoutes.default);
 
   // Email routes
   app.post("/api/email/send", async (req, res) => {
@@ -446,207 +356,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Handover evaluation endpoint
-  app.post("/api/conversations/:id/evaluate-handover", async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { message, customCriteria, sendEmail = false } = req.body;
 
-      // Get conversation from storage
-      const conversation = await storage.getConversation(id);
-      if (!conversation) {
-        return res.status(404).json({ message: "Conversation not found" });
-      }
 
-      const { HandoverService } = await import('./services/handover-service.js');
-      const evaluation = await HandoverService.evaluateHandover(
-        id,
-        conversation,
-        message,          // { role: 'agent' | 'lead', content: string }
-        customCriteria
-      );
 
-      // If handover is triggered and email is requested, process the handover
-      if (evaluation.shouldHandover && sendEmail) {
-        // Get additional data for handover email
-        const allLeads = await storage.getLeads();
-        const lead = conversation.leadId ? allLeads.find(l => l.id === conversation.leadId) : null;
 
-        const allCampaigns = await storage.getCampaigns();
-        const campaign = conversation.campaignId ?
-          allCampaigns.find(c => c.id === conversation.campaignId) : null;
 
-        await HandoverService.processHandover(
-          id,
-          evaluation,
-          HandoverService.getDefaultCriteria(),
-          {
-            lead,
-            conversation,
-            campaignName: campaign?.name
-          }
-        );
-      }
-
-      res.json(evaluation);
-    } catch (error) {
-      console.error('Handover evaluation error:', error);
-      res.status(500).json({ message: "Failed to evaluate handover" });
-    }
-  });
-
-  // Get handover statistics
-  app.get("/api/handover/stats", async (req, res) => {
-    try {
-      const { HandoverService } = await import('./services/handover-service.js');
-      const stats = HandoverService.getHandoverStats();
-      res.json(stats);
-    } catch (error) {
-      console.error('Handover stats error:', error);
-      res.status(500).json({ message: "Failed to get handover stats" });
-    }
-  });
-
-  // Generate automotive system prompt
-  app.post("/api/ai/generate-prompt", async (req, res) => {
-    try {
-      const { dealershipConfig, conversationContext } = req.body;
-
-      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
-      const systemPrompt = AutomotivePromptService.generateSystemPrompt(
-        dealershipConfig || AutomotivePromptService.getDefaultDealershipConfig(),
-        conversationContext
-      );
-
-      res.json({ systemPrompt });
-    } catch (error) {
-      console.error('Prompt generation error:', error);
-      res.status(500).json({ message: "Failed to generate system prompt" });
-    }
-  });
-
-  // Analyze conversation for automotive context
-  app.post("/api/ai/analyze-conversation", async (req, res) => {
-    try {
-      const { messageContent, leadName, vehicleInterest, previousMessages } = req.body;
-
-      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
-      const context = AutomotivePromptService.createConversationContext(
-        leadName,
-        vehicleInterest,
-        messageContent,
-        previousMessages
-      );
-
-      const guidelines = AutomotivePromptService.generateResponseGuidelines(context);
-
-      res.json({ context, guidelines });
-    } catch (error) {
-      console.error('Conversation analysis error:', error);
-      res.status(500).json({ message: "Failed to analyze conversation" });
-    }
-  });
-
-  // Generate campaign creation prompt
-  app.post("/api/ai/campaign-prompt", async (req, res) => {
-    try {
-      const { userInput, campaignType, urgency } = req.body;
-
-      const { CampaignPromptService } = await import('./services/campaign-prompts.js');
-      const prompt = CampaignPromptService.generateContextualPrompt(userInput, campaignType, urgency);
-
-      res.json({ prompt });
-    } catch (error) {
-      console.error('Campaign prompt generation error:', error);
-      res.status(500).json({ message: "Failed to generate campaign prompt" });
-    }
-  });
-
-  // Analyze user intent for campaign creation
-  app.post("/api/ai/analyze-campaign-intent", async (req, res) => {
-    try {
-      const { message } = req.body;
-
-      const { CampaignPromptService } = await import('./services/campaign-prompts.js');
-      const intent = CampaignPromptService.parseUserIntent(message);
-      const guidance = CampaignPromptService.generateResponseGuidance(intent);
-
-      res.json({ intent, guidance });
-    } catch (error) {
-      console.error('Campaign intent analysis error:', error);
-      res.status(500).json({ message: "Failed to analyze campaign intent" });
-    }
-  });
-
-  // Generate enhanced system prompt with conversation enhancers
-  app.post("/api/ai/enhanced-system-prompt", async (req, res) => {
-    try {
-      const {
-        messageContent,
-        leadName,
-        vehicleInterest,
-        previousMessages,
-        season,
-        brand,
-        isReEngagement,
-        useStraightTalkingStyle
-      } = req.body;
-
-      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
-
-      const context = AutomotivePromptService.createConversationContext(
-        leadName,
-        vehicleInterest,
-        messageContent,
-        previousMessages
-      );
-
-      const config = AutomotivePromptService.getDefaultDealershipConfig();
-
-      const enhancedPrompt = AutomotivePromptService.generateEnhancedSystemPrompt(
-        config,
-        context,
-        {
-          season,
-          brand,
-          isReEngagement,
-          useStraightTalkingStyle
-        }
-      );
-
-      res.json({ prompt: enhancedPrompt, context });
-    } catch (error) {
-      console.error('Enhanced system prompt generation error:', error);
-      res.status(500).json({ message: "Failed to generate enhanced system prompt" });
-    }
-  });
-
-  // Get conversation enhancers for specific context
-  app.post("/api/ai/conversation-enhancers", async (req, res) => {
-    try {
-      const { messageContent, leadName, vehicleInterest, season, brand, isReEngagement } = req.body;
-
-      const { AutomotivePromptService } = await import('./services/automotive-prompts.js');
-
-      const context = AutomotivePromptService.createConversationContext(
-        leadName,
-        vehicleInterest,
-        messageContent
-      );
-
-      const enhancers = AutomotivePromptService.applyConversationEnhancers(
-        context,
-        season,
-        brand,
-        isReEngagement
-      );
-
-      res.json({ enhancers, context });
-    } catch (error) {
-      console.error('Conversation enhancers error:', error);
-      res.status(500).json({ message: "Failed to get conversation enhancers" });
-    }
-  });
 
   // CSV upload configuration (enhanced version available in lead management section)
   const basicUpload = multer({
@@ -805,158 +519,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Email Monitor Routes
-  const emailRules = [
-    {
-      id: "automotive-inquiry",
-      name: "Automotive Inquiry Detector",
-      enabled: true,
-      conditions: {
-        subject: "test drive|vehicle|car|auto|dealership",
-        body: "interested|pricing|quote|appointment"
-      },
-      actions: {
-        createLead: true,
-        setSource: "email_inquiry",
-        setPriority: "normal",
-        autoRespond: true
-      }
-    },
-    {
-      id: "urgent-service",
-      name: "Urgent Service Request",
-      enabled: true,
-      conditions: {
-        subject: "urgent|emergency|asap|immediate",
-        body: "service|repair|maintenance|problem"
-      },
-      actions: {
-        createLead: true,
-        setSource: "service_request",
-        setPriority: "urgent",
-        autoRespond: true
-      }
-    }
-  ];
+  // Mailgun delivery webhooks (bounces, complaints, etc.)
+  const mailgunWebhookRoutes = await import('./routes/mailgun-webhooks');
+  app.use('/api', mailgunWebhookRoutes.default);
 
-  // Get email monitoring status (Enhanced)
-  app.get("/api/email-monitor/status", async (req, res) => {
-    try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      const status = enhancedEmailMonitor.getStatus();
-      res.json(status);
-    } catch (error) {
-      console.error('Email monitor status error:', error);
-      res.status(500).json({ message: "Failed to get email monitor status" });
-    }
-  });
 
-  // Get email monitoring rules (Enhanced)
-  app.get("/api/email-monitor/rules", async (req, res) => {
-    try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      const rules = enhancedEmailMonitor.getTriggerRules();
-      res.json(rules);
-    } catch (error) {
-      console.error('Email monitor rules error:', error);
-      res.status(500).json({ message: "Failed to get email monitor rules" });
-    }
-  });
 
-  // Create or update a rule (upsert)
-  app.post("/api/email-monitor/rules", async (req, res) => {
-    try {
-      const rule = req.body;
-      if (!rule || !rule.id || !rule.name) {
-        return res.status(400).json({ message: 'Rule id and name required' });
-      }
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      // Simple replace logic
-      const existing = enhancedEmailMonitor.getTriggerRules().find(r => r.id === rule.id);
-      if (existing) {
-        // remove then add
-        enhancedEmailMonitor.removeTriggerRule(rule.id);
-      }
-      enhancedEmailMonitor.addTriggerRule({
-        ...rule,
-        // Convert any regex-like strings (containing |) into RegExp server-side for matching logic
-        conditions: {
-          ...rule.conditions,
-          subject: rule.conditions?.subject ? new RegExp(rule.conditions.subject, 'i') : undefined,
-          body: rule.conditions?.body ? new RegExp(rule.conditions.body, 'i') : undefined
-        }
-      });
-      res.json({ message: 'Rule saved' });
-    } catch (error) {
-      console.error('Email monitor save rule error:', error);
-      res.status(500).json({ message: 'Failed to save rule' });
-    }
-  });
-
-  app.delete('/api/email-monitor/rules/:id', async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      const removed = enhancedEmailMonitor.removeTriggerRule(id);
-      if (!removed) return res.status(404).json({ message: 'Rule not found' });
-      res.json({ message: 'Rule deleted' });
-    } catch (error) {
-      console.error('Email monitor delete rule error:', error);
-      res.status(500).json({ message: 'Failed to delete rule' });
-    }
-  });
-
-  // Start/stop monitoring (placeholder)
-  app.post("/api/email-monitor/start", async (req, res) => {
-    try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      await enhancedEmailMonitor.start();
-      res.json({ message: "Email monitor started successfully" });
-    } catch (e) {
-      res.status(500).json({ message: 'Failed to start email monitor' });
-    }
-  });
-
-  app.post("/api/email-monitor/stop", async (req, res) => {
-    try {
-      const { enhancedEmailMonitor } = await import('./services/enhanced-email-monitor.js');
-      await enhancedEmailMonitor.stop();
-      res.json({ message: "Email monitor stopped successfully" });
-    } catch (e) {
-      res.status(500).json({ message: 'Failed to stop email monitor' });
-    }
-  });
-
-  // SMS routes
-  app.post("/api/sms/send", async (req, res) => {
-    try {
-      const { to, message, from } = req.body;
-      if (!to || !message) {
-        return res.status(400).json({ message: "Phone number and message are required" });
-      }
-
-      const result = await sendSMS({ to, message, from });
-      res.json(result);
-    } catch (error) {
-      console.error('SMS send error:', error);
-      res.status(500).json({ message: "Failed to send SMS" });
-    }
-  });
-
-  app.post("/api/sms/campaign-alert", async (req, res) => {
-    try {
-      const { phoneNumber, campaignName, metric, value } = req.body;
-      if (!phoneNumber || !campaignName || !metric || !value) {
-        return res.status(400).json({ message: "All fields are required" });
-      }
-
-      const result = await sendCampaignAlert(phoneNumber, campaignName, metric, value);
-      res.json(result);
-    } catch (error) {
-      console.error('Campaign alert error:', error);
-      res.status(500).json({ message: "Failed to send campaign alert" });
-    }
-  });
 
   // Campaign Execution Routes
   // Execute campaign (Enhanced with Orchestrator)
@@ -1110,20 +678,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/sms/validate-phone", async (req, res) => {
-    try {
-      const { phoneNumber } = req.body;
-      if (!phoneNumber) {
-        return res.status(400).json({ message: "Phone number is required" });
-      }
-
-      const result = await validatePhoneNumber(phoneNumber);
-      res.json(result);
-    } catch (error) {
-      console.error('Phone validation error:', error);
-      res.status(500).json({ message: "Failed to validate phone number" });
-    }
-  });
 
   // User role management routes
   app.put("/api/users/:id/role", async (req, res) => {
@@ -1234,100 +788,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // AI Chat Campaign route
-  app.post("/api/ai/chat-campaign", async (req, res) => {
-    try {
-      const { message, currentStep, campaignData } = req.body;
-
-      if (!message) {
-        return res.status(400).json({ message: "Message is required" });
-      }
-
-      const { CampaignChatService } = await import('./services/campaign-chat.js');
-      const response = await CampaignChatService.processCampaignChat(
-        message,
-        currentStep || 'context',
-        campaignData || {}
-      );
-
-      // If campaign is completed, create it in storage
-      if (response.completed && response.data) {
-        // Sanitize fields before DB insert to avoid invalid jsonb errors
-        const sanitizeArray = (val: any, fallback: any[] = []) => {
-          if (Array.isArray(val)) return val;
-          if (typeof val === 'string') {
-            try {
-              const parsed = JSON.parse(val);
-              return Array.isArray(parsed) ? parsed : fallback;
-            } catch { return fallback; }
-          }
-          return fallback;
-        };
-        const toInt = (val: any, def: number, min?: number, max?: number) => {
-          const n = typeof val === 'string' ? parseInt(val, 10) : typeof val === 'number' ? val : def;
-          if (Number.isNaN(n)) return def;
-          const clampedMin = min ?? n;
-          const clampedMax = max ?? n;
-          return Math.min(Math.max(n, clampedMin), clampedMax);
-        };
-
-        // templates: ensure array of objects { subject, content }
-        let templates = sanitizeArray(response.data.templates, []);
-        if (templates.length && typeof templates[0] === 'string') {
-          templates = (templates as string[]).map((s) => ({ subject: String(s).slice(0, 80), content: String(s) }));
-        }
-        if (templates.length && typeof templates[0] === 'object' && !('content' in templates[0]) && 'html' in templates[0]) {
-          templates = (templates as any[]).map((t) => ({ subject: String(t.subject || 'Template'), content: String(t.html || '') }));
-        }
-
-        // subjectLines: ensure array of strings
-        let subjectLines = sanitizeArray(response.data.subjectLines, []);
-        if (subjectLines.length && typeof subjectLines[0] === 'object' && 'subject' in subjectLines[0]) {
-          subjectLines = (subjectLines as any[]).map((t) => String(t.subject || ''));
-        }
-
-        const campaignToCreate = insertCampaignSchema.parse({
-          name: response.data.name,
-          context: response.data.context,
-          handoverGoals: response.data.handoverGoals,
-          targetAudience: response.data.targetAudience,
-          handoverPrompt: response.data.handoverPrompt,
-          handoverPromptSpec: response.data.handoverPromptSpec || null,
-          numberOfTemplates: toInt(response.data.numberOfTemplates, 5, 1, 30),
-          daysBetweenMessages: toInt(response.data.daysBetweenMessages, 3, 1, 30),
-          templates: templates,
-          subjectLines: subjectLines,
-          status: 'draft'
-        });
-
-        try {
-          const createdCampaign = await storage.createCampaign(campaignToCreate);
-          response.data.id = createdCampaign.id;
-        } catch (e) {
-          console.error('Failed to create campaign from chat (sanitized insert failed):', e);
-          // Do not hard fail the chat flow; return response without persisting
-        }
-      }
-
-      res.json({
-        message: response.message,
-        nextStep: response.nextStep,
-        campaignData: response.data,
-        isComplete: response.completed,
-        actions: response.actions,
-        suggestions: response.suggestions,
-        progress: response.progress,
-        // Expose structured JSON reply only when feature flag is set and payload exists
-        ...(process.env.STRUCTURED_REPLY_JSON === 'true' && (response as any).structuredReply
-          ? { structuredReply: (response as any).structuredReply }
-          : {})
-      });
-    } catch (error) {
-      console.error('AI chat campaign error:', error);
-      res.status(500).json({ message: "Failed to process chat message" });
-    }
-  });
-
   // Lead management routes
   // Configure multer for CSV uploads with security validation
   const upload = multer({
@@ -1387,21 +847,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
 john.doe@example.com,John,Doe,555-1234,Toyota Camry,Website,Interested in test drive
 jane.smith@example.com,Jane,Smith,555-5678,Honda Civic,Walk-in,Looking for financing options
 bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in evaluation`;
-    
+
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', 'attachment; filename="lead-template.csv"');
     res.send(csvTemplate);
   });
 
-  // Lead memory summary (lightweight RAG-derived context for Lead Details drawer)
-  app.get("/api/leads/:id/memory-summary", async (req, res) => {
-    try {
-      const { getLeadMemorySummary } = await import('./services/supermemory.js');
-      return getLeadMemorySummary(req, res);
-    } catch (e) {
-      return res.status(500).json({ error: 'Failed to load memory summary' });
-    }
-  });
+
 
   // Create a new lead
   app.post("/api/leads", async (req: TenantRequest, res) => {
@@ -1411,14 +863,14 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
         clientId: req.clientId // Ensure client ID is assigned from tenant middleware
       });
       const lead = await storage.createLead(leadData);
-      
+
       // Broadcast new lead via WebSocket
       webSocketService.broadcastNewLead(lead);
-      
+
       res.json(lead);
     } catch (error) {
       console.error('Create lead error:', error);
-      res.status(400).json({ 
+      res.status(400).json({
         message: "Invalid lead data",
         error: error instanceof Error ? error.message : 'Unknown error'
       });
@@ -1750,14 +1202,11 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
     }
   });
 
-  // User notification system routes
-  app.use('/api/notifications', notificationRoutes);
-  app.use('/api/deliverability', deliverabilityRoutes);
-  app.use('/api/ai', aiConversationRoutes);
+  // Handover minimal routes
+  const handoverRoutes = await import('./routes/handovers');
+  app.use('/api/handovers', handoverRoutes.default);
 
-  // Chat widget routes
-  const chatRoutes = await import('./routes/chat');
-  app.use('/api/chat', chatRoutes.default);
+
 
   // Health check routes
   const healthRoutes = await import('./routes/health');
@@ -1771,54 +1220,9 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   const agentRoutes = await import('./routes/agent');
   app.use('/api/agent', agentRoutes.default);
 
-  // Conversation Intelligence routes
-  const conversationIntelligenceRoutes = await import('./routes/conversation-intelligence');
-  app.use('/api/conversation-intelligence', conversationIntelligenceRoutes.conversationIntelligenceRouter);
-
-  // Knowledge Base routes
-  const knowledgeBaseRoutes = await import('./routes/knowledge-base');
-  app.use('/api/knowledge-base', knowledgeBaseRoutes.default);
-
-  // KB Campaign Integration routes
-  const kbCampaignRoutes = await import('./routes/kb-campaign-integration');
-  app.use('/api/kb-campaign', kbCampaignRoutes.default);
-
-  // AI Persona Management routes
-  const aiPersonaRoutes = await import('./routes/ai-persona');
-  app.use('/api/personas', aiPersonaRoutes.default);
-
-  // SMS Integration Routes
-  app.post("/api/sms/opt-in", async (req, res) => {
-    try {
-      const { leadId, campaignId, optInMessage } = req.body;
-      const success = await smsIntegration.sendOptInRequest(leadId, campaignId, optInMessage);
-      res.json({ success });
-    } catch (error) {
-      console.error('SMS opt-in error:', error);
-      res.status(500).json({ message: "Failed to send SMS opt-in" });
-    }
-  });
-
-  app.post("/api/sms/opt-in-response", async (req, res) => {
-    try {
-      const { phoneNumber, response } = req.body;
-      const optedIn = await smsIntegration.processOptInResponse(phoneNumber, response);
-      res.json({ optedIn });
-    } catch (error) {
-      console.error('SMS opt-in response error:', error);
-      res.status(500).json({ message: "Failed to process SMS opt-in response" });
-    }
-  });
-
-  app.get("/api/leads/:id/sms-status", async (req, res) => {
-    try {
-      const status = await smsIntegration.getSMSStatus(req.params.id);
-      res.json(status);
-    } catch (error) {
-      console.error('SMS status error:', error);
-      res.status(500).json({ message: "Failed to get SMS status" });
-    }
-  });
+  // AI Personas routes
+  const personaRoutes = await import('./routes/ai-persona');
+  app.use('/api/personas', personaRoutes.default);
 
   // Campaign Scheduling Routes
   app.post("/api/campaigns/:id/schedule", async (req, res) => {
@@ -1871,159 +1275,6 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
     }
   });
 
-  // Intelligence System API Routes
-
-  // Lead Scoring Routes
-  app.get("/api/intelligence/lead-scoring/:leadId", async (req: TenantRequest, res) => {
-    try {
-      const { leadId } = req.params;
-      const { profileId } = req.query;
-
-      const score = await leadScoringService.calculateLeadScore(leadId, profileId as string);
-      res.json(score);
-    } catch (error) {
-      console.error('Lead scoring error:', error);
-      res.status(500).json({ message: "Failed to calculate lead score" });
-    }
-  });
-
-  app.post("/api/intelligence/lead-scoring/bulk", async (req: TenantRequest, res) => {
-    try {
-      const { profileId } = req.body;
-
-      const scores = await leadScoringService.bulkScoreLeads(profileId);
-      res.json(scores);
-    } catch (error) {
-      console.error('Bulk lead scoring error:', error);
-      res.status(500).json({ message: "Failed to calculate bulk lead scores" });
-    }
-  });
-
-  // List scoring profiles for UI
-  app.get("/api/intelligence/scoring-profiles", async (_req: TenantRequest, res) => {
-    try {
-      const profiles = leadScoringService.getScoringProfiles();
-      res.json(profiles);
-    } catch (error) {
-      console.error('List scoring profiles error:', error);
-      res.status(500).json({ message: "Failed to list scoring profiles" });
-    }
-  });
-
-  app.post("/api/intelligence/scoring-profiles", async (req: TenantRequest, res) => {
-    try {
-      const profileData = req.body;
-
-      const profile = await leadScoringService.createScoringProfile(profileData);
-      res.json(profile);
-    } catch (error) {
-      console.error('Create scoring profile error:', error);
-      res.status(500).json({ message: "Failed to create scoring profile" });
-    }
-  });
-
-  // Predictive Optimization Routes
-  app.get("/api/intelligence/predictive/insights", async (req: TenantRequest, res) => {
-    try {
-      const insights = await predictiveOptimizationService.getPredictiveInsights();
-      res.json(insights);
-    } catch (error) {
-      console.error('Predictive insights error:', error);
-      res.status(500).json({ message: "Failed to get predictive insights" });
-    }
-  });
-
-  app.get("/api/intelligence/predictive/recommendations", async (req: TenantRequest, res) => {
-    try {
-      const { campaignId } = req.query;
-
-      const recommendations = await predictiveOptimizationService.generateOptimizationRecommendations(campaignId as string);
-      res.json(recommendations);
-    } catch (error) {
-      console.error('Predictive recommendations error:', error);
-      res.status(500).json({ message: "Failed to generate optimization recommendations" });
-    }
-  });
-
-  app.get("/api/intelligence/predictive/performance", async (req: TenantRequest, res) => {
-    try {
-      const performanceData = await predictiveOptimizationService.analyzeHistoricalPerformance();
-      res.json(performanceData);
-    } catch (error) {
-      console.error('Performance analysis error:', error);
-      res.status(500).json({ message: "Failed to analyze performance data" });
-    }
-  });
-
-  // Dynamic Response Intelligence Routes
-  app.get("/api/intelligence/conversation/:conversationId/analysis", async (req: TenantRequest, res) => {
-    try {
-      const { conversationId } = req.params;
-
-      const analysis = await dynamicResponseIntelligenceService.analyzeConversation(conversationId);
-      res.json(analysis);
-    } catch (error) {
-      console.error('Conversation analysis error:', error);
-      res.status(500).json({ message: "Failed to analyze conversation" });
-    }
-  });
-
-  app.get("/api/intelligence/conversation/active-analysis", async (req: TenantRequest, res) => {
-    try {
-      const analyses = await dynamicResponseIntelligenceService.analyzeAllActiveConversations();
-      res.json(analyses);
-    } catch (error) {
-      console.error('Active conversations analysis error:', error);
-      res.status(500).json({ message: "Failed to analyze active conversations" });
-    }
-  });
-
-  // Keep basic escalation candidates route (needed for escalation triggers)
-  app.get("/api/intelligence/conversation/escalation-candidates", async (req: TenantRequest, res) => {
-    try {
-      const candidates = await dynamicResponseIntelligenceService.getEscalationCandidates();
-      res.json(candidates);
-    } catch (error) {
-      console.error('Escalation candidates error:', error);
-      res.status(500).json({ message: "Failed to get escalation candidates" });
-    }
-  });
-
-  // Simplified dashboard route (basic metrics only)
-  app.get("/api/intelligence/dashboard", async (req: TenantRequest, res) => {
-    try {
-      // Basic dashboard with essential metrics only
-      const leads = await storage.getLeads();
-      const campaigns = await storage.getCampaigns();
-      const conversations = await storage.getConversations();
-
-      const basicDashboard = {
-        leadScoring: {
-          totalLeads: leads.length,
-          hotLeads: leads.filter(l => (l as any).score && (l as any).score > 80).length,
-          warmLeads: leads.filter(l => (l as any).score && (l as any).score > 50 && (l as any).score <= 80).length,
-          coldLeads: leads.filter(l => !(l as any).score || (l as any).score <= 50).length,
-          averageScore: leads.reduce((sum, l) => sum + ((l as any).score || 0), 0) / (leads.length || 1)
-        },
-        conversationIntelligence: {
-          totalConversations: conversations.length,
-          escalationCount: 0, // Will be calculated by escalation service
-          averageConfidence: 85
-        },
-        overallSystemHealth: {
-          score: 85,
-          status: 'good' as const,
-          lastUpdated: new Date()
-        }
-      };
-
-      res.json(basicDashboard);
-    } catch (error) {
-      console.error('Dashboard error:', error);
-      res.status(500).json({ message: "Failed to load dashboard data" });
-    }
-  });
-
   // Simplified Dashboard Route
   app.get("/api/dashboard", async (req: TenantRequest, res) => {
     try {
@@ -2062,6 +1313,108 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       console.error('Dashboard API error:', error);
       res.status(500).json({ message: "Failed to load dashboard data" });
     }
+  });
+
+  // Missing AI endpoints (stubs for now)
+  app.post("/api/ai/suggest-goals", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI goal suggestion not yet implemented",
+      suggestions: ["Generate leads", "Increase conversions", "Build relationships"]
+    });
+  });
+
+  app.post("/api/ai/enhance-templates", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI template enhancement not yet implemented",
+      templates: []
+    });
+  });
+
+  app.post("/api/ai/generate-subjects", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI subject generation not yet implemented",
+      subjects: []
+    });
+  });
+
+  app.post("/api/ai/suggest-names", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI name suggestion not yet implemented",
+      names: []
+    });
+  });
+
+  app.post("/api/ai/generate-templates", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI template generation not yet implemented",
+      templates: []
+    });
+  });
+
+  app.post("/api/ai/analyze-conversation", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI conversation analysis not yet implemented",
+      analysis: null
+    });
+  });
+
+  app.post("/api/ai/generate-prompt", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI prompt generation not yet implemented",
+      prompt: ""
+    });
+  });
+
+  app.post("/api/ai/chat-campaign", async (req, res) => {
+    res.status(501).json({ 
+      message: "AI chat campaign not yet implemented",
+      response: null
+    });
+  });
+
+  // Missing Email Monitor endpoints (stubs for now)
+  app.get("/api/email-monitor/status", async (req, res) => {
+    res.json({
+      status: "not_implemented",
+      message: "Email monitoring not yet implemented",
+      isRunning: false,
+      lastCheck: null,
+      totalEmails: 0,
+      unreadEmails: 0
+    });
+  });
+
+  app.get("/api/email-monitor/rules", async (req, res) => {
+    res.json({
+      rules: [],
+      message: "Email monitoring rules not yet implemented"
+    });
+  });
+
+  app.post("/api/email-monitor/start", async (req, res) => {
+    res.status(501).json({ 
+      message: "Email monitor start not yet implemented",
+      status: "not_started"
+    });
+  });
+
+  app.post("/api/email-monitor/stop", async (req, res) => {
+    res.status(501).json({ 
+      message: "Email monitor stop not yet implemented",
+      status: "not_stopped"
+    });
+  });
+
+  app.delete("/api/email-monitor/rules/:id", async (req, res) => {
+    res.status(501).json({ 
+      message: "Email monitor rule deletion not yet implemented"
+    });
+  });
+
+  app.post("/api/email-monitor/rules", async (req, res) => {
+    res.status(501).json({ 
+      message: "Email monitor rule creation not yet implemented"
+    });
   });
 
 

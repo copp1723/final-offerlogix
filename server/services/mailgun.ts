@@ -114,12 +114,32 @@ async function runWithConcurrency<T, R>(items: T[], limit: number, task: (item: 
   return results;
 }
 
+/**
+ * Check if email address is suppressed (bounced, complained, unsubscribed)
+ */
+async function isEmailSuppressed(email: string): Promise<boolean> {
+  try {
+    const { storage } = await import('../storage');
+    const lead = await storage.getLeadByEmail(email);
+
+    if (lead) {
+      const suppressedStatuses = ['bounced', 'complained', 'unsubscribed'];
+      return suppressedStatuses.includes(lead.status);
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Error checking email suppression:', error);
+    return false; // Don't block sending on database errors
+  }
+}
+
 export async function sendCampaignEmail(
   to: string,
   subject: string,
   content: string,
   variables: Record<string, any> = {},
-  options: { isAutoResponse?: boolean; domainOverride?: string } = {}
+  options: { isAutoResponse?: boolean; domainOverride?: string; headers?: Record<string, string>; inReplyTo?: string; references?: string[] } = {}
 ): Promise<boolean> {
   // Global auth failure suppression (module scoped singletons)
   // If we detect repeated 401s we stop hammering Mailgun for a cooldown window
@@ -158,6 +178,13 @@ export async function sendCampaignEmail(
       return false;
     }
 
+    // Check if email is suppressed (bounced, complained, unsubscribed)
+    const isSuppressed = await isEmailSuppressed(toAddr);
+    if (isSuppressed) {
+      console.warn(`Mailgun: email suppressed (bounced/complained/unsubscribed): ${toAddr}`);
+      return false;
+    }
+
     const fromEmail = options.isAutoResponse 
       ? `OneKeel Swarm <noreply@${domain}>`
       : (options?.isAutoResponse === false && typeof variables?.from === 'string' ? variables.from : process.env.MAILGUN_FROM_EMAIL || `OneKeel Swarm <swarm@${domain}>`);
@@ -174,6 +201,10 @@ export async function sendCampaignEmail(
     const html = capHtmlSize(formatEmailContent(content || ''));
     const text = toPlainText(html);
 
+    // Enhanced deliverability headers
+    const trackingDomain = process.env.MAILGUN_TRACKING_DOMAIN || domain;
+    const unsubscribeToken = Buffer.from(JSON.stringify({ email: toAddr, domain, timestamp: Date.now() })).toString('base64url');
+
     const body = new URLSearchParams({
       from: fromEmail,
       to: toAddr,
@@ -181,10 +212,20 @@ export async function sendCampaignEmail(
       html,
       text,
       // RFC 8058 compliant headers for deliverability
-      'h:List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${domain}/u/${encodeURIComponent(toAddr)}>`,
+      'h:List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>`,
       'h:List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      'h:Precedence': 'bulk'
-    });
+      'h:List-Id': `<${domain}>`,
+      'h:List-Help': `<mailto:help@${domain}>`,
+      'h:Precedence': 'bulk',
+      'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
+      // Custom tracking domain
+      ...(process.env.MAILGUN_TRACKING_DOMAIN ? { 'o:tracking-clicks': 'yes', 'o:tracking-opens': 'yes' } : {}),
+      // Threading headers
+      ...(options.inReplyTo ? { 'h:In-Reply-To': options.inReplyTo } : {}),
+      ...(options.references && options.references.length ? { 'h:References': options.references.join(' ') } : {}),
+      // Custom headers
+      ...(options.headers || {} as any)
+    } as any);
 
     const region = (process.env.MAILGUN_REGION || '').toLowerCase();
     const base = region === 'eu' ? 'https://api.eu.mailgun.net/v3' : 'https://api.mailgun.net/v3';
