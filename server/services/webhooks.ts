@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import { storage } from '../storage';
 import { liveConversationService } from './live-conversation';
 import { InboundEmailService } from './inbound-email';
-import { predictiveOptimizationService } from './predictive-optimization-instance';
+import { predictiveOptimizationService } from './predictive-optimization';
 
 export class WebhookHandler {
   /**

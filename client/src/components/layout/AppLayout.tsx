@@ -35,7 +35,7 @@ const navigation: NavItem[] = [
     icon: MessageSquare,
   },
 
-  // AI & Automation  
+  // AI & Automation
   {
     name: "AI Management",
     href: "/ai-settings",
@@ -57,13 +57,6 @@ const navigation: NavItem[] = [
     name: "Credit Campaigns",
     href: "/campaigns",
     icon: Zap,
-  },
-
-  // Monitoring & Analytics
-  {
-    name: "Reports",
-    href: "/reports",
-    icon: FileText,
   },
 
   // System

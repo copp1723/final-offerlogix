@@ -5,11 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/home";
 import LeadsPage from "@/pages/leads";
-import ReportsPage from "@/pages/reports";
 import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
 import EmailMonitorPage from "@/pages/email-monitor";
-import UserManagementPage from "@/pages/user-management";
 import KnowledgeBasePage from "@/pages/knowledge-base";
 import AiSettingsPage from "@/pages/ai-settings";
 import ConversationsPage from "@/pages/conversations";
@@ -25,15 +23,13 @@ function Router() {
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/leads" component={LeadsPage} />
-  <Route path="/reports" component={ReportsPage} />
-  <Route path="/campaigns" component={CampaignsPage} />
+        <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/ai-settings" component={AiSettingsPage} />
         <Route path="/personas" component={PersonasPage} />
         <Route path="/knowledge-base" component={KnowledgeBasePage} />
         <Route path="/email-monitor" component={EmailMonitorPage} />
-  <Route path="/conversations" component={ConversationsPage} />
-        <Route path="/users" component={UserManagementPage} />
+        <Route path="/conversations" component={ConversationsPage} />
         <Route component={NotFound} />
       </Switch>
     </AppLayout>
