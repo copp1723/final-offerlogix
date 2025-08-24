@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { CheckCircle, AlertCircle, XCircle, Mail, Zap, Database } from "lucide-react";
+import { CheckCircle, AlertCircle, XCircle, Zap, Database } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface SystemStatus {
@@ -10,20 +10,7 @@ interface SystemStatus {
 }
 
 export default function SystemHealth() {
-  interface EmailMonitorStatus { running?: boolean; lastCheckAt?: string }
-  const { data: emailStatus } = useQuery<EmailMonitorStatus | undefined>({
-    queryKey: ['/api/email-monitor/status'],
-    retry: false
-  });
-  const emailRunning = !!emailStatus?.running;
-
   const systemStatuses: SystemStatus[] = [
-    {
-      service: "Email Monitor",
-  status: emailRunning ? 'online' : 'warning',
-      lastCheck: "Just now",
-  details: emailRunning ? "Processing emails" : "Ready to start"
-    },
     {
       service: "AI Processing", 
       status: 'online',
@@ -53,8 +40,6 @@ export default function SystemHealth() {
 
   const getServiceIcon = (service: string) => {
     switch (service) {
-      case 'Email Monitor':
-        return <Mail className="w-4 h-4 text-blue-500" />;
       case 'AI Processing':
         return <Zap className="w-4 h-4 text-purple-500" />;
       case 'Database':
@@ -97,6 +82,23 @@ export default function SystemHealth() {
       </CardHeader>
       <CardContent>
         <div className="space-y-3">
+          {systemStatuses.map((status, index) => (
+            <div key={index} className="flex items-center justify-between p-3 rounded-lg border">
+              <div className="flex items-center space-x-3">
+                {getServiceIcon(status.service)}
+                <div>
+                  <p className="font-medium text-gray-900">{status.service}</p>
+                  <p className="text-sm text-gray-500">{status.details}</p>
+                </div>
+              </div>
+              <div className="flex items-center space-x-2">
+                {getStatusIcon(status.status)}
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(status.status)}`}>
+                  {getStatusText(status.status)}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       </CardContent>
     </Card>

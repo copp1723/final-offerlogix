@@ -9,8 +9,9 @@ import { Label } from "../components/ui/label";
 import { Textarea } from "../components/ui/textarea";
 import { Switch } from "../components/ui/switch";
 import { Separator } from "../components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
 import { Alert, AlertDescription } from "../components/ui/alert";
-import { Loader2, Plus, Settings, Users, Brain, MessageSquare, Star, Target, Zap } from "lucide-react";
+import { Loader2, Plus, Users, Brain, MessageSquare, Star, Target } from "lucide-react";
 
 /**
  * AI Personas Management Page
@@ -62,13 +63,114 @@ export default function PersonasPage() {
   const [personas, setPersonas] = useState<Persona[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+
+  // Form state
+  const [formData, setFormData] = useState({
+    name: '',
+    tonality: 'professional',
+    responseStyle: 'helpful',
+    emailSubdomain: '',
+    personality: '',
+    dos: [] as string[],
+    donts: [] as string[],
+    newDo: '',
+    newDont: ''
+  });
   // Note: dialog state not currently used; model selection UI removed per request
 
   // Load personas on component mount
   useEffect(() => {
     loadPersonas();
   }, []);
+
+  const handleCreatePersona = async () => {
+    try {
+      setIsCreating(true);
+      setError(null);
+
+      const response = await fetch('/api/personas', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-client-id': '00000000-0000-0000-0000-000000000001'
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          targetAudience: 'general', // Default for now
+          tonality: formData.tonality,
+          communicationStyle: formData.responseStyle,
+          personality: formData.personality,
+          emailSubdomain: formData.emailSubdomain || undefined,
+          responseGuidelines: formData.dos,
+          escalationCriteria: formData.donts
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to create persona');
+      }
+
+      const result = await response.json();
+
+      // Reset form and close dialog
+      setFormData({
+        name: '',
+        tonality: 'professional',
+        responseStyle: 'helpful',
+        emailSubdomain: '',
+        personality: '',
+        dos: [],
+        donts: [],
+        newDo: '',
+        newDont: ''
+      });
+      setIsCreateDialogOpen(false);
+
+      // Reload personas
+      await loadPersonas();
+    } catch (error) {
+      console.error('Error creating persona:', error);
+      setError(error instanceof Error ? error.message : 'Failed to create persona');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const addDo = () => {
+    if (formData.newDo.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        dos: [...prev.dos, prev.newDo.trim()],
+        newDo: ''
+      }));
+    }
+  };
+
+  const addDont = () => {
+    if (formData.newDont.trim()) {
+      setFormData(prev => ({
+        ...prev,
+        donts: [...prev.donts, prev.newDont.trim()],
+        newDont: ''
+      }));
+    }
+  };
+
+  const removeDo = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      dos: prev.dos.filter((_, i) => i !== index)
+    }));
+  };
+
+  const removeDont = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      donts: prev.donts.filter((_, i) => i !== index)
+    }));
+  };
 
   const loadPersonas = async () => {
     try {
@@ -96,31 +198,7 @@ export default function PersonasPage() {
     }
   };
 
-  const createDefaultPersonas = async () => {
-    try {
-      setIsCreating(true);
-      setError(null);
 
-      const response = await fetch('/api/personas/create-defaults', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-client-id': '00000000-0000-0000-0000-000000000001'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to create default personas');
-      }
-
-      await loadPersonas();
-    } catch (error) {
-      console.error('Error creating default personas:', error);
-      setError(error instanceof Error ? error.message : 'Failed to create default personas');
-    } finally {
-      setIsCreating(false);
-    }
-  };
 
   const togglePersonaStatus = async (personaId: string, isActive: boolean) => {
     try {
@@ -214,26 +292,10 @@ export default function PersonasPage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            {personas.length === 0 && (
-              <Button 
-                onClick={createDefaultPersonas} 
-                disabled={isCreating}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
-              >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Creating...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Setup Default Personas
-                  </>
-                )}
-              </Button>
-            )}
-            <Button disabled title="Create persona coming soon">
+            <Button
+              onClick={() => setIsCreateDialogOpen(true)}
+              className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Persona
             </Button>
@@ -256,34 +318,23 @@ export default function PersonasPage() {
               <Brain className="h-16 w-16 text-gray-400 mx-auto mb-4" />
               <h3 className="text-xl font-semibold text-gray-900 mb-2">No AI Personas Configured</h3>
               <p className="text-gray-600 mb-6 max-w-md mx-auto">
-                Get started by setting up default personas for your OfferLogix system.
-                This will create specialized AI agents for reaching automotive dealerships with your software solutions.
+                Create your first AI persona to get started. Personas define how your AI communicates
+                with different types of leads and customers.
               </p>
-              <Button 
-                onClick={createDefaultPersonas} 
-                disabled={isCreating}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700"
+              <Button
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="bg-gradient-to-r from-green-600 to-blue-600 hover:from-green-700 hover:to-blue-700"
               >
-                {isCreating ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Setting up...
-                  </>
-                ) : (
-                  <>
-                    <Zap className="h-4 w-4 mr-2" />
-                    Setup Default Personas
-                  </>
-                )}
+                <Plus className="h-4 w-4 mr-2" />
+                Create New Persona
               </Button>
             </CardContent>
           </Card>
         ) : (
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="performance">Performance</TabsTrigger>
-              <TabsTrigger value="settings">Settings</TabsTrigger>
             </TabsList>
 
             <TabsContent value="overview" className="space-y-4">
@@ -363,7 +414,7 @@ export default function PersonasPage() {
                             disabled
                             title="Editing coming soon"
                           >
-                            <Settings className="h-4 w-4" />
+                            Edit
                           </Button>
                         </div>
                       </div>
@@ -391,29 +442,162 @@ export default function PersonasPage() {
               </Card>
             </TabsContent>
 
-            <TabsContent value="settings" className="space-y-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Global Persona Settings</CardTitle>
-                  <CardDescription>
-                    Configure default settings and behaviors for all personas
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center py-12 text-gray-500">
-                    <Settings className="h-16 w-16 mx-auto mb-4 text-gray-300" />
-                    <p>Global settings coming soon...</p>
-                    <p className="text-sm">Configure default AI settings</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </TabsContent>
+
           </Tabs>
         )}
 
-        {/* Dialogs would go here - Create/Edit forms */}
-        {/* For now, showing placeholder structure */}
-        
+        {/* Create Persona Dialog */}
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create AI Agent Configuration</DialogTitle>
+              <DialogDescription>
+                Configure how the AI agent behaves and responds to users.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6">
+              {/* Configuration Name */}
+              <div className="space-y-2">
+                <Label htmlFor="config-name">Configuration Name</Label>
+                <Input
+                  id="config-name"
+                  placeholder="e.g., Professional Automotive Agent"
+                  value={formData.name}
+                  onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+
+              {/* Tonality and Response Style */}
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="tonality">Tonality</Label>
+                  <Select value={formData.tonality} onValueChange={(value) => setFormData(prev => ({ ...prev, tonality: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Professional" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="professional">Professional</SelectItem>
+                      <SelectItem value="friendly">Friendly</SelectItem>
+                      <SelectItem value="casual">Casual</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="response-style">Response Style</Label>
+                  <Select value={formData.responseStyle} onValueChange={(value) => setFormData(prev => ({ ...prev, responseStyle: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Helpful" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="helpful">Helpful</SelectItem>
+                      <SelectItem value="direct">Direct</SelectItem>
+                      <SelectItem value="consultative">Consultative</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Agents Email Subdomain */}
+              <div className="space-y-2">
+                <Label htmlFor="email-subdomain">Agents Email Subdomain (Mailgun)</Label>
+                <Input
+                  id="email-subdomain"
+                  placeholder="e.g., mg.dealership.com"
+                  value={formData.emailSubdomain}
+                  onChange={(e) => setFormData(prev => ({ ...prev, emailSubdomain: e.target.value }))}
+                />
+                <p className="text-sm text-gray-500">
+                  Bare Mailgun domain or subdomain only (no email address). Overrides default MAILGUN_DOMAIN.
+                </p>
+              </div>
+
+              {/* Personality Description */}
+              <div className="space-y-2">
+                <Label htmlFor="personality">Personality Description</Label>
+                <Textarea
+                  id="personality"
+                  placeholder="Describe the agent's personality and approach..."
+                  className="min-h-[100px]"
+                  value={formData.personality}
+                  onChange={(e) => setFormData(prev => ({ ...prev, personality: e.target.value }))}
+                />
+                <p className="text-sm text-gray-500">
+                  Provide a brief description of how the agent should behave.
+                </p>
+              </div>
+
+              {/* Do's */}
+              <div className="space-y-2">
+                <Label>Do's - What the agent should always do</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add a do..."
+                    className="flex-1"
+                    value={formData.newDo}
+                    onChange={(e) => setFormData(prev => ({ ...prev, newDo: e.target.value }))}
+                    onKeyPress={(e) => e.key === 'Enter' && addDo()}
+                  />
+                  <Button variant="outline" size="sm" onClick={addDo}>Add</Button>
+                </div>
+                {formData.dos.length > 0 && (
+                  <div className="space-y-1">
+                    {formData.dos.map((item, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm bg-green-50 p-2 rounded">
+                        <span className="flex-1">{item}</span>
+                        <Button variant="ghost" size="sm" onClick={() => removeDo(index)}>×</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Don'ts */}
+              <div className="space-y-2">
+                <Label>Don'ts - What the agent should never do</Label>
+                <div className="flex gap-2">
+                  <Input
+                    placeholder="Add a don't..."
+                    className="flex-1"
+                    value={formData.newDont}
+                    onChange={(e) => setFormData(prev => ({ ...prev, newDont: e.target.value }))}
+                    onKeyPress={(e) => e.key === 'Enter' && addDont()}
+                  />
+                  <Button variant="outline" size="sm" onClick={addDont}>Add</Button>
+                </div>
+                {formData.donts.length > 0 && (
+                  <div className="space-y-1">
+                    {formData.donts.map((item, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm bg-red-50 p-2 rounded">
+                        <span className="flex-1">{item}</span>
+                        <Button variant="ghost" size="sm" onClick={() => removeDont(index)}>×</Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={isCreating}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCreatePersona}
+                  disabled={!formData.name.trim() || isCreating}
+                >
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    'Create Configuration'
+                  )}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>
   );

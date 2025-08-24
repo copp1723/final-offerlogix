@@ -77,36 +77,6 @@ export default function HomePage() {
           </div>
         </Card>
       </div>
-
-      {/* Priority alerts */}
-      <div className="space-y-4">
-        <h2 className="text-lg font-semibold text-gray-900">Priority Actions</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card 
-            className="cursor-pointer hover:bg-gray-50 transition-colors"
-            onClick={() => navigate('/leads')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">New prospects require follow-up</span>
-                <span className="text-xs text-red-600 font-medium">High Priority</span>
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card 
-            className="cursor-pointer hover:bg-gray-50 transition-colors"
-            onClick={() => navigate('/campaigns')}
-          >
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-700">Campaign templates ready for generation</span>
-                <span className="text-xs text-orange-600 font-medium">Action Needed</span>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }

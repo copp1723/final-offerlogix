@@ -1,64 +1,53 @@
 import { Link } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Users, Car, Shield, Bell, Database, Palette, Brain } from "lucide-react";
+import { Users, Bell, FileDown } from "lucide-react";
 
 export default function SettingsPage() {
   const settingsCategories = [
     {
-      title: "User Management",
-      description: "Manage users, roles, and permissions",
-      href: "/users",
+      id: 'user-management',
+      title: 'User Management',
       icon: Users,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      description: 'Manage user accounts, roles, and permissions',
+      color: 'text-blue-600',
+      bgColor: 'bg-blue-50',
+      href: '#user-management',
+      settings: [
+        { key: 'max_users', label: 'Maximum Users', value: '10', type: 'input' },
+        { key: 'user_roles', label: 'User Roles', value: 'admin,user,viewer', type: 'input' },
+        { key: 'password_policy', label: 'Password Policy', value: 'Strong', type: 'select', options: ['Basic', 'Strong', 'Enterprise'] }
+      ]
     },
     {
-      title: "White Label Settings",
-      description: "Customize branding and client configurations",
-      href: "/white-label",
-      icon: Palette,
-      color: "text-indigo-600",
-      bgColor: "bg-indigo-50",
-    },
-    {
-      title: "Email Monitor",
-      description: "Connect IMAP and manage inbound parsing rules",
-      href: "/email-monitor",
+      id: 'notifications',
+      title: 'Notifications',
       icon: Bell,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
+      description: 'Configure email alerts and notification settings',
+      color: 'text-yellow-600',
+      bgColor: 'bg-yellow-50',
+      href: '#notifications',
+      settings: [
+        { key: 'email_notifications', label: 'Email Notifications', value: true, type: 'boolean' },
+        { key: 'daily_summary', label: 'Daily Summary', value: true, type: 'boolean' },
+        { key: 'lead_alerts', label: 'Lead Alerts', value: false, type: 'boolean' }
+      ]
     },
     {
-      title: "Security & Privacy",
-      description: "Configure security settings and data privacy",
-      href: "#",
-      icon: Shield,
-      color: "text-green-600",
-      bgColor: "bg-green-50",
-      disabled: true,
-    },
-    {
-      title: "Notifications",
-      description: "Manage email and SMS notification preferences",
-      href: "#",
-      icon: Bell,
-      color: "text-yellow-600",
-      bgColor: "bg-yellow-50",
-      disabled: true,
-    },
-    {
-      title: "Database & Backup",
-      description: "Database management and backup configurations",
-      href: "#",
-      icon: Database,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
-      disabled: true,
-    },
-  ];
-
-  return (
+      id: 'export-data',
+      title: 'Export Data',
+      icon: FileDown,
+      description: 'Data export settings and format preferences',
+      color: 'text-green-600',
+      bgColor: 'bg-green-50',
+      href: '#export-data',
+      settings: [
+        { key: 'export_format', label: 'Default Export Format', value: 'CSV', type: 'select', options: ['CSV', 'JSON', 'Excel'] },
+        { key: 'include_metadata', label: 'Include Metadata', value: true, type: 'boolean' },
+        { key: 'max_export_size', label: 'Max Export Size (MB)', value: '50', type: 'input' }
+      ]
+    }
+  ];  return (
     <div className="p-6 space-y-6">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-3">Settings</h1>
@@ -68,7 +57,7 @@ export default function SettingsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {settingsCategories.map((category) => {
           const Icon = category.icon;
-          const isDisabled = category.disabled;
+          const isDisabled = false; // No categories are disabled anymore
 
           return isDisabled ? (
             <div key={category.title}>
@@ -137,30 +126,15 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Card>
             <CardContent className="p-4">
-              <h3 className="font-medium text-gray-900 mb-2">Export Data</h3>
+              <div className="flex items-center space-x-3 mb-3">
+                <div className="p-2 rounded-lg bg-blue-50">
+                  <FileDown className="w-5 h-5 text-blue-600" />
+                </div>
+                <h3 className="font-medium text-gray-900">Export Data</h3>
+              </div>
               <p className="text-sm text-gray-600 mb-3">Download your campaigns, leads, and conversation data</p>
               <Button variant="outline" size="sm" disabled>
                 Export (Coming Soon)
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-medium text-gray-900 mb-2">System Health</h3>
-              <p className="text-sm text-gray-600 mb-3">Check system status and performance metrics</p>
-              <Button variant="outline" size="sm" disabled>
-                View Status (Coming Soon)
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <h3 className="font-medium text-gray-900 mb-2">API Keys</h3>
-              <p className="text-sm text-gray-600 mb-3">Manage API keys for integrations and external services</p>
-              <Button variant="outline" size="sm" disabled>
-                Manage Keys (Coming Soon)
               </Button>
             </CardContent>
           </Card>

@@ -23,7 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Lightbulb, Trash2, MoreHorizontal } from "lucide-react";
+import { Upload, Plus, Search, FileText, Users, Car, Phone, Mail, Tag, Target, MessageCircle, Trash2, MoreHorizontal } from "lucide-react";
 import LeadCampaignAssignment from "@/components/leads/LeadCampaignAssignment";
 import type { Lead, Campaign } from "@shared/schema";
 import ConversationView from "@/components/conversations/ConversationView";
@@ -358,19 +358,7 @@ export default function Leads() {
         </Card>
       </div>
 
-      {/* Actionable Intelligence (no vanity metrics) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="h-5 w-5" />
-            Recommended Actions
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm text-muted-foreground">
-          When conversation data is available, this section will list concrete next actions
-          like "Call Sarah (asked for April follow‑up)" or "Email Bob (opened last 5 emails, no reply)".
-        </CardContent>
-      </Card>
+
 
       {/* CSV Upload Section */}
       <Card>

@@ -5,78 +5,62 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Shield, UserCheck, Clock } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Users, Shield, UserCheck, Clock, UserPlus, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import type { User } from "@shared/schema";
 
 export default function UserManagementPage() {
   const { toast } = useToast();
-  
-  // Mock user data for demo - in real app this would come from API
-  const basePrefs = {
-    emailNotifications: true,
-    campaignAlerts: true,
-    leadAlerts: true,
-    systemAlerts: true,
-    monthlyReports: true,
-    highEngagementAlerts: true,
-    quotaWarnings: true
-  } as const;
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newUser, setNewUser] = useState({
+    username: "",
+    password: "",
+    email: "",
+    role: "user"
+  });
 
-  const mockUsers: User[] = [
-    {
-      id: "1",
-      username: "admin_user",
-      password: "***",
-      role: "admin",
-      email: "admin@dealership.com",
-      createdAt: new Date("2024-01-15"),
-      clientId: null,
-      notificationPreferences: basePrefs as unknown as any
+  // Fetch users from API
+  const { data: users = [], isLoading, refetch } = useQuery({
+    queryKey: ["users"],
+    queryFn: async () => {
+      const response = await apiRequest("/api/users", "GET");
+      return response as User[];
     },
-    {
-      id: "2",
-      username: "sales_manager",
-      password: "***",
-      role: "manager",
-      email: "manager@dealership.com",
-      createdAt: new Date("2024-02-10"),
-      clientId: null,
-      notificationPreferences: basePrefs as unknown as any
-    },
-    {
-      id: "3",
-      username: "sales_rep1",
-      password: "***",
-      role: "user",
-      email: "rep1@dealership.com",
-      createdAt: new Date("2024-03-05"),
-      clientId: null,
-      notificationPreferences: basePrefs as unknown as any
-    },
-    {
-      id: "4",
-      username: "sales_rep2",
-      password: "***",
-      role: "user",
-      email: "rep2@dealership.com",
-      createdAt: new Date("2024-03-12"),
-      clientId: null,
-      notificationPreferences: basePrefs as unknown as any
-    },
-  ];
+  });
 
-  const [users, setUsers] = useState<User[]>(mockUsers);
+  // Create user mutation
+  const createUserMutation = useMutation({
+    mutationFn: async (userData: typeof newUser) => {
+      return apiRequest("/api/users", "POST", userData);
+    },
+    onSuccess: () => {
+      refetch();
+      setIsCreateDialogOpen(false);
+      setNewUser({ username: "", password: "", email: "", role: "user" });
+      toast({
+        title: "User Created",
+        description: "New user has been created successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create user.",
+        variant: "destructive",
+      });
+    },
+  });
 
   // Update user role mutation
   const updateRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
       return apiRequest(`/api/users/${userId}/role`, "PUT", { role });
     },
-    onSuccess: (_, { userId, role }) => {
-      setUsers(prev => prev.map(user => 
-        user.id === userId ? { ...user, role } : user
-      ));
+    onSuccess: () => {
+      refetch();
       toast({
         title: "Role Updated",
         description: "User role has been updated successfully.",
@@ -86,6 +70,27 @@ export default function UserManagementPage() {
       toast({
         title: "Error",
         description: "Failed to update user role.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete user mutation
+  const deleteUserMutation = useMutation({
+    mutationFn: async (userId: string) => {
+      return apiRequest(`/api/users/${userId}`, "DELETE");
+    },
+    onSuccess: () => {
+      refetch();
+      toast({
+        title: "User Deleted",
+        description: "User has been deleted successfully.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete user.",
         variant: "destructive",
       });
     },
@@ -132,9 +137,83 @@ export default function UserManagementPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="text-gray-600 mt-1">Manage user roles and permissions</p>
+      <div className="mb-6 flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <p className="text-gray-600 mt-1">Manage user roles and permissions</p>
+        </div>
+        
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <UserPlus className="h-4 w-4 mr-2" />
+              Add User
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New User</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  value={newUser.username}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, username: e.target.value }))}
+                  placeholder="Enter username"
+                />
+              </div>
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={newUser.email}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="Enter email"
+                />
+              </div>
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={newUser.password}
+                  onChange={(e) => setNewUser(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="Enter password"
+                />
+              </div>
+              <div>
+                <Label htmlFor="role">Role</Label>
+                <Select
+                  value={newUser.role}
+                  onValueChange={(value) => setNewUser(prev => ({ ...prev, role: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="manager">Manager</SelectItem>
+                    <SelectItem value="user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={() => createUserMutation.mutate(newUser)}
+                  disabled={createUserMutation.isPending || !newUser.username || !newUser.password}
+                >
+                  {createUserMutation.isPending ? "Creating..." : "Create User"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Role Overview Cards */}
@@ -191,56 +270,79 @@ export default function UserManagementPage() {
           <CardTitle>All Users</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-4">
-            {users.map((user) => (
-              <div
-                key={user.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <div className="flex items-center space-x-4">
-                  <div className="flex items-center space-x-2">
-                    {getRoleIcon(user.role)}
-                    <div>
-                      <h3 className="font-medium text-gray-900">{user.username}</h3>
-                      <p className="text-sm text-gray-500">{user.email}</p>
+          {isLoading ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">Loading users...</p>
+            </div>
+          ) : users.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No users found</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      {getRoleIcon(user.role)}
+                      <div>
+                        <h3 className="font-medium text-gray-900">{user.username}</h3>
+                        <p className="text-sm text-gray-500">{user.email}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center space-x-4">
-                  <div className="text-right">
-                    <Badge className={getRoleColor(user.role)}>{user.role}</Badge>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {getRolePermissions(user.role)}
-                    </p>
+                  <div className="flex items-center space-x-4">
+                    <div className="text-right">
+                      <Badge className={getRoleColor(user.role)}>{user.role}</Badge>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {getRolePermissions(user.role)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                      <Clock className="h-4 w-4" />
+                      <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
+                    </div>
+
+                    <Select
+                      value={user.role}
+                      onValueChange={(newRole) => {
+                        if (newRole !== user.role) {
+                          updateRoleMutation.mutate({ userId: user.id, role: newRole });
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="admin">Admin</SelectItem>
+                        <SelectItem value="manager">Manager</SelectItem>
+                        <SelectItem value="user">User</SelectItem>
+                      </SelectContent>
+                    </Select>
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        if (confirm(`Are you sure you want to delete user "${user.username}"?`)) {
+                          deleteUserMutation.mutate(user.id);
+                        }
+                      }}
+                      disabled={deleteUserMutation.isPending}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-
-                  <div className="flex items-center space-x-2 text-sm text-gray-500">
-                    <Clock className="h-4 w-4" />
-                    <span>Joined {new Date(user.createdAt).toLocaleDateString()}</span>
-                  </div>
-
-                  <Select
-                    value={user.role}
-                    onValueChange={(newRole) => {
-                      if (newRole !== user.role) {
-                        updateRoleMutation.mutate({ userId: user.id, role: newRole });
-                      }
-                    }}
-                  >
-                    <SelectTrigger className="w-32">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Admin</SelectItem>
-                      <SelectItem value="manager">Manager</SelectItem>
-                      <SelectItem value="user">User</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

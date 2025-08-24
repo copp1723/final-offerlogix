@@ -1,5 +1,5 @@
 import { ReactNode, useState } from "react";
-import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, FileText, Target, Mail, Brain, Database, ChevronDown, ChevronRight, ClipboardList } from "lucide-react";
+import { CreditCard, Bell, User, BarChart3, MessageSquare, Users, Settings, Zap, Target, ChevronDown, ChevronRight, ClipboardList } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useBranding } from "@/contexts/ClientContext";
 import { cn } from "@/lib/utils";
@@ -45,29 +45,17 @@ const navigation: NavItem[] = [
     href: "/handovers",
     icon: ClipboardList,
   },
+  {
+    name: "AI Personas",
+    href: "/personas",
+    icon: Target,
+  },
 
   // Configuration
   {
     name: "Settings",
     href: "/settings",
     icon: Settings,
-    children: [
-      {
-        name: "AI Personas",
-        href: "/personas",
-        icon: Target,
-      },
-      {
-        name: "Knowledge Base",
-        href: "/knowledge-base",
-        icon: Database,
-      },
-      {
-        name: "Email Monitor",
-        href: "/email-monitor",
-        icon: Mail,
-      }
-    ]
   },
 ];
 
@@ -177,7 +165,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-6 space-y-1">
             {navigation.map((item, index) => {
-              const needsDivider = index === 3 || index === 5; // After core operations and optional views
+              const needsDivider = index === 3 || index === 6; // After core operations and optional views
               
               return (
                 <div key={item.name}>

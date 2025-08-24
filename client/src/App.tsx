@@ -7,8 +7,6 @@ import Dashboard from "@/pages/home";
 import LeadsPage from "@/pages/leads";
 import CampaignsPage from "@/pages/campaigns";
 import SettingsPage from "@/pages/settings";
-import EmailMonitorPage from "@/pages/email-monitor";
-import KnowledgeBasePage from "@/pages/knowledge-base";
 import ConversationsPage from "@/pages/conversations";
 import HandoversPage from "@/pages/handovers";
 import PersonasPage from "@/pages/personas";
@@ -26,8 +24,6 @@ function Router() {
         <Route path="/campaigns" component={CampaignsPage} />
         <Route path="/settings" component={SettingsPage} />
         <Route path="/personas" component={PersonasPage} />
-        <Route path="/knowledge-base" component={KnowledgeBasePage} />
-        <Route path="/email-monitor" component={EmailMonitorPage} />
         <Route path="/conversations" component={ConversationsPage} />
         <Route path="/handovers" component={HandoversPage} />
         <Route component={NotFound} />

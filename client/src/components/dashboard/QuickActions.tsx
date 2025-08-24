@@ -1,4 +1,4 @@
-import { Plus, Target, Users, Mail, BarChart3, Settings } from "lucide-react";
+import { Plus, Users, Settings, MessageSquare } from "lucide-react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,31 +24,13 @@ export default function QuickActions() {
       iconColor: "text-green-600"
     },
     {
-      title: "Email Monitor",
-      description: "Monitor incoming customer emails",
-      icon: Mail,
-      href: "/email-monitor",
+      title: "Conversations",
+      description: "View customer conversations and chat history",
+      icon: MessageSquare,
+      href: "/conversations",
       color: "bg-purple-500 hover:bg-purple-600",
       iconBg: "bg-purple-100", 
       iconColor: "text-purple-600"
-    },
-    {
-      title: "Intelligence Hub",
-      description: "AI-powered insights and analytics",
-      icon: BarChart3,
-      href: "/intelligence",
-      color: "bg-orange-500 hover:bg-orange-600",
-      iconBg: "bg-orange-100",
-      iconColor: "text-orange-600"
-    },
-    {
-      title: "Scoring Config",
-      description: "Configure lead scoring rules",
-      icon: Target,
-      href: "/scoring-config",
-      color: "bg-indigo-500 hover:bg-indigo-600",
-      iconBg: "bg-indigo-100",
-      iconColor: "text-indigo-600"
     },
     {
       title: "Settings",
