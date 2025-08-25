@@ -106,7 +106,7 @@ export class InboundEmailService {
       // Save the email as a conversation message
       await storage.createConversationMessage({
         conversationId: conversation.id,
-        senderId: 'lead-reply',
+        senderId: null, // Lead replies don't have a user ID
         messageType: 'email',
         content: event['stripped-text'] || event['body-plain'],
         isFromAI: 0
@@ -177,7 +177,7 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
       // Persist AI reply
       await storage.createConversationMessage({
         conversationId: conversation.id,
-        senderId: 'ai-agent',
+        senderId: null, // AI replies don't have a user ID
         messageType: 'email',
         content: aiResult.reply_body_html || '',
         isFromAI: 1,

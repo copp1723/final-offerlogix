@@ -679,7 +679,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
 
-  // User role management routes
+  // User management routes
+  app.get("/api/users", async (req, res) => {
+    try {
+      const users = await storage.getUsers(100); // Get all users for management
+      res.json(users);
+    } catch (error) {
+      console.error('Get users error:', error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+
+  app.post("/api/users", async (req, res) => {
+    try {
+      const { username, password, role, email, clientId } = req.body;
+      
+      if (!username || !password || !role) {
+        return res.status(400).json({ message: "Username, password, and role are required" });
+      }
+
+      if (!["admin", "manager", "user"].includes(role)) {
+        return res.status(400).json({ message: "Valid role is required" });
+      }
+
+      // TODO: Hash password in production
+      const newUser = await storage.createUser({
+        username,
+        password, // In production, this should be hashed
+        role,
+        email: email || null,
+        clientId: clientId || null
+      });
+
+      // Don't return password in response
+      const { password: _, ...userResponse } = newUser;
+      res.status(201).json(userResponse);
+    } catch (error) {
+      console.error('Create user error:', error);
+      if ((error as any)?.message?.includes('unique')) {
+        res.status(409).json({ message: "Username already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to create user" });
+      }
+    }
+  });
+
   app.put("/api/users/:id/role", async (req, res) => {
     try {
       const { role } = req.body;
@@ -688,9 +732,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const user = await storage.updateUserRole(req.params.id, role);
-      res.json(user);
+      // Don't return password in response
+      const { password: _, ...userResponse } = user;
+      res.json(userResponse);
     } catch (error) {
+      console.error('Update user role error:', error);
       res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  app.delete("/api/users/:id", async (req, res) => {
+    try {
+      await storage.deleteUser(req.params.id);
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error('Delete user error:', error);
+      res.status(500).json({ message: "Failed to delete user" });
     }
   });
 

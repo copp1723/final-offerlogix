@@ -212,7 +212,8 @@ var init_schema = __esm({
       username: true,
       password: true,
       role: true,
-      email: true
+      email: true,
+      clientId: true
     });
     insertCampaignSchema = createInsertSchema(campaigns).pick({
       name: true,
@@ -1305,6 +1306,9 @@ Goals: ${newCampaign.handoverGoals}`,
         const [updatedUser] = await db.update(users).set({ role }).where(eq(users.id, id)).returning();
         return updatedUser;
       }
+      async deleteUser(id) {
+        await db.delete(users).where(eq(users.id, id));
+      }
       // Conversation methods
       async getConversations(userId) {
         let query = db.select().from(conversations).orderBy(desc(conversations.updatedAt));
@@ -1562,6 +1566,20 @@ async function runWithConcurrency(items, limit, task) {
   await Promise.all(workers);
   return results;
 }
+async function isEmailSuppressed(email) {
+  try {
+    const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+    const lead = await storage2.getLeadByEmail(email);
+    if (lead) {
+      const suppressedStatuses = ["bounced", "complained", "unsubscribed"];
+      return suppressedStatuses.includes(lead.status);
+    }
+    return false;
+  } catch (error) {
+    console.error("Error checking email suppression:", error);
+    return false;
+  }
+}
 async function sendCampaignEmail(to, subject, content, variables = {}, options = {}) {
   try {
     const apiKey = process.env.MAILGUN_API_KEY;
@@ -1592,6 +1610,11 @@ async function sendCampaignEmail(to, subject, content, variables = {}, options =
       console.warn(`Mailgun: invalid recipient '${toAddr}'`);
       return false;
     }
+    const isSuppressed = await isEmailSuppressed(toAddr);
+    if (isSuppressed) {
+      console.warn(`Mailgun: email suppressed (bounced/complained/unsubscribed): ${toAddr}`);
+      return false;
+    }
     const fromEmail = options.isAutoResponse ? `OneKeel Swarm <noreply@${domain}>` : options?.isAutoResponse === false && typeof variables?.from === "string" ? variables.from : process.env.MAILGUN_FROM_EMAIL || `OneKeel Swarm <swarm@${domain}>`;
     if (MAILGUN_AUTH_SUPPRESSED_UNTIL && Date.now() < MAILGUN_AUTH_SUPPRESSED_UNTIL) {
       if (!LAST_SUPPRESSION_LOG || Date.now() - LAST_SUPPRESSION_LOG > 6e4) {
@@ -1602,6 +1625,8 @@ async function sendCampaignEmail(to, subject, content, variables = {}, options =
     }
     const html = capHtmlSize(formatEmailContent(content || ""));
     const text2 = toPlainText(html);
+    const trackingDomain = process.env.MAILGUN_TRACKING_DOMAIN || domain;
+    const unsubscribeToken = Buffer.from(JSON.stringify({ email: toAddr, domain, timestamp: Date.now() })).toString("base64url");
     const body = new URLSearchParams({
       from: fromEmail,
       to: toAddr,
@@ -1609,11 +1634,18 @@ async function sendCampaignEmail(to, subject, content, variables = {}, options =
       html,
       text: text2,
       // RFC 8058 compliant headers for deliverability
-      "h:List-Unsubscribe": `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${domain}/u/${encodeURIComponent(toAddr)}>`,
+      "h:List-Unsubscribe": `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>`,
       "h:List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+      "h:List-Id": `<${domain}>`,
+      "h:List-Help": `<mailto:help@${domain}>`,
       "h:Precedence": "bulk",
+      "h:X-Auto-Response-Suppress": "OOF, DR, RN, NRN, AutoReply",
+      // Custom tracking domain
+      ...process.env.MAILGUN_TRACKING_DOMAIN ? { "o:tracking-clicks": "yes", "o:tracking-opens": "yes" } : {},
+      // Threading headers
       ...options.inReplyTo ? { "h:In-Reply-To": options.inReplyTo } : {},
       ...options.references && options.references.length ? { "h:References": options.references.join(" ") } : {},
+      // Custom headers
       ...options.headers || {}
     });
     const region = (process.env.MAILGUN_REGION || "").toLowerCase();
@@ -2548,11 +2580,28 @@ var init_templates = __esm({
   "server/routes/templates.ts"() {
     "use strict";
     init_call_openrouter();
+    init_storage();
     router = Router();
     router.post("/generate", async (req, res) => {
       try {
-        const { context } = req.body || {};
-        if (!context) return res.status(400).json({ message: "context required" });
+        const { context, campaignId } = req.body || {};
+        let templateContext = context;
+        if (campaignId && !context) {
+          try {
+            const campaign = await storage.getCampaign(campaignId);
+            if (campaign) {
+              templateContext = `Campaign: ${campaign.name}. Goals: ${campaign.goals || "Generate leads and drive conversions"}. Target: ${campaign.targetAudience || "potential customers"}`;
+            } else {
+              templateContext = "General marketing campaign focused on lead generation and customer engagement";
+            }
+          } catch (error) {
+            console.error("Error fetching campaign for context:", error);
+            templateContext = "General marketing campaign focused on lead generation and customer engagement";
+          }
+        }
+        if (!templateContext) {
+          return res.status(400).json({ message: "context or campaignId required" });
+        }
         const system = `System Prompt: The Straight-Talking Sales Pro
 Core Identity:
 You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful. You talk like a real person who knows the industry and understands that picking a vendor is a big decision.
@@ -2585,6 +2634,124 @@ Respond JSON: { "subject_lines": string[], "templates": string[] }` }
       }
     });
     templates_default = router;
+  }
+});
+
+// server/routes/unsubscribe.ts
+var unsubscribe_exports = {};
+__export(unsubscribe_exports, {
+  default: () => unsubscribe_default
+});
+import { Router as Router2 } from "express";
+async function processUnsubscribe(token) {
+  try {
+    const decoded = JSON.parse(Buffer.from(token, "base64url").toString());
+    if (!decoded.email || !decoded.domain || !decoded.timestamp) {
+      return { success: false, error: "Invalid token format" };
+    }
+    const tokenAge = Date.now() - decoded.timestamp;
+    const maxAge = 30 * 24 * 60 * 60 * 1e3;
+    if (tokenAge > maxAge) {
+      return { success: false, error: "Token has expired" };
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(decoded.email)) {
+      return { success: false, error: "Invalid email format" };
+    }
+    const lead = await storage.getLeadByEmail(decoded.email);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        status: "unsubscribed",
+        unsubscribedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        unsubscribeReason: "user_request"
+      });
+      console.log(`Lead unsubscribed: ${decoded.email}`);
+    } else {
+      await storage.createLead({
+        email: decoded.email,
+        status: "unsubscribed",
+        leadSource: "unsubscribe_suppression",
+        unsubscribedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        unsubscribeReason: "user_request"
+      });
+      console.log(`Suppression record created: ${decoded.email}`);
+    }
+    return { success: true, email: decoded.email };
+  } catch (error) {
+    console.error("Token processing error:", error);
+    return { success: false, error: "Invalid or corrupted token" };
+  }
+}
+var router2, unsubscribe_default;
+var init_unsubscribe = __esm({
+  "server/routes/unsubscribe.ts"() {
+    "use strict";
+    init_storage();
+    router2 = Router2();
+    router2.get("/unsubscribe", async (req, res) => {
+      try {
+        const { token } = req.query;
+        if (!token || typeof token !== "string") {
+          return res.status(400).send(`
+        <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px;">
+          <h2>Invalid Unsubscribe Link</h2>
+          <p>This unsubscribe link is invalid or has expired.</p>
+          <p>If you continue to receive unwanted emails, please contact us directly.</p>
+        </body></html>
+      `);
+        }
+        const result = await processUnsubscribe(token);
+        if (result.success) {
+          res.send(`
+        <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px;">
+          <h2>Successfully Unsubscribed</h2>
+          <p>You have been successfully unsubscribed from our mailing list.</p>
+          <p>Email: <strong>${result.email}</strong></p>
+          <p>You will no longer receive marketing emails from us.</p>
+          <p>If you continue to receive emails, please contact our support team.</p>
+        </body></html>
+      `);
+        } else {
+          res.status(400).send(`
+        <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px;">
+          <h2>Unsubscribe Failed</h2>
+          <p>${result.error}</p>
+          <p>Please try again or contact our support team.</p>
+        </body></html>
+      `);
+        }
+      } catch (error) {
+        console.error("Unsubscribe error:", error);
+        res.status(500).send(`
+      <html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 50px auto; padding: 20px;">
+        <h2>Error Processing Unsubscribe</h2>
+        <p>An error occurred while processing your unsubscribe request.</p>
+        <p>Please try again later or contact our support team.</p>
+      </body></html>
+    `);
+      }
+    });
+    router2.post("/unsubscribe", async (req, res) => {
+      try {
+        const { token } = req.body;
+        if (!token) {
+          return res.status(400).json({ error: "Token required" });
+        }
+        const result = await processUnsubscribe(token);
+        if (result.success) {
+          res.json({ success: true, message: "Successfully unsubscribed", email: result.email });
+        } else {
+          res.status(400).json({ success: false, error: result.error });
+        }
+      } catch (error) {
+        console.error("One-click unsubscribe error:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+    router2.get("/unsubscribe/health", (req, res) => {
+      res.json({ status: "ok", service: "unsubscribe" });
+    });
+    unsubscribe_default = router2;
   }
 });
 
@@ -2939,13 +3106,47 @@ var init_inbound_email = __esm({
           if (!this.verifyMailgunSignature(event)) {
             return res.status(401).json({ error: "Unauthorized" });
           }
-          const leadInfo = await this.extractLeadFromEmail(event);
+          const REQUIRE_CAMPAIGN = String(process.env.INBOUND_REQUIRE_CAMPAIGN_REPLY || "true").toLowerCase() !== "false";
+          const recipient = (event.recipient || "").toLowerCase();
+          const match = recipient.match(/campaign-([a-z0-9-]+)@/i);
+          const ACCEPT_SUFFIX = (process.env.INBOUND_ACCEPT_DOMAIN_SUFFIX || "offerlogix.me").toLowerCase();
+          const recipientDomain = recipient.split("@")[1] || "";
+          const ACCEPT_BY_DOMAIN = recipientDomain.endsWith(ACCEPT_SUFFIX);
+          if (REQUIRE_CAMPAIGN && !match && !ACCEPT_BY_DOMAIN) {
+            return res.status(200).json({ message: "Ignored: not a campaign reply" });
+          }
+          let leadInfo = null;
+          let campaignId;
+          if (match) {
+            campaignId = match[1];
+            const campaign = await storage.getCampaign(campaignId);
+            if (!campaign) {
+              return res.status(200).json({ message: "Ignored: unknown campaign" });
+            }
+            const leads2 = await storage.getLeadsByCampaign(campaignId);
+            const senderEmail = (event.sender || "").toLowerCase();
+            const matchingLead = leads2.find((l) => (l.email || "").toLowerCase() === senderEmail);
+            if (!matchingLead) {
+              return res.status(200).json({ message: "Ignored: sender not a lead on campaign" });
+            }
+            leadInfo = { leadId: matchingLead.id, lead: matchingLead };
+          } else {
+            leadInfo = await this.extractLeadFromEmail(event);
+          }
+          if (!leadInfo && ACCEPT_BY_DOMAIN) {
+            const senderEmail = (event.sender || "").toLowerCase();
+            let lead = await storage.getLeadByEmail(senderEmail);
+            if (!lead) {
+              lead = await storage.createLead({ email: senderEmail, leadSource: "email_inbound", status: "new" });
+            }
+            leadInfo = { leadId: lead.id, lead };
+          }
           if (!leadInfo) {
             console.log("Could not identify lead from email:", event.sender);
             return res.status(200).json({ message: "Email processed but lead not identified" });
           }
-          const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject);
-          const message = await storage.createConversationMessage({
+          const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+          await storage.createConversationMessage({
             conversationId: conversation.id,
             senderId: "lead-reply",
             messageType: "email",
@@ -3059,13 +3260,14 @@ ${recentMessages.map((m) => (m.isFromAI ? "AI: " : "Lead: ") + (m.content || "")
         }
         return null;
       }
-      static async getOrCreateConversation(leadId, subject) {
+      static async getOrCreateConversation(leadId, subject, campaignId) {
         const conversations2 = await storage.getConversationsByLead(leadId);
         if (conversations2.length > 0) {
           return conversations2[0];
         }
         return await storage.createConversation({
           leadId,
+          campaignId,
           subject: subject || "Email Conversation",
           status: "active"
         });
@@ -3097,6 +3299,194 @@ ${recentMessages.map((m) => (m.isFromAI ? "AI: " : "Lead: ") + (m.content || "")
         return brands.find((brand) => text2.includes(brand));
       }
     };
+  }
+});
+
+// server/routes/mailgun-webhooks.ts
+var mailgun_webhooks_exports = {};
+__export(mailgun_webhooks_exports, {
+  default: () => mailgun_webhooks_default
+});
+import { Router as Router3 } from "express";
+import crypto from "crypto";
+function verifyWebhookSignature(body) {
+  const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY;
+  if (!signingKey) {
+    if (process.env.NODE_ENV !== "production") {
+      console.warn("MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production");
+      return true;
+    }
+    console.error("MAILGUN_WEBHOOK_SIGNING_KEY missing in production");
+    return false;
+  }
+  const { timestamp: timestamp2, token, signature } = body.signature;
+  const value = timestamp2 + token;
+  const hash = crypto.createHmac("sha256", signingKey).update(value).digest("hex");
+  return hash === signature;
+}
+async function handleBounce(recipient, reason, severity, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      const isHardBounce = severity === "permanent" || reason && (reason.includes("mailbox does not exist") || reason.includes("user unknown") || reason.includes("invalid recipient") || reason.includes("domain not found"));
+      if (isHardBounce) {
+        await storage.updateLead(lead.id, {
+          status: "bounced",
+          bounceReason: reason || "Hard bounce",
+          bouncedAt: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        console.log(`Hard bounce suppressed: ${recipient} - ${reason}`);
+      } else {
+        console.log(`Soft bounce tracked: ${recipient} - ${reason}`);
+      }
+    } else {
+      await storage.createLead({
+        email: recipient,
+        status: "bounced",
+        leadSource: "bounce_suppression",
+        bounceReason: reason || "Bounce",
+        bouncedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+      console.log(`Bounce suppression record created: ${recipient}`);
+    }
+  } catch (error) {
+    console.error(`Error handling bounce for ${recipient}:`, error);
+  }
+}
+async function handleComplaint(recipient, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        status: "complained",
+        complainedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        complaintReason: "Spam complaint"
+      });
+    } else {
+      await storage.createLead({
+        email: recipient,
+        status: "complained",
+        leadSource: "complaint_suppression",
+        complainedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        complaintReason: "Spam complaint"
+      });
+    }
+    console.log(`Spam complaint suppressed: ${recipient}`);
+  } catch (error) {
+    console.error(`Error handling complaint for ${recipient}:`, error);
+  }
+}
+async function handleUnsubscribe(recipient, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        status: "unsubscribed",
+        unsubscribedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        unsubscribeReason: "mailgun_unsubscribe"
+      });
+    } else {
+      await storage.createLead({
+        email: recipient,
+        status: "unsubscribed",
+        leadSource: "unsubscribe_suppression",
+        unsubscribedAt: (/* @__PURE__ */ new Date()).toISOString(),
+        unsubscribeReason: "mailgun_unsubscribe"
+      });
+    }
+    console.log(`Unsubscribe processed: ${recipient}`);
+  } catch (error) {
+    console.error(`Error handling unsubscribe for ${recipient}:`, error);
+  }
+}
+async function handleDelivered(recipient, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        lastEmailDeliveredAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  } catch (error) {
+    console.error(`Error handling delivery for ${recipient}:`, error);
+  }
+}
+async function handleOpened(recipient, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        lastEmailOpenedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  } catch (error) {
+    console.error(`Error handling open for ${recipient}:`, error);
+  }
+}
+async function handleClicked(recipient, eventData) {
+  try {
+    const lead = await storage.getLeadByEmail(recipient);
+    if (lead) {
+      await storage.updateLead(lead.id, {
+        lastEmailClickedAt: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    }
+  } catch (error) {
+    console.error(`Error handling click for ${recipient}:`, error);
+  }
+}
+var router3, mailgun_webhooks_default;
+var init_mailgun_webhooks = __esm({
+  "server/routes/mailgun-webhooks.ts"() {
+    "use strict";
+    init_storage();
+    router3 = Router3();
+    router3.post("/webhooks/mailgun/events", async (req, res) => {
+      try {
+        const event = req.body;
+        if (!verifyWebhookSignature(event)) {
+          console.error("Invalid Mailgun webhook signature");
+          return res.status(401).json({ error: "Unauthorized" });
+        }
+        const eventData = event["event-data"];
+        const { event: eventType, recipient, reason, severity } = eventData;
+        console.log(`Mailgun event: ${eventType} for ${recipient}`);
+        switch (eventType) {
+          case "failed":
+            await handleBounce(recipient, reason, severity, eventData);
+            break;
+          case "complained":
+            await handleComplaint(recipient, eventData);
+            break;
+          case "unsubscribed":
+            await handleUnsubscribe(recipient, eventData);
+            break;
+          case "delivered":
+            await handleDelivered(recipient, eventData);
+            break;
+          case "opened":
+            await handleOpened(recipient, eventData);
+            break;
+          case "clicked":
+            await handleClicked(recipient, eventData);
+            break;
+          default:
+            console.log(`Unhandled Mailgun event type: ${eventType}`);
+        }
+        res.status(200).json({ received: true });
+      } catch (error) {
+        console.error("Mailgun webhook error:", error);
+        res.status(500).json({ error: "Internal server error" });
+      }
+    });
+    router3.get("/webhooks/mailgun/health", (req, res) => {
+      res.json({
+        status: "ok",
+        service: "mailgun-webhooks",
+        timestamp: (/* @__PURE__ */ new Date()).toISOString()
+      });
+    });
+    mailgun_webhooks_default = router3;
   }
 });
 
@@ -3338,14 +3728,14 @@ var handovers_exports = {};
 __export(handovers_exports, {
   default: () => handovers_default
 });
-import { Router as Router2 } from "express";
-var router2, handovers_default;
+import { Router as Router4 } from "express";
+var router4, handovers_default;
 var init_handovers = __esm({
   "server/routes/handovers.ts"() {
     "use strict";
     init_storage();
-    router2 = Router2();
-    router2.get("/", async (req, res) => {
+    router4 = Router4();
+    router4.get("/", async (req, res) => {
       try {
         const list = await storage.getHandovers();
         res.json(list);
@@ -3353,7 +3743,7 @@ var init_handovers = __esm({
         res.status(500).json({ message: "Failed to fetch handovers" });
       }
     });
-    router2.patch("/:id/resolve", async (req, res) => {
+    router4.patch("/:id/resolve", async (req, res) => {
       try {
         const updated = await storage.resolveHandover(req.params.id);
         if (!updated) return res.status(404).json({ message: "Not found" });
@@ -3362,7 +3752,7 @@ var init_handovers = __esm({
         res.status(500).json({ message: "Failed to resolve handover" });
       }
     });
-    handovers_default = router2;
+    handovers_default = router4;
   }
 });
 
@@ -3757,13 +4147,13 @@ var health_exports = {};
 __export(health_exports, {
   default: () => health_default
 });
-import { Router as Router3 } from "express";
-var router3, health_default;
+import { Router as Router5 } from "express";
+var router5, health_default;
 var init_health = __esm({
   "server/routes/health.ts"() {
     "use strict";
-    router3 = Router3();
-    router3.get("/email", async (_req, res) => {
+    router5 = Router5();
+    router5.get("/email", async (_req, res) => {
       try {
         const hasMailgun = !!(process.env.MAILGUN_DOMAIN && process.env.MAILGUN_API_KEY);
         let authStatus = { ok: false, details: {} };
@@ -3811,7 +4201,7 @@ var init_health = __esm({
         });
       }
     });
-    router3.get("/realtime", async (_req, res) => {
+    router5.get("/realtime", async (_req, res) => {
       try {
         let wsStatus = { ok: false, details: {} };
         try {
@@ -3845,7 +4235,7 @@ var init_health = __esm({
         });
       }
     });
-    router3.get("/ai", async (_req, res) => {
+    router5.get("/ai", async (_req, res) => {
       try {
         const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
         let aiStatus = { ok: false, details: {} };
@@ -3898,7 +4288,7 @@ var init_health = __esm({
         });
       }
     });
-    router3.get("/database", async (_req, res) => {
+    router5.get("/database", async (_req, res) => {
       try {
         const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
         const { sql: sql2 } = await import("drizzle-orm");
@@ -3925,7 +4315,7 @@ var init_health = __esm({
         });
       }
     });
-    router3.get("/system", async (_req, res) => {
+    router5.get("/system", async (_req, res) => {
       try {
         const checks = await Promise.allSettled([
           Promise.resolve({ ok: true }),
@@ -3958,7 +4348,7 @@ var init_health = __esm({
         });
       }
     });
-    health_default = router3;
+    health_default = router5;
   }
 });
 
@@ -3970,7 +4360,7 @@ __export(health_imap_exports, {
   recordIMAPMessage: () => recordIMAPMessage,
   updateIMAPHealth: () => updateIMAPHealth
 });
-import { Router as Router4 } from "express";
+import { Router as Router6 } from "express";
 function updateIMAPHealth(status) {
   imapHealthStatus = { ...imapHealthStatus, ...status };
 }
@@ -3986,17 +4376,17 @@ function recordIMAPError(error) {
     imapHealthStatus.errors = imapHealthStatus.errors.slice(-5);
   }
 }
-var router4, imapHealthStatus, health_imap_default;
+var router6, imapHealthStatus, health_imap_default;
 var init_health_imap = __esm({
   "server/routes/health-imap.ts"() {
     "use strict";
-    router4 = Router4();
+    router6 = Router6();
     imapHealthStatus = {
       connected: false,
       messagesProcessed: 0,
       errors: []
     };
-    router4.get("/imap", (req, res) => {
+    router6.get("/imap", (req, res) => {
       try {
         const hasConfig = !!(process.env.IMAP_HOST && process.env.IMAP_USER && process.env.IMAP_PASSWORD);
         if (!hasConfig) {
@@ -4041,13 +4431,13 @@ var init_health_imap = __esm({
         });
       }
     });
-    health_imap_default = router4;
+    health_imap_default = router6;
   }
 });
 
 // server/services/agent-runtime.ts
 import { eq as eq4, and as and3 } from "drizzle-orm";
-import crypto from "crypto";
+import crypto2 from "crypto";
 function sanitizeUserMsg(s) {
   if (!s) return "";
   return s.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "").trim();
@@ -4103,7 +4493,7 @@ var init_agent_runtime = __esm({
        */
       static hashEmail(email) {
         if (!email) return "unknown";
-        return crypto.createHash("sha256").update(email.trim().toLowerCase()).digest("hex").substring(0, 16);
+        return crypto2.createHash("sha256").update(email.trim().toLowerCase()).digest("hex").substring(0, 16);
       }
       /**
        * Load the active config for a client
@@ -4249,7 +4639,7 @@ Respond naturally and helpfully. If appropriate, include one clear call-to-actio
         }
         let reply = "";
         let quickReplies = [];
-        const traceId = crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2);
+        const traceId = crypto2.randomUUID ? crypto2.randomUUID() : Math.random().toString(36).slice(2);
         try {
           const llmStart = Date.now();
           const response = await this.requestWithRetries(
@@ -4368,7 +4758,7 @@ __export(agent_exports, {
   agentRouter: () => agentRouter,
   default: () => agent_default
 });
-import { Router as Router5 } from "express";
+import { Router as Router7 } from "express";
 import { eq as eq5 } from "drizzle-orm";
 var agentRouter, agent_default;
 var init_agent = __esm({
@@ -4377,7 +4767,7 @@ var init_agent = __esm({
     init_agent_runtime();
     init_schema();
     init_db();
-    agentRouter = Router5();
+    agentRouter = Router7();
     agentRouter.post("/reply", async (req, res) => {
       try {
         const clientId = req.body.clientId || "default-client";
@@ -4485,6 +4875,185 @@ var init_agent = __esm({
       }
     });
     agent_default = agentRouter;
+  }
+});
+
+// server/routes/ai-persona.ts
+var ai_persona_exports = {};
+__export(ai_persona_exports, {
+  default: () => ai_persona_default
+});
+import { Router as Router8 } from "express";
+import { z as z2 } from "zod";
+import { eq as eq6, and as and5, desc as desc2 } from "drizzle-orm";
+var router7, ai_persona_default;
+var init_ai_persona = __esm({
+  "server/routes/ai-persona.ts"() {
+    "use strict";
+    init_storage();
+    init_schema();
+    router7 = Router8();
+    router7.get("/", async (req, res) => {
+      try {
+        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const {
+          targetAudience,
+          industry,
+          isActive,
+          includeKnowledgeBases,
+          includeCampaignCounts
+        } = req.query;
+        const conditions = [eq6(aiPersonas.clientId, clientId)];
+        if (targetAudience) {
+          conditions.push(eq6(aiPersonas.targetAudience, targetAudience));
+        }
+        if (industry) {
+          conditions.push(eq6(aiPersonas.industry, industry));
+        }
+        if (isActive !== void 0) {
+          conditions.push(eq6(aiPersonas.isActive, isActive === "true"));
+        }
+        const personas = await storage.db.select().from(aiPersonas).where(and5(...conditions)).orderBy(desc2(aiPersonas.priority), desc2(aiPersonas.createdAt));
+        res.json({
+          success: true,
+          data: personas,
+          total: personas.length
+        });
+      } catch (error) {
+        console.error("Get personas error:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to get personas",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+    router7.post("/create-defaults", async (req, res) => {
+      try {
+        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const personas = [];
+        res.status(201).json({
+          success: true,
+          data: personas,
+          message: `Personas feature is not yet fully implemented`
+        });
+      } catch (error) {
+        console.error("Create default personas error:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to create default personas",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+    router7.get("/:id", async (req, res) => {
+      try {
+        const { id } = req.params;
+        if (!id) {
+          return res.status(400).json({
+            success: false,
+            error: "Persona ID is required"
+          });
+        }
+        return res.status(404).json({
+          success: false,
+          error: "Persona not found"
+        });
+      } catch (error) {
+        console.error("Get persona error:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to get persona",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+    router7.post("/", async (req, res) => {
+      try {
+        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const {
+          name,
+          description,
+          targetAudience,
+          industry = "automotive",
+          tonality = "professional",
+          personality,
+          communicationStyle = "helpful",
+          model = "openai/gpt-4o",
+          temperature = 70,
+          maxTokens = 300,
+          systemPrompt,
+          responseGuidelines = [],
+          escalationCriteria = [],
+          preferredChannels = ["email"],
+          handoverSettings = {},
+          knowledgeBaseAccessLevel = "campaign_only",
+          isActive = true,
+          isDefault = false,
+          priority = 0,
+          metadata = {},
+          emailSubdomain
+        } = req.body;
+        if (!name || !targetAudience) {
+          return res.status(400).json({
+            success: false,
+            error: "Name and target audience are required"
+          });
+        }
+        const [newPersona] = await storage.db.insert(aiPersonas).values({
+          clientId,
+          name,
+          description,
+          targetAudience,
+          industry,
+          tonality,
+          personality,
+          communicationStyle,
+          model,
+          temperature,
+          maxTokens,
+          systemPrompt,
+          responseGuidelines,
+          escalationCriteria,
+          preferredChannels,
+          handoverSettings,
+          knowledgeBaseAccessLevel,
+          isActive,
+          isDefault,
+          priority,
+          metadata,
+          emailSubdomain
+        }).returning();
+        res.status(201).json({
+          success: true,
+          data: newPersona,
+          message: "Persona created successfully"
+        });
+      } catch (error) {
+        console.error("Create persona error:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to create persona",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+    router7.put("/:id", async (req, res) => {
+      try {
+        res.status(501).json({
+          success: false,
+          error: "Persona update not yet implemented"
+        });
+      } catch (error) {
+        console.error("Update persona error:", error);
+        res.status(500).json({
+          success: false,
+          error: "Failed to update persona",
+          details: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    });
+    ai_persona_default = router7;
   }
 });
 
@@ -4772,7 +5341,7 @@ var tenantMiddleware = async (req, res, next) => {
 init_db();
 init_schema();
 init_websocket();
-import { eq as eq6 } from "drizzle-orm";
+import { eq as eq7 } from "drizzle-orm";
 import multer from "multer";
 import { parse as parse2 } from "csv-parse/sync";
 
@@ -5024,9 +5593,9 @@ async function registerRoutes(app2) {
   app2.get("/api/branding", async (req, res) => {
     try {
       const domain = req.query.domain || req.get("host") || "localhost";
-      let [client] = await db.select().from(clients).where(eq6(clients.domain, domain));
+      let [client] = await db.select().from(clients).where(eq7(clients.domain, domain));
       if (!client) {
-        [client] = await db.select().from(clients).where(eq6(clients.name, "Default Client"));
+        [client] = await db.select().from(clients).where(eq7(clients.name, "Default Client"));
       }
       if (client) {
         res.json(client);
@@ -5071,7 +5640,7 @@ async function registerRoutes(app2) {
   app2.put("/api/clients/:id", async (req, res) => {
     try {
       const clientData = insertClientSchema.partial().parse(req.body);
-      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq6(clients.id, req.params.id)).returning();
+      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq7(clients.id, req.params.id)).returning();
       if (!client) {
         return res.status(404).json({ message: "Client not found" });
       }
@@ -5082,7 +5651,7 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/clients/:id", async (req, res) => {
     try {
-      await db.delete(clients).where(eq6(clients.id, req.params.id));
+      await db.delete(clients).where(eq7(clients.id, req.params.id));
       res.json({ message: "Client deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete client" });
@@ -5194,6 +5763,8 @@ async function registerRoutes(app2) {
   });
   const templateRoutes = await Promise.resolve().then(() => (init_templates(), templates_exports));
   app2.use("/api/templates", templateRoutes.default);
+  const unsubscribeRoutes = await Promise.resolve().then(() => (init_unsubscribe(), unsubscribe_exports));
+  app2.use("/", unsubscribeRoutes.default);
   app2.post("/api/email/send", async (req, res) => {
     try {
       const { to, subject, htmlContent, textContent, fromName, fromEmail } = req.body;
@@ -5394,6 +5965,8 @@ async function registerRoutes(app2) {
       res.status(500).json({ error: "Failed to process inbound email" });
     }
   });
+  const mailgunWebhookRoutes = await Promise.resolve().then(() => (init_mailgun_webhooks(), mailgun_webhooks_exports));
+  app2.use("/api", mailgunWebhookRoutes.default);
   app2.post("/api/campaigns/:id/execute", async (req, res) => {
     try {
       const campaignId = req.params.id;
@@ -5517,6 +6090,43 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to get campaign analytics" });
     }
   });
+  app2.get("/api/users", async (req, res) => {
+    try {
+      const users2 = await storage.getUsers(100);
+      res.json(users2);
+    } catch (error) {
+      console.error("Get users error:", error);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  });
+  app2.post("/api/users", async (req, res) => {
+    try {
+      const { username, password, role, email, clientId } = req.body;
+      if (!username || !password || !role) {
+        return res.status(400).json({ message: "Username, password, and role are required" });
+      }
+      if (!["admin", "manager", "user"].includes(role)) {
+        return res.status(400).json({ message: "Valid role is required" });
+      }
+      const newUser = await storage.createUser({
+        username,
+        password,
+        // In production, this should be hashed
+        role,
+        email: email || null,
+        clientId: clientId || null
+      });
+      const { password: _, ...userResponse } = newUser;
+      res.status(201).json(userResponse);
+    } catch (error) {
+      console.error("Create user error:", error);
+      if (error?.message?.includes("unique")) {
+        res.status(409).json({ message: "Username already exists" });
+      } else {
+        res.status(500).json({ message: "Failed to create user" });
+      }
+    }
+  });
   app2.put("/api/users/:id/role", async (req, res) => {
     try {
       const { role } = req.body;
@@ -5524,9 +6134,20 @@ async function registerRoutes(app2) {
         return res.status(400).json({ message: "Valid role is required" });
       }
       const user = await storage.updateUserRole(req.params.id, role);
-      res.json(user);
+      const { password: _, ...userResponse } = user;
+      res.json(userResponse);
     } catch (error) {
+      console.error("Update user role error:", error);
       res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+  app2.delete("/api/users/:id", async (req, res) => {
+    try {
+      await storage.deleteUser(req.params.id);
+      res.json({ message: "User deleted successfully" });
+    } catch (error) {
+      console.error("Delete user error:", error);
+      res.status(500).json({ message: "Failed to delete user" });
     }
   });
   app2.get("/api/conversations", async (req, res) => {
@@ -5972,6 +6593,8 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app2.use("/api/health", imapHealthRoutes.default);
   const agentRoutes = await Promise.resolve().then(() => (init_agent(), agent_exports));
   app2.use("/api/agent", agentRoutes.default);
+  const personaRoutes = await Promise.resolve().then(() => (init_ai_persona(), ai_persona_exports));
+  app2.use("/api/personas", personaRoutes.default);
   app2.post("/api/campaigns/:id/schedule", async (req, res) => {
     try {
       const { scheduleType, scheduledStart, recurringPattern, recurringDays, recurringTime } = req.body;
@@ -6050,6 +6673,92 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       console.error("Dashboard API error:", error);
       res.status(500).json({ message: "Failed to load dashboard data" });
     }
+  });
+  app2.post("/api/ai/suggest-goals", async (req, res) => {
+    res.status(501).json({
+      message: "AI goal suggestion not yet implemented",
+      suggestions: ["Generate leads", "Increase conversions", "Build relationships"]
+    });
+  });
+  app2.post("/api/ai/enhance-templates", async (req, res) => {
+    res.status(501).json({
+      message: "AI template enhancement not yet implemented",
+      templates: []
+    });
+  });
+  app2.post("/api/ai/generate-subjects", async (req, res) => {
+    res.status(501).json({
+      message: "AI subject generation not yet implemented",
+      subjects: []
+    });
+  });
+  app2.post("/api/ai/suggest-names", async (req, res) => {
+    res.status(501).json({
+      message: "AI name suggestion not yet implemented",
+      names: []
+    });
+  });
+  app2.post("/api/ai/generate-templates", async (req, res) => {
+    res.status(501).json({
+      message: "AI template generation not yet implemented",
+      templates: []
+    });
+  });
+  app2.post("/api/ai/analyze-conversation", async (req, res) => {
+    res.status(501).json({
+      message: "AI conversation analysis not yet implemented",
+      analysis: null
+    });
+  });
+  app2.post("/api/ai/generate-prompt", async (req, res) => {
+    res.status(501).json({
+      message: "AI prompt generation not yet implemented",
+      prompt: ""
+    });
+  });
+  app2.post("/api/ai/chat-campaign", async (req, res) => {
+    res.status(501).json({
+      message: "AI chat campaign not yet implemented",
+      response: null
+    });
+  });
+  app2.get("/api/email-monitor/status", async (req, res) => {
+    res.json({
+      status: "not_implemented",
+      message: "Email monitoring not yet implemented",
+      isRunning: false,
+      lastCheck: null,
+      totalEmails: 0,
+      unreadEmails: 0
+    });
+  });
+  app2.get("/api/email-monitor/rules", async (req, res) => {
+    res.json({
+      rules: [],
+      message: "Email monitoring rules not yet implemented"
+    });
+  });
+  app2.post("/api/email-monitor/start", async (req, res) => {
+    res.status(501).json({
+      message: "Email monitor start not yet implemented",
+      status: "not_started"
+    });
+  });
+  app2.post("/api/email-monitor/stop", async (req, res) => {
+    res.status(501).json({
+      message: "Email monitor stop not yet implemented",
+      status: "not_stopped"
+    });
+  });
+  app2.delete("/api/email-monitor/rules/:id", async (req, res) => {
+    res.status(501).json({
+      message: "Email monitor rule deletion not yet implemented"
+    });
+  });
+  app2.post("/api/email-monitor/rules", async (req, res) => {
+    res.status(501).json({
+      message: "Email monitor rule creation not yet implemented"
+    });
   });
   const httpServer = createServer(app2);
   webSocketService.initialize(httpServer);

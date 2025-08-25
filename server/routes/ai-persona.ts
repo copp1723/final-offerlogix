@@ -43,16 +43,33 @@ const validateRequest = (schema: z.ZodSchema) => {
 router.get('/', async (req, res) => {
   try {
     const clientId = req.headers['x-client-id'] as string || '00000000-0000-0000-0000-000000000001';
-    const { 
-      targetAudience, 
-      industry, 
+    const {
+      targetAudience,
+      industry,
       isActive,
       includeKnowledgeBases,
       includeCampaignCounts
     } = req.query as any;
 
-    // For now, return empty array since personas functionality is not fully implemented
-    const personas: any[] = [];
+    // Build query conditions
+    const conditions = [eq(aiPersonas.clientId, clientId)];
+
+    if (targetAudience) {
+      conditions.push(eq(aiPersonas.targetAudience, targetAudience));
+    }
+    if (industry) {
+      conditions.push(eq(aiPersonas.industry, industry));
+    }
+    if (isActive !== undefined) {
+      conditions.push(eq(aiPersonas.isActive, isActive === 'true'));
+    }
+
+    // Get personas from database
+    const personas = await storage.db
+      .select()
+      .from(aiPersonas)
+      .where(and(...conditions))
+      .orderBy(desc(aiPersonas.priority), desc(aiPersonas.createdAt));
 
     res.json({
       success: true,
@@ -131,10 +148,69 @@ router.get('/:id', async (req, res) => {
  */
 router.post('/', async (req, res) => {
   try {
-    // For now, return not implemented
-    res.status(501).json({
-      success: false,
-      error: 'Persona creation not yet implemented'
+    const clientId = req.headers['x-client-id'] as string || '00000000-0000-0000-0000-000000000001';
+    const {
+      name,
+      description,
+      targetAudience,
+      industry = 'automotive',
+      tonality = 'professional',
+      personality,
+      communicationStyle = 'helpful',
+      model = 'openai/gpt-4o',
+      temperature = 70,
+      maxTokens = 300,
+      systemPrompt,
+      responseGuidelines = [],
+      escalationCriteria = [],
+      preferredChannels = ['email'],
+      handoverSettings = {},
+      knowledgeBaseAccessLevel = 'campaign_only',
+      isActive = true,
+      isDefault = false,
+      priority = 0,
+      metadata = {},
+      emailSubdomain
+    } = req.body;
+
+    // Validate required fields
+    if (!name || !targetAudience) {
+      return res.status(400).json({
+        success: false,
+        error: 'Name and target audience are required'
+      });
+    }
+
+    // Create persona in database
+    const [newPersona] = await storage.db.insert(aiPersonas).values({
+      clientId,
+      name,
+      description,
+      targetAudience,
+      industry,
+      tonality,
+      personality,
+      communicationStyle,
+      model,
+      temperature,
+      maxTokens,
+      systemPrompt,
+      responseGuidelines,
+      escalationCriteria,
+      preferredChannels,
+      handoverSettings,
+      knowledgeBaseAccessLevel,
+      isActive,
+      isDefault,
+      priority,
+      metadata,
+      emailSubdomain
+    }).returning();
+
+    res.status(201).json({
+      success: true,
+      data: newPersona,
+      message: 'Persona created successfully'
     });
   } catch (error) {
     console.error('Create persona error:', error);

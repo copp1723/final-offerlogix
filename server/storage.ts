@@ -31,6 +31,7 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   updateUserRole(id: string, role: string): Promise<User>;
+  deleteUser(id: string): Promise<void>;
   getUsers(limit?: number): Promise<User[]>; // New: list users for handover recipient suggestions
 
   // Campaign methods
@@ -244,6 +245,10 @@ export class DatabaseStorage implements IStorage {
       .where(eq(users.id, id))
       .returning();
     return updatedUser;
+  }
+
+  async deleteUser(id: string): Promise<void> {
+    await db.delete(users).where(eq(users.id, id));
   }
 
   // Conversation methods

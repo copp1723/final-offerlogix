@@ -152,6 +152,7 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
   role: true,
   email: true,
+  clientId: true,
 });
 
 export const insertCampaignSchema = createInsertSchema(campaigns).pick({

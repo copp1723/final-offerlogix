@@ -199,11 +199,18 @@ export class ExecutionProcessor {
       // Prefer per-campaign agent if set; fallback to active config
       const campaignAgent = (campaign as any).agentConfigId ? await storage.getAiAgentConfig((campaign as any).agentConfigId).catch(() => undefined as any) : undefined as any;
       const activeCfg = campaignAgent || await storage.getActiveAiAgentConfig().catch(() => undefined as any);
+      const domainUsed = (activeCfg as any)?.agentEmailDomain || process.env.MAILGUN_DOMAIN || '';
+      const configuredReplyTo = process.env.MAILGUN_REPLY_TO_EMAIL;
+      const replyTo = configuredReplyTo && configuredReplyTo.trim()
+        ? configuredReplyTo.trim()
+        : (domainUsed ? `campaign-${campaign.id}@${domainUsed}` : undefined);
+
       const success = await this.sendWithRetries(
         emailData.to,
         emailData.subject,
         emailData.html,
-        (activeCfg as any)?.agentEmailDomain
+        (activeCfg as any)?.agentEmailDomain,
+        replyTo
       );
       
       const result = { success, error: success ? undefined : 'Failed to send email' };
@@ -309,7 +316,7 @@ export class ExecutionProcessor {
   }
 
   // Retry wrapper for mail sends
-  private async sendWithRetries(to: string, subject: string, html: string, domainOverride?: string): Promise<boolean> {
+  private async sendWithRetries(to: string, subject: string, html: string, domainOverride?: string, replyTo?: string): Promise<boolean> {
     const { sendCampaignEmail, mailgunAuthIsSuppressed } = await import('../mailgun');
     let attempt = 0;
     while (true) {
@@ -319,7 +326,9 @@ export class ExecutionProcessor {
           // Abort early if we know auth is currently invalid to prevent noisy retries
           return false;
         }
-        const ok = await sendCampaignEmail(to, subject, html, {}, { domainOverride });
+        const headers: Record<string, string> = {};
+        if (replyTo) headers['h:Reply-To'] = replyTo;
+        const ok = await sendCampaignEmail(to, subject, html, {}, { domainOverride, headers });
         if (ok) return true;
         if (attempt >= MAILGUN_MAX_RETRIES) return false;
       } catch (err) {
