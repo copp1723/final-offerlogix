@@ -1,4 +1,10 @@
 import { Request, Response } from 'express';
+
+function extractEmail(addr: string | undefined): string {
+  if (!addr) return '';
+  const m = addr.match(/<([^>]+)>/);
+  return (m ? m[1] : addr).trim();
+}
 import { createHmac } from 'crypto';
 import { storage } from '../storage';
 import { sendThreadedReply } from './mailgun-threaded';
@@ -93,7 +99,7 @@ export class InboundEmailService {
           return res.status(200).json({ message: 'Ignored: unknown campaign' });
         }
         const leads = await storage.getLeadsByCampaign(campaignId);
-        const senderEmail = (event.sender || '').toLowerCase();
+        const senderEmail = extractEmail(event.sender || '').toLowerCase();
         const matchingLead = leads.find(l => (l.email || '').toLowerCase() === senderEmail);
         if (!matchingLead) {
           return res.status(200).json({ message: 'Ignored: sender not a lead on campaign' });
@@ -106,7 +112,7 @@ export class InboundEmailService {
 
       // Accept any recipient in allowed domain suffix; auto-create lead if missing
       if (!leadInfo && ACCEPT_BY_DOMAIN) {
-        const senderEmail = (event.sender || '').toLowerCase();
+        const senderEmail = extractEmail(event.sender || '').toLowerCase();
         let lead = await storage.getLeadByEmail(senderEmail);
         if (!lead) {
           lead = await storage.createLead({ email: senderEmail, leadSource: 'email_inbound', status: 'new' } as any);
@@ -333,8 +339,9 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         
         // Method 4: Generate consistent thread ID based on conversation if no Message-ID found
         if (!messageId) {
-          // Use conversation ID as basis for threading - this ensures replies stay in same thread
-          messageId = `conversation-${conversation.id}@mg.offerlogix.com`;
+          // Use conversation ID as basis for threading - scoped to the active Mailgun domain
+          const idDomain = (process.env.MAILGUN_DOMAIN || '').split('@').pop()!.trim() || 'mail.offerlogix.me';
+          messageId = `conversation-${conversation.id}@${idDomain}`;
           log.warn('No Message-ID found, using conversation-based threading', {
             component: 'inbound-email',
             operation: 'email_threading_fallback',
@@ -393,8 +400,8 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           originalMessageId = messageId;
         }
 
-        // Generate unique Message-ID for our reply
-        const replyMessageId = `reply-${conversation.id}-${Date.now()}@mg.offerlogix.com`;
+        const idDomain = (process.env.MAILGUN_DOMAIN || '').split('@').pop()!.trim() || 'mail.offerlogix.me';
+        const replyMessageId = `reply-${conversation.id}-${Date.now()}@${idDomain}`;
         
         // Enhanced debug logging
         log.info('Enhanced email threading debug', {
@@ -410,13 +417,13 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         });
 
         await sendThreadedReply({
-          to: event.sender,
+          to: extractEmail(event.sender || ''),
           subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
-          html: aiResult.reply_body_html || '',
+          html: sanitizeHtmlBasic(aiResult.reply_body_html || ''),
           messageId: replyMessageId, // Our reply's Message-ID
           inReplyTo: originalMessageId ? `<${originalMessageId}>` : undefined, // Reference to ORIGINAL message we should reply to
           references: references.length > 0 ? references : undefined,
-          domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || undefined,
+          domainOverride: campaign?.agentEmailDomain // if present
         });
       } catch (sendErr) {
         const errorContext = createErrorContext(sendErr, { 

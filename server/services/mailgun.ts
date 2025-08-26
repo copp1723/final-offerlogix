@@ -5,6 +5,11 @@ export interface EmailOptions {
   text?: string;
   from?: string;
   replyTo?: string;
+  // Threading / delivery controls
+  inReplyTo?: string;          // angle-bracketed, e.g. "<abc@domain>"
+  references?: string[];       // array of angle-bracketed IDs
+  suppressBulkHeaders?: boolean; // skip List-* and Precedence headers
+  headers?: Record<string,string>;
 }
 
 export interface BulkEmailResult {
@@ -139,7 +144,14 @@ export async function sendCampaignEmail(
   subject: string,
   content: string,
   variables: Record<string, any> = {},
-  options: { isAutoResponse?: boolean; domainOverride?: string; headers?: Record<string, string>; inReplyTo?: string; references?: string[] } = {}
+  options: {
+    isAutoResponse?: boolean;
+    domainOverride?: string;
+    inReplyTo?: string;
+    references?: string[];
+    suppressBulkHeaders?: boolean;
+    headers?: Record<string,string>;
+  } = {}
 ): Promise<boolean> {
   // Global auth failure suppression (module scoped singletons)
   // If we detect repeated 401s we stop hammering Mailgun for a cooldown window
@@ -211,22 +223,20 @@ export async function sendCampaignEmail(
       subject: subject,
       html,
       text,
-      // RFC 8058 compliant headers for deliverability
-      'h:List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>`,
-      'h:List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-      'h:List-Id': `<${domain}>`,
-      'h:List-Help': `<mailto:help@${domain}>`,
-      'h:Precedence': 'bulk',
-      'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
-      // Custom tracking domain
-      ...(process.env.MAILGUN_TRACKING_DOMAIN ? { 'o:tracking-clicks': 'yes', 'o:tracking-opens': 'yes' } : {}),
+      // Replies should not look like bulk mail; skip List-* and Precedence unless explicitly allowed
+      ...(!options.suppressBulkHeaders ? {
+        'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
+        'h:List-Id': `<${domain}>`,
+        'h:List-Help': `<mailto:help@${domain}>`,
+        'h:List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe${process.env.MAILGUN_TRACKING_DOMAIN ? `>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>` : '>'}`,
+        'h:List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        // Do NOT set Precedence: bulk for replies
+      } : {}),
       // Threading headers
       ...(options.inReplyTo ? { 'h:In-Reply-To': options.inReplyTo } : {}),
       ...(options.references && options.references.length ? { 'h:References': options.references.join(' ') } : {}),
       // Custom headers (prefix with h: for Mailgun)
-      ...(options.headers ? Object.fromEntries(
-        Object.entries(options.headers).map(([key, value]) => [`h:${key}`, value])
-      ) : {})
+      ...(options.headers ? Object.fromEntries(Object.entries(options.headers).map(([k,v]) => [`h:${k}`, v])) : {})
     } as any);
 
     const region = (process.env.MAILGUN_REGION || '').toLowerCase();
