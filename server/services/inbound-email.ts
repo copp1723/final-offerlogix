@@ -5,6 +5,17 @@ function extractEmail(addr: string | undefined): string {
   const m = addr.match(/<([^>]+)>/);
   return (m ? m[1] : addr).trim();
 }
+
+function extractLocal(recipient: string) {
+  const match = recipient.toLowerCase().match(/^[^@]+/);
+  return match ? match[0] : '';
+}
+
+function tryGetConversationIdFromRecipient(recipient: string): number | null {
+  const local = extractLocal(recipient); // e.g., "brittany+conv_12345"
+  const m = local.match(/conv_(\d+)/);
+  return m ? Number(m[1]) : null;
+}
 import { createHmac } from 'crypto';
 import { storage } from '../storage';
 import { sendThreadedReply } from './mailgun-threaded';
@@ -131,8 +142,40 @@ export class InboundEmailService {
         return res.status(200).json({ message: 'Email processed but lead not identified' });
       }
 
-      // Create or update conversation bound to campaign if available
-      const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+      // Multi-step conversation lookup with fallbacks
+      let conversation: any = null;
+      
+      // 1) Primary: thread by headers (if we had proper Message-ID extraction)
+      // This is handled later in the Message-ID extraction logic
+      
+      // 2) Fallback A: token in recipient
+      const recipientConvId = tryGetConversationIdFromRecipient(event.recipient || '');
+      if (recipientConvId) {
+        try {
+          conversation = await storage.getConversationById(recipientConvId);
+          if (conversation) {
+            log.info('Conversation found via plus-addressing token', {
+              component: 'inbound-email',
+              operation: 'conversation_lookup_fallback',
+              conversationId: recipientConvId,
+              sender: event.sender,
+              method: 'plus_addressing'
+            });
+          }
+        } catch (err) {
+          log.warn('Failed to get conversation by plus-addressing token', {
+            component: 'inbound-email',
+            operation: 'conversation_lookup_fallback',
+            conversationId: recipientConvId,
+            error: (err as any).message
+          });
+        }
+      }
+      
+      // 3) Fallback B: create or get conversation (original logic)
+      if (!conversation) {
+        conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+      }
 
       // Save the email as a conversation message
       await storage.createConversationMessage({
@@ -423,7 +466,9 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           messageId: replyMessageId, // Our reply's Message-ID
           inReplyTo: originalMessageId ? `<${originalMessageId}>` : undefined, // Reference to ORIGINAL message we should reply to
           references: references.length > 0 ? references : undefined,
-          domainOverride: campaign?.agentEmailDomain // if present
+          domainOverride: campaign?.agentEmailDomain, // if present
+          conversationId: String(conversation.id), // for plus-addressing token
+          campaignId: campaign?.id ? String(campaign.id) : undefined // for tracking headers
         });
       } catch (sendErr) {
         const errorContext = createErrorContext(sendErr, { 

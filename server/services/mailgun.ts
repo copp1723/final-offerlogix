@@ -223,6 +223,8 @@ export async function sendCampaignEmail(
       subject: subject,
       html,
       text,
+      // Reply-To if provided in variables
+      ...(variables.replyTo ? { 'h:Reply-To': variables.replyTo } : {}),
       // Replies should not look like bulk mail; skip List-* and Precedence unless explicitly allowed
       ...(!options.suppressBulkHeaders ? {
         'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
