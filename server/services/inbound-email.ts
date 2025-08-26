@@ -291,9 +291,37 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
 
       // Send reply via Mailgun with threading
       try {
-        let headersArr: Array<[string, string]> = [];
-        try { headersArr = JSON.parse(event['message-headers'] || '[]'); } catch {}
-        const messageId = headersArr.find(h => (h[0] || '').toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '') || undefined;
+        // Extract Message-ID for threading (try multiple approaches)
+        let messageId: string | undefined;
+        
+        // Method 1: Parse message-headers JSON array
+        try {
+          const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
+          messageId = headersArr.find(h => (h[0] || '').toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '');
+        } catch {}
+        
+        // Method 2: Check if Message-ID is directly in event object
+        if (!messageId && event['Message-Id']) {
+          messageId = event['Message-Id'].replace(/[<>]/g, '');
+        }
+        
+        // Method 3: Check common variations
+        if (!messageId && event['message-id']) {
+          messageId = event['message-id'].replace(/[<>]/g, '');
+        }
+        
+        // Debug logging for threading
+        log.info('Email threading debug', {
+          component: 'inbound-email',
+          operation: 'email_threading',
+          sender: event.sender,
+          subject: event.subject,
+          extractedMessageId: messageId,
+          hasMessageHeaders: !!event['message-headers'],
+          hasDirectMessageId: !!event['Message-Id'],
+          hasLowercaseMessageId: !!event['message-id'],
+          eventKeys: Object.keys(event).slice(0, 15) // Show available fields
+        });
         await sendThreadedReply({
           to: event.sender,
           subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
