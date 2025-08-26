@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { storage } from '../storage';
+import { db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
 import { aiPersonas } from '@shared/schema';
 import type { InsertAiPersona, AiPersona } from '@shared/schema';
@@ -65,7 +66,7 @@ router.get('/', async (req, res) => {
     }
 
     // Get personas from database
-    const personas = await storage.db
+    const personas = await db
       .select()
       .from(aiPersonas)
       .where(and(...conditions))
@@ -182,7 +183,7 @@ router.post('/', async (req, res) => {
     }
 
     // Create persona in database
-    const [newPersona] = await storage.db.insert(aiPersonas).values({
+    const [newPersona] = await db.insert(aiPersonas).values({
       clientId,
       name,
       description,

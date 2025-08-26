@@ -2,7 +2,7 @@
 // Surface area preserved: supermemory.add(data), supermemory.search(params), isRAGEnabled()
 
 // Tunables (env overrides supported)
-const BASE_URL = process.env.SUPERMEMORY_BASE_URL || 'https://api.supermemory.ai';
+const BASE_URL = process.env.SUPERMEMORY_BASE_URL || 'https://supermemory.ai/api';
 const API_KEY = process.env.SUPERMEMORY_API_KEY || '';
 const TIMEOUT_MS = Number(process.env.SUPERMEMORY_TIMEOUT_MS ?? 8000);
 const MAX_RETRIES = Number(process.env.SUPERMEMORY_MAX_RETRIES ?? 3);
@@ -94,7 +94,7 @@ const realClient = API_KEY ? {
       return { id: undefined, skipped: true, reason: 'circuit_open' } as const;
     }
 
-    const res = await requestWithRetries('/v1/memories', 'POST', payload);
+    const res = await requestWithRetries('/add', 'POST', payload);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`Supermemory add failed: ${res.status} ${text}`);
@@ -111,7 +111,7 @@ const realClient = API_KEY ? {
       return { results: [], total: 0, skipped: true, reason: 'circuit_open' } as const;
     }
 
-    const res = await requestWithRetries('/v1/search', 'POST', body);
+    const res = await requestWithRetries('/search', 'POST', body);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
       throw new Error(`Supermemory search failed: ${res.status} ${text}`);

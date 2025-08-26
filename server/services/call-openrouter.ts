@@ -5,7 +5,7 @@
 export type ORMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export async function callOpenRouterJSON<T = any>({
-  model = 'openai/gpt-5-mini',
+  model = 'openai/gpt-4o-mini',
   system,
   messages,
   temperature = 0.2,
@@ -46,15 +46,37 @@ export async function callOpenRouterJSON<T = any>({
 
   if (!res.ok) {
     const txt = await res.text().catch(() => '');
+    console.error('OpenRouter API Error:', {
+      status: res.status,
+      statusText: res.statusText,
+      response: txt,
+      model,
+      system: system.slice(0, 100) + '...'
+    });
     throw new Error(`OpenRouter error ${res.status}: ${txt}`);
   }
+  
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error('No content from OpenRouter');
+  
+  if (!content) {
+    console.error('OpenRouter No Content Error:', {
+      data,
+      model,
+      system: system.slice(0, 100) + '...'
+    });
+    throw new Error('No content from OpenRouter');
+  }
 
   try {
     return JSON.parse(content) as T;
   } catch (e) {
+    console.error('OpenRouter JSON Parse Error:', {
+      content,
+      error: e instanceof Error ? e.message : 'Unknown error',
+      model,
+      system: system.slice(0, 100) + '...'
+    });
     throw new Error('Failed to parse OpenRouter JSON content');
   }
 }

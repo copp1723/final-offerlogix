@@ -15,7 +15,7 @@ router.post('/generate', async (req, res) => {
       try {
         const campaign = await storage.getCampaign(campaignId);
         if (campaign) {
-          templateContext = `Campaign: ${campaign.name}. Goals: ${campaign.goals || 'Generate leads and drive conversions'}. Target: ${campaign.targetAudience || 'potential customers'}`;
+          templateContext = `Campaign: ${campaign.name}. Goals: ${campaign.handoverGoals || 'Generate leads and drive conversions'}. Target: ${campaign.targetAudience || 'potential customers'}`;
         } else {
           templateContext = 'General marketing campaign focused on lead generation and customer engagement';
         }
@@ -44,11 +44,11 @@ Have a normal conversation that helps them figure out what they actually want. I
 
 Return only JSON.`;
     const json = await callOpenRouterJSON<{ subject_lines: string[]; templates: string[] }>({
-      model: 'openai/gpt-5-mini',
+      model: 'openai/gpt-4o-mini',
       system,
       messages: [
         { role: 'user', content: `Generate 3 subject lines and 3 short HTML templates (no external images).
-Context: ${context}
+Context: ${templateContext}
 Respond JSON: { "subject_lines": string[], "templates": string[] }` }
       ],
       temperature: 0.5,
