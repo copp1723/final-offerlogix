@@ -151,6 +151,7 @@ export async function sendCampaignEmail(
     references?: string[];
     suppressBulkHeaders?: boolean;
     headers?: Record<string,string>;
+    replyTo?: string;
   } = {}
 ): Promise<boolean> {
   // Global auth failure suppression (module scoped singletons)
@@ -223,17 +224,17 @@ export async function sendCampaignEmail(
       subject: subject,
       html,
       text,
-      // Reply-To if provided in variables
+      // Reply-To if provided in variables or options
       ...(variables.replyTo ? { 'h:Reply-To': variables.replyTo } : {}),
-      // Replies should not look like bulk mail; skip List-* and Precedence unless explicitly allowed
-      ...(!options.suppressBulkHeaders ? {
-        'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
-        'h:List-Id': `<${domain}>`,
-        'h:List-Help': `<mailto:help@${domain}>`,
+      // Conversational replies must NOT look like bulk mail
+      ...(options.suppressBulkHeaders ? {} : {
         'h:List-Unsubscribe': `<mailto:unsubscribe@${domain}?subject=unsubscribe${process.env.MAILGUN_TRACKING_DOMAIN ? `>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>` : '>'}`,
         'h:List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        // Do NOT set Precedence: bulk for replies
-      } : {}),
+        'h:List-Id': `<${domain}>`,
+        'h:List-Help': `<mailto:help@${domain}>`,
+        'h:Precedence': 'bulk',
+        'h:X-Auto-Response-Suppress': 'OOF, DR, RN, NRN, AutoReply',
+      }),
       // Threading headers
       ...(options.inReplyTo ? { 'h:In-Reply-To': options.inReplyTo } : {}),
       ...(options.references && options.references.length ? { 'h:References': options.references.join(' ') } : {}),

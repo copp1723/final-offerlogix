@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 
-function extractEmail(addr: string | undefined): string {
+function extractEmail(addr?: string): string {
   if (!addr) return '';
   const m = addr.match(/<([^>]+)>/);
   return (m ? m[1] : addr).trim();
@@ -11,8 +11,9 @@ function extractLocal(recipient: string) {
   return match ? match[0] : '';
 }
 
-function tryGetConversationIdFromRecipient(recipient: string): number | null {
-  const local = extractLocal(recipient); // e.g., "brittany+conv_12345"
+function tryGetConversationIdFromRecipient(recipient?: string): number | null {
+  if (!recipient) return null;
+  const local = recipient.toLowerCase().split('@')[0];          // brittany+conv_12345
   const m = local.match(/conv_(\d+)/);
   return m ? Number(m[1]) : null;
 }
@@ -23,6 +24,15 @@ import { callOpenRouterJSON } from './call-openrouter';
 import { buildErrorResponse, createErrorContext } from '../utils/error-utils';
 import { log } from '../logging/logger';
 import { ConversationRateLimiters } from './conversation-rate-limiter';
+
+function sanitizeHtmlBasic(content: string): string {
+  if (!content) return '';
+  // If content already contains HTML tags, trust it (AI now emits clean <p>…</p>)
+  if (/<p|<br\s*\/?>/i.test(content)) return content;
+  // Otherwise, convert plain text to paragraphs
+  const paras = content.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
+  return paras.map(p => `<p>${p.replace(/\n/g,'<br>')}</p>`).join('');
+}
 
 
 // Basic safeguards
@@ -110,7 +120,7 @@ export class InboundEmailService {
           return res.status(200).json({ message: 'Ignored: unknown campaign' });
         }
         const leads = await storage.getLeadsByCampaign(campaignId);
-        const senderEmail = extractEmail(event.sender || '').toLowerCase();
+        const senderEmail = extractEmail(event.sender).toLowerCase();
         const matchingLead = leads.find(l => (l.email || '').toLowerCase() === senderEmail);
         if (!matchingLead) {
           return res.status(200).json({ message: 'Ignored: sender not a lead on campaign' });
@@ -123,7 +133,7 @@ export class InboundEmailService {
 
       // Accept any recipient in allowed domain suffix; auto-create lead if missing
       if (!leadInfo && ACCEPT_BY_DOMAIN) {
-        const senderEmail = extractEmail(event.sender || '').toLowerCase();
+        const senderEmail = extractEmail(event.sender).toLowerCase();
         let lead = await storage.getLeadByEmail(senderEmail);
         if (!lead) {
           lead = await storage.createLead({ email: senderEmail, leadSource: 'email_inbound', status: 'new' } as any);
