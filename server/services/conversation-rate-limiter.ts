@@ -207,40 +207,38 @@ export class ConversationRateLimiters {
   });
 
   /**
-   * Check if AI response is allowed using all applicable rate limiters
+   * Check if AI response is allowed for INBOUND lead replies
+   * NOTE: Lead replies should ALWAYS be allowed - rate limiting only applies to:
+   * 1. System-wide protection (prevent total overload)
+   * 2. Lead daily limits (prevent abuse)
+   * 3. Campaign limits (prevent campaign abuse)
+   * 
+   * CONVERSATION-level rate limiting is DISABLED for inbound lead replies
    */
   static checkAIResponseAllowed(conversationId: string, leadEmail?: string, campaignId?: string): {
     allowed: boolean;
     reason?: string;
     retryAfter?: number;
   } {
-    // Check conversation-specific limit (primary throttling)
-    const conversationLimit = this.aiConversation.checkLimit(conversationId);
-    if (!conversationLimit.allowed) {
-      return {
-        allowed: false,
-        reason: 'Conversation cooldown active',
-        retryAfter: conversationLimit.retryAfter
-      };
-    }
+    // REMOVED: Conversation-specific limit - leads can ALWAYS reply and get responses
 
-    // Check system-wide limit
+    // Check system-wide limit (only for total system protection)
     const systemLimit = this.systemHourly.checkLimit('system');
     if (!systemLimit.allowed) {
       return {
         allowed: false,
-        reason: 'System rate limit exceeded',
+        reason: 'System rate limit exceeded - please try again later',
         retryAfter: systemLimit.retryAfter
       };
     }
 
-    // Check lead-specific limit if provided
+    // Check lead-specific limit if provided (reasonable daily limit)
     if (leadEmail) {
       const leadLimit = this.leadDaily.checkLimit(leadEmail);
       if (!leadLimit.allowed) {
         return {
           allowed: false,
-          reason: 'Lead daily limit exceeded',
+          reason: 'Daily message limit reached for this lead',
           retryAfter: leadLimit.retryAfter
         };
       }
@@ -262,9 +260,26 @@ export class ConversationRateLimiters {
   }
 
   /**
-   * Record AI response being sent across all applicable limiters
+   * Record AI INBOUND response being sent (no conversation-level tracking)
    */
-  static recordAIResponseSent(conversationId: string, leadEmail?: string, campaignId?: string): void {
+  static recordAIInboundResponse(conversationId: string, leadEmail?: string, campaignId?: string): void {
+    // Only record system-wide, lead, and campaign limits - NOT conversation limits
+    // Leads should always be able to reply without hitting conversation cooldowns
+    this.systemHourly.recordSent('system');
+
+    if (leadEmail) {
+      this.leadDaily.recordSent(leadEmail);
+    }
+
+    if (campaignId) {
+      this.campaignHourly.recordSent(campaignId);
+    }
+  }
+
+  /**
+   * Record AI OUTBOUND response being sent (full tracking including conversation limits)
+   */
+  static recordAIOutboundResponse(conversationId: string, leadEmail?: string, campaignId?: string): void {
     this.aiConversation.recordSent(conversationId);
     this.systemHourly.recordSent('system');
 

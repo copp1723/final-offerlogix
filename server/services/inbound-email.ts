@@ -237,8 +237,8 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         return res.status(200).json({ message: 'Handover created' });
       }
 
-      // Record AI response being sent (before actually sending to ensure rate limit is enforced)
-      ConversationRateLimiters.recordAIResponseSent(conversation.id, leadInfo?.lead?.email, campaign?.id);
+      // Record AI INBOUND response being sent (no conversation-level rate limiting for lead replies)
+      ConversationRateLimiters.recordAIInboundResponse(conversation.id, leadInfo?.lead?.email, campaign?.id);
 
       // Send reply via Mailgun with threading
       try {
