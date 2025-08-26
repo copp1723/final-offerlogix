@@ -7,11 +7,17 @@
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import * as schema from "@shared/schema";
+import { log } from './logging/logger';
 
 if (!process.env.DATABASE_URL) {
-  throw new Error(
-    "DATABASE_URL must be set. Did you forget to provision a database?",
-  );
+  const error = new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+  log.error('Database URL not configured', {
+    component: 'database',
+    operation: 'initialization',
+    error,
+    severity: 'critical'
+  });
+  throw error;
 }
 
 export const pool = new Pool({
@@ -25,6 +31,19 @@ export const pool = new Pool({
   statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT) || 60000,
 });
 
+// Log pool configuration
+log.info('Database pool configured', {
+  component: 'database',
+  operation: 'pool_configuration',
+  poolConfig: {
+    max: pool.options.max,
+    min: pool.options.min,
+    idleTimeoutMs: pool.options.idleTimeoutMillis,
+    connectionTimeoutMs: pool.options.connectionTimeoutMillis,
+    ssl: !!pool.options.ssl
+  }
+});
+
 // Best-effort: ensure required extensions exist (Render Postgres supports these)
 async function ensureDatabaseReady() {
   const client = await pool.connect();
@@ -32,8 +51,19 @@ async function ensureDatabaseReady() {
     // gen_random_uuid() comes from pgcrypto; uuid-ossp provides uuid_generate_v4()
     await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
     await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+    
+    log.info('Database extensions ensured', {
+      component: 'database',
+      operation: 'extension_setup',
+      extensions: ['pgcrypto', 'uuid-ossp']
+    });
   } catch (err) {
-    console.warn('Database extension setup warning:', (err as Error)?.message || err);
+    log.warn('Database extension setup warning', {
+      component: 'database',
+      operation: 'extension_setup',
+      error: err as Error,
+      message: (err as Error)?.message || String(err)
+    });
   } finally {
     client.release();
   }
@@ -56,10 +86,20 @@ async function applyLegacyPatches() {
       `SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='context'`
     );
     if (!hasContext) {
-      console.log('[DB Patch] Adding campaigns.context column');
+      log.info('Adding campaigns.context column', {
+        component: 'database',
+        operation: 'schema_patch',
+        table: 'campaigns',
+        column: 'context'
+      });
       await client.query(`ALTER TABLE campaigns ADD COLUMN context text NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE campaigns ALTER COLUMN context DROP DEFAULT`);
-      console.log('[DB Patch] campaigns.context added');
+      log.info('campaigns.context column added successfully', {
+        component: 'database',
+        operation: 'schema_patch',
+        table: 'campaigns',
+        column: 'context'
+      });
     }
 
     // Idempotent add if missing
@@ -68,7 +108,12 @@ async function applyLegacyPatches() {
         `SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name=$1`, [col]
       );
       if (!rowCount) {
-        console.log(`[DB Patch] Adding campaigns.${col}`);
+        log.info(`Adding campaigns.${col} column`, {
+          component: 'database',
+          operation: 'schema_patch',
+          table: 'campaigns',
+          column: col
+        });
         await client.query(ddl);
       }
     };
@@ -105,7 +150,12 @@ async function applyLegacyPatches() {
         `SELECT 1 FROM information_schema.columns WHERE table_name=$1 AND column_name=$2`, [table, col]
       );
       if (!rowCount) {
-        console.log(`[DB Patch] Adding ${table}.${col}`);
+        log.info(`Adding ${table}.${col} column`, {
+          component: 'database',
+          operation: 'schema_patch',
+          table,
+          column: col
+        });
         await client.query(ddl);
       }
     };
@@ -131,7 +181,11 @@ async function applyLegacyPatches() {
 
     // Ensure ai_agent_config table exists
     if (!(await tableExists(client, 'ai_agent_config'))) {
-      console.log('[DB Patch] Creating missing ai_agent_config table');
+      log.info('Creating missing ai_agent_config table', {
+        component: 'database',
+        operation: 'table_creation',
+        table: 'ai_agent_config'
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS ai_agent_config (
         id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         name varchar NOT NULL,
@@ -168,7 +222,13 @@ async function applyLegacyPatches() {
            OR model ILIKE 'openai/gpt-4o'
            OR model ILIKE 'gpt-4o'`);
     } catch (e) {
-      console.warn('[DB Patch] model default update warning:', (e as Error).message);
+      log.warn('Model default update warning', {
+        component: 'database',
+        operation: 'schema_patch',
+        table: 'ai_agent_config',
+        field: 'model',
+        error: e as Error
+      });
     }
 
     try {
@@ -179,7 +239,11 @@ async function applyLegacyPatches() {
 
     // Ensure ai_personas table exists
     if (!(await tableExists(client, 'ai_personas'))) {
-      console.log('[DB Patch] Creating missing ai_personas table');
+      log.info('Creating missing ai_personas table', {
+        component: 'database',
+        operation: 'table_creation',
+        table: 'ai_personas'
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS ai_personas (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         client_id uuid NOT NULL,
@@ -209,7 +273,11 @@ async function applyLegacyPatches() {
     }
     // Ensure handovers table exists (idempotent)
     if (!(await tableExists(client, 'handovers'))) {
-      console.log('[DB Patch] Creating missing handovers table');
+      log.info('Creating missing handovers table', {
+        component: 'database',
+        operation: 'table_creation',
+        table: 'handovers'
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS handovers (
         id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         conversation_id varchar REFERENCES conversations(id),
@@ -299,7 +367,12 @@ async function applyLegacyPatches() {
     }
 
   } catch (err) {
-    console.warn('[DB Patch] Warning while applying legacy patches:', (err as Error)?.message || err);
+    log.warn('Warning while applying legacy patches', {
+      component: 'database',
+      operation: 'legacy_patches',
+      error: err as Error,
+      message: (err as Error)?.message || String(err)
+    });
   } finally {
     client.release();
   }
@@ -316,13 +389,24 @@ process.on('SIGINT', gracefulShutdown);
 process.on('SIGTERM', gracefulShutdown);
 
 async function gracefulShutdown(signal: string) {
-  console.log(`Received ${signal}, closing database connections...`);
+  log.info(`Received ${signal}, closing database connections`, {
+    component: 'database',
+    operation: 'graceful_shutdown',
+    signal
+  });
   try {
     await pool.end();
-    console.log('Database connections closed successfully');
+    log.info('Database connections closed successfully', {
+      component: 'database',
+      operation: 'graceful_shutdown'
+    });
     process.exit(0);
   } catch (error) {
-    console.error('Error closing database connections:', error);
+    log.error('Error closing database connections', {
+      component: 'database',
+      operation: 'graceful_shutdown',
+      error: error as Error
+    });
     process.exit(1);
   }
 }

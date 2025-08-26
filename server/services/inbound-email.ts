@@ -3,6 +3,9 @@ import { createHmac } from 'crypto';
 import { storage } from '../storage';
 import { sendThreadedReply } from './mailgun-threaded';
 import { callOpenRouterJSON } from './call-openrouter';
+import { buildErrorResponse, createErrorContext } from '../utils/error-utils';
+import { log } from '../logging/logger';
+import { ConversationRateLimiters } from './conversation-rate-limiter';
 
 
 // Basic safeguards
@@ -49,7 +52,8 @@ export class InboundEmailService {
 
       // Verify Mailgun webhook signature
       if (!this.verifyMailgunSignature(event)) {
-        return res.status(401).json({ error: 'Unauthorized' });
+        const errorResponse = buildErrorResponse(new Error('Mailgun signature verification failed'));
+        return res.status(401).json(errorResponse);
       }
 
       const REQUIRE_CAMPAIGN = String(process.env.INBOUND_REQUIRE_CAMPAIGN_REPLY || 'true').toLowerCase() !== 'false';
@@ -66,10 +70,11 @@ export class InboundEmailService {
 
       let leadInfo: { leadId: string; lead: any } | null = null;
       let campaignId: string | undefined;
+      let campaign: any | null = null;
       if (match) {
         campaignId = match[1];
         // Verify campaign exists and sender is a lead on it
-        const campaign = await storage.getCampaign(campaignId);
+        campaign = await storage.getCampaign(campaignId);
         if (!campaign) {
           return res.status(200).json({ message: 'Ignored: unknown campaign' });
         }
@@ -96,7 +101,13 @@ export class InboundEmailService {
       }
 
       if (!leadInfo) {
-        console.log('Could not identify lead from email:', event.sender);
+        log.info('Could not identify lead from email', {
+          component: 'inbound-email',
+          operation: 'lead_identification',
+          sender: event.sender,
+          recipient: event.recipient,
+          subject: event.subject?.slice(0, 100)
+        });
         return res.status(200).json({ message: 'Email processed but lead not identified' });
       }
 
@@ -119,7 +130,14 @@ export class InboundEmailService {
       const now = Date.now();
       const lastMsg = recentMessages[recentMessages.length - 1];
       if (lastMsg && lastMsg.isFromAI && (now - new Date((lastMsg as any).createdAt).getTime()) < REPLY_RATE_LIMIT_MINUTES * 60 * 1000) {
-        console.log(`[AI Reply Guard] Skipping consecutive AI reply (cooldown ${REPLY_RATE_LIMIT_MINUTES}m)`);
+        log.info('AI Reply Guard: Skipping consecutive AI reply', {
+          component: 'inbound-email',
+          operation: 'rate_limiting',
+          conversationId: conversation.id,
+          cooldownMinutes: REPLY_RATE_LIMIT_MINUTES,
+          lastAiReplyTime: (lastMsg as any).createdAt,
+          sender: event.sender
+        });
         return res.status(200).json({ message: 'Rate-limited; no consecutive AI reply' });
       }
 
@@ -156,6 +174,25 @@ Sound like a **real OfferLogix teammate** having a straight conversation with a 
 - Guide toward either engagement or graceful exit.  
 
 Output strictly JSON only with keys: should_reply (boolean), handover (boolean), reply_subject (string), reply_body_html (string), rationale (string).`;
+      // Check AI conversation rate limits first
+      const rateLimitCheck = ConversationRateLimiters.checkAIResponseAllowed(
+        conversation.id, 
+        leadInfo?.lead?.email, 
+        campaign?.id
+      );
+      
+      if (!rateLimitCheck.allowed) {
+        log.info('AI Reply Decision: Rate limited, skipping AI response', {
+          conversationId: conversation.id,
+          sender: event.sender,
+          reason: rateLimitCheck.reason,
+          retryAfter: rateLimitCheck.retryAfter,
+          component: 'inbound-email',
+          operation: 'ai_reply_decision'
+        });
+        return res.status(200).json({ status: 'rate_limited', message: rateLimitCheck.reason });
+      }
+
       let aiResult: { should_reply: boolean; handover: boolean; reply_subject?: string; reply_body_html?: string; rationale?: string };
       try {
         aiResult = await callOpenRouterJSON({
@@ -168,17 +205,29 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           maxTokens: 800,
         });
       } catch (err) {
-        console.error('[AI Reply Decision] OpenRouter error, falling back to handover:', (err as any)?.message || err);
+        const errorContext = createErrorContext(err, { 
+          conversationId: conversation.id,
+          sender: event.sender,
+          operation: 'ai_reply_decision'
+        });
+        log.error('AI Reply Decision: OpenRouter error, falling back to handover', {
+          ...errorContext,
+          component: 'inbound-email',
+          operation: 'ai_reply_decision'
+        });
         aiResult = { should_reply: false, handover: true, rationale: 'AI service unavailable' } as any;
       }
 
       // Sanitize reply HTML and log rationale
       const safeHtml = sanitizeHtmlBasic(aiResult.reply_body_html || '');
-      console.log('[AI Reply Decision]', {
+      log.info('AI Reply Decision completed', {
+        component: 'inbound-email',
+        operation: 'ai_reply_decision',
         conversationId: conversation.id,
         should_reply: aiResult.should_reply,
         handover: aiResult.handover,
-        rationale: aiResult.rationale?.slice(0, 300)
+        rationale: aiResult.rationale?.slice(0, 300),
+        sender: event.sender
       });
 
 
@@ -187,6 +236,9 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         await storage.createHandover({ conversationId: conversation.id, reason: aiResult?.rationale || 'AI requested handover' });
         return res.status(200).json({ message: 'Handover created' });
       }
+
+      // Record AI response being sent (before actually sending to ensure rate limit is enforced)
+      ConversationRateLimiters.recordAIResponseSent(conversation.id, leadInfo?.lead?.email, campaign?.id);
 
       // Send reply via Mailgun with threading
       try {
@@ -202,7 +254,16 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || undefined,
         });
       } catch (sendErr) {
-        console.error('Failed to send AI reply email:', sendErr);
+        const errorContext = createErrorContext(sendErr, { 
+          conversationId: conversation.id,
+          recipient: event.sender,
+          operation: 'send_ai_reply'
+        });
+        log.error('Failed to send AI reply email', {
+          ...errorContext,
+          component: 'inbound-email',
+          operation: 'send_ai_reply'
+        });
         // Do not fail webhook; proceed to 200 so Mailgun does not retry
       }
 
@@ -217,13 +278,23 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
 
       res.status(200).json({ message: 'Email processed and replied' });
     } catch (error) {
-      console.error('Inbound email processing error (non-fatal path will ack):', error);
+      const errorContext = createErrorContext(error, { 
+        sender: event?.sender,
+        recipient: event?.recipient,
+        operation: 'inbound_email_processing'
+      });
+      log.error('Inbound email processing error (non-fatal path will ack)', {
+        ...errorContext,
+        component: 'inbound-email',
+        operation: 'inbound_email_processing'
+      });
       // Avoid Mailgun retries causing backpressure; ack and create handover
       try {
         // best-effort handover creation if we still have minimal context
         // (guarded above when conversation is available)
       } catch {}
-      res.status(200).json({ error: 'Processing error; acknowledged to prevent retry' });
+      const errorResponse = buildErrorResponse(error);
+      res.status(200).json({ ...errorResponse, acknowledged: true });
     }
   }
 
@@ -241,10 +312,20 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
     // Allow explicit test bypass only in non-production if no signing key is set
     if (!signingKey) {
       if (process.env.NODE_ENV !== 'production') {
-        console.warn('MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production');
+        log.warn('MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production', {
+          component: 'inbound-email',
+          operation: 'webhook_signature_verification',
+          environment: process.env.NODE_ENV
+        });
         return !!(event.sender && event.timestamp && event.token);
       }
-      console.error('MAILGUN_WEBHOOK_SIGNING_KEY missing in production');
+      log.security('MAILGUN_WEBHOOK_SIGNING_KEY missing in production', {
+        eventType: 'missing_webhook_key',
+        severity: 'high',
+        component: 'inbound-email',
+        operation: 'webhook_signature_verification',
+        environment: process.env.NODE_ENV
+      });
       return false;
     }
 
@@ -254,7 +335,12 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         .digest('hex');
       return hmac === event.signature;
     } catch (err) {
-      console.error('Signature verification error:', err);
+      const errorContext = createErrorContext(err, { operation: 'mailgun_signature_verification' });
+      log.error('Signature verification error', {
+        ...errorContext,
+        component: 'inbound-email',
+        operation: 'mailgun_signature_verification'
+      });
       return false;
     }
   }

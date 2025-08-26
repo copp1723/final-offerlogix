@@ -18,6 +18,15 @@ import { webSocketService } from "./services/websocket";
 import multer from "multer";
 import { parse } from "csv-parse/sync";
 import { CSVValidationService } from "./services/csv/csv-validation";
+import { campaignRateLimit, bulkEmailRateLimit, createRateLimit } from "./middleware/rate-limiter";
+import { errorLoggingMiddleware } from "./middleware/logging-middleware";
+
+// CSV upload rate limiter - 3 uploads per 10 minutes
+const csvUploadRateLimit = createRateLimit({
+  windowMs: 10 * 60 * 1000, // 10 minutes
+  maxRequests: 3,
+  message: 'Too many CSV uploads, please wait before trying again'
+});
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -250,7 +259,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Launch endpoint (activates campaign & executes immediately unless schedule provided)
-  app.post("/api/campaigns/:id/launch", async (req, res) => {
+  app.post("/api/campaigns/:id/launch", campaignRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const campaign = await storage.getCampaign(campaignId);
@@ -292,7 +301,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use('/', unsubscribeRoutes.default);
 
   // Email routes
-  app.post("/api/email/send", async (req, res) => {
+  app.post("/api/email/send", bulkEmailRateLimit, async (req, res) => {
     try {
       const { to, subject, htmlContent, textContent, fromName, fromEmail } = req.body;
       if (!to || !subject || !htmlContent) {
@@ -369,7 +378,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // CSV upload endpoint for leads (basic version)
-  app.post("/api/leads/upload-csv-basic", basicUpload.single('file'), async (req: TenantRequest, res) => {
+  app.post("/api/leads/upload-csv-basic", csvUploadRateLimit, basicUpload.single('file'), async (req: TenantRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -528,7 +537,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Campaign Execution Routes
   // Execute campaign (Enhanced with Orchestrator)
-  app.post("/api/campaigns/:id/execute", async (req, res) => {
+  app.post("/api/campaigns/:id/execute", campaignRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
@@ -558,7 +567,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/campaigns/:id/send-followup", async (req, res) => {
+  app.post("/api/campaigns/:id/send-followup", bulkEmailRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const { templateIndex = 1, leadIds } = req.body;
@@ -935,7 +944,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   });
 
   // Campaign-specific CSV lead upload
-  app.post("/api/campaigns/:id/leads/upload", upload.single('file'), async (req: TenantRequest, res) => {
+  app.post("/api/campaigns/:id/leads/upload", csvUploadRateLimit, upload.single('file'), async (req: TenantRequest, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: 'No file uploaded' });
       const campaignId = req.params.id;
@@ -1023,7 +1032,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
 
   // Enhanced CSV Upload with Security Validation
-  app.post("/api/leads/upload-csv", upload.single('file'), async (req: TenantRequest, res) => {
+  app.post("/api/leads/upload-csv", csvUploadRateLimit, upload.single('file'), async (req: TenantRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -1280,6 +1289,10 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // AI Personas routes
   const personaRoutes = await import('./routes/ai-persona');
   app.use('/api/personas', personaRoutes.default);
+
+  // Notification routes
+  const notificationRoutes = await import('./routes/notifications');
+  app.use('/api/notifications', notificationRoutes.default);
 
   // Campaign Scheduling Routes
   app.post("/api/campaigns/:id/schedule", async (req, res) => {
@@ -1539,6 +1552,9 @@ Respond JSON: { "subject_lines": string[], "templates": string[] }` }
   });
 
 
+
+  // Add error handling middleware at the end
+  app.use(errorLoggingMiddleware);
 
   const httpServer = createServer(app);
 

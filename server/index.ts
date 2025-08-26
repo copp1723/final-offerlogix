@@ -1,6 +1,10 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+// Validate environment variables early
+import { validateEnv, getEnv } from "./env";
+const env = validateEnv(); // This will exit process if validation fails
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
@@ -38,6 +42,11 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
+// Apply logging middleware
+import { requestLoggingMiddleware, errorLoggingMiddleware, securityLoggingMiddleware } from './middleware/logging-middleware';
+app.use(requestLoggingMiddleware);
+app.use(securityLoggingMiddleware);
+
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
@@ -71,6 +80,9 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // Apply error logging middleware first
+  app.use(errorLoggingMiddleware);
+
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -89,10 +101,10 @@ app.use((req, res, next) => {
   }
 
   // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
+  // Other ports are firewalled. Default to 5050 if not specified.
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5050', 10);
+  const port = env.PORT;
   server.listen({
     port,
     host: "0.0.0.0",

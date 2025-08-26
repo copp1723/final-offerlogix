@@ -5,6 +5,7 @@ import { db } from '../db';
 import { eq, and, desc } from 'drizzle-orm';
 import { aiPersonas } from '@shared/schema';
 import type { InsertAiPersona, AiPersona } from '@shared/schema';
+import { buildErrorResponse, createErrorContext } from '../utils/error-utils';
 
 const router = Router();
 
@@ -26,9 +27,10 @@ const validateRequest = (schema: z.ZodSchema) => {
       next();
     } catch (error) {
       if (error instanceof z.ZodError) {
+        const errorResponse = buildErrorResponse(error);
         return res.status(400).json({
           success: false,
-          error: 'Validation error',
+          ...errorResponse,
           details: error.errors
         });
       }
@@ -78,11 +80,12 @@ router.get('/', async (req, res) => {
       total: personas.length
     });
   } catch (error) {
-    console.error('Get personas error:', error);
+    const errorContext = createErrorContext(error, { operation: 'get_personas', clientId });
+    console.error('Get personas error:', errorContext);
+    const errorResponse = buildErrorResponse(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get personas',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ...errorResponse
     });
   }
 });
@@ -104,11 +107,12 @@ router.post('/create-defaults', async (req, res) => {
       message: `Personas feature is not yet fully implemented`
     });
   } catch (error) {
-    console.error('Create default personas error:', error);
+    const errorContext = createErrorContext(error, { operation: 'create_default_personas', clientId });
+    console.error('Create default personas error:', errorContext);
+    const errorResponse = buildErrorResponse(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create default personas',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ...errorResponse
     });
   }
 });
@@ -122,23 +126,26 @@ router.get('/:id', async (req, res) => {
     const { id } = req.params;
     
     if (!id) {
+      const errorResponse = buildErrorResponse(new Error('Persona ID is required'));
       return res.status(400).json({
         success: false,
-        error: 'Persona ID is required'
+        ...errorResponse
       });
     }
 
     // For now, return 404 since personas functionality is not fully implemented
+    const errorResponse = buildErrorResponse(new Error('Persona not found'));
     return res.status(404).json({
       success: false,
-      error: 'Persona not found'
+      ...errorResponse
     });
   } catch (error) {
-    console.error('Get persona error:', error);
+    const errorContext = createErrorContext(error, { operation: 'get_persona', personaId: req.params.id });
+    console.error('Get persona error:', errorContext);
+    const errorResponse = buildErrorResponse(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to get persona',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ...errorResponse
     });
   }
 });
@@ -176,9 +183,10 @@ router.post('/', async (req, res) => {
 
     // Validate required fields
     if (!name || !targetAudience) {
+      const errorResponse = buildErrorResponse(new Error('Name and target audience are required'));
       return res.status(400).json({
         success: false,
-        error: 'Name and target audience are required'
+        ...errorResponse
       });
     }
 
@@ -214,11 +222,16 @@ router.post('/', async (req, res) => {
       message: 'Persona created successfully'
     });
   } catch (error) {
-    console.error('Create persona error:', error);
+    const errorContext = createErrorContext(error, { 
+      operation: 'create_persona', 
+      clientId,
+      personaData: { name, targetAudience, industry }
+    });
+    console.error('Create persona error:', errorContext);
+    const errorResponse = buildErrorResponse(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to create persona',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ...errorResponse
     });
   }
 });
@@ -230,16 +243,18 @@ router.post('/', async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     // For now, return not implemented
+    const errorResponse = buildErrorResponse(new Error('Persona update not yet implemented'));
     res.status(501).json({
       success: false,
-      error: 'Persona update not yet implemented'
+      ...errorResponse
     });
   } catch (error) {
-    console.error('Update persona error:', error);
+    const errorContext = createErrorContext(error, { operation: 'update_persona', personaId: req.params.id });
+    console.error('Update persona error:', errorContext);
+    const errorResponse = buildErrorResponse(error);
     res.status(500).json({
       success: false,
-      error: 'Failed to update persona',
-      details: error instanceof Error ? error.message : 'Unknown error'
+      ...errorResponse
     });
   }
 });

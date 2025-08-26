@@ -13,29 +13,37 @@ const router = Router();
 router.get('/email', async (_req, res) => {
   try {
     // Check Mailgun configuration
-    const hasMailgun = !!(process.env.MAILGUN_DOMAIN && process.env.MAILGUN_API_KEY);
+    const { getEnv } = await import('../env');
+    const env = getEnv();
+    const hasMailgun = !!(env.MAILGUN_DOMAIN && env.MAILGUN_API_KEY);
     
     let authStatus = { ok: false, details: {} };
     
     if (hasMailgun) {
       try {
-        const { DomainHealthGuard } = await import('../services/deliverability/domain-health-guard');
-        await DomainHealthGuard.assertAuthReady();
+        // Test Mailgun connectivity with a simple domain validation call
+        const fetch = (await import('node-fetch')).default;
+        const response = await fetch(`https://api.mailgun.net/v3/domains/${env.MAILGUN_DOMAIN}`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Basic ${Buffer.from(`api:${env.MAILGUN_API_KEY}`).toString('base64')}`
+          }
+        });
         
         authStatus = {
-          ok: true,
+          ok: response.ok,
           details: {
-            domain: process.env.MAILGUN_DOMAIN,
-            status: 'healthy',
-            authentication: 'configured',
-            deliverability: 'ready'
+            domain: env.MAILGUN_DOMAIN,
+            status: response.ok ? 'healthy' : 'unhealthy',
+            authentication: response.ok ? 'configured' : 'failed',
+            deliverability: response.ok ? 'ready' : 'unavailable'
           }
         };
       } catch (error) {
         authStatus = {
           ok: false,
           details: {
-            domain: process.env.MAILGUN_DOMAIN,
+            domain: env.MAILGUN_DOMAIN,
             status: 'unhealthy',
             error: error instanceof Error ? error.message : 'Unknown error'
           }
@@ -72,13 +80,14 @@ router.get('/realtime', async (_req, res) => {
     let wsStatus = { ok: false, details: {} };
     
     try {
-      // Simplified websocket service - basic status only
+      // WebSocket service health check - basic status only since getConnectedClients may not exist
+      const connectedClients = 0; // Simplified implementation for now
       
       wsStatus = {
         ok: true,
         details: {
           status: 'active',
-          connectedClients: 0, // Simplified implementation
+          connectedClients,
           endpoint: '/ws'
         }
       };
@@ -110,24 +119,26 @@ router.get('/realtime', async (_req, res) => {
  */
 router.get('/ai', async (_req, res) => {
   try {
-    const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+    const { getEnv } = await import('../env');
+    const env = getEnv();
+    const hasOpenRouter = !!env.OPENROUTER_API_KEY;
     
     let aiStatus = { ok: false, details: {} };
     
     if (hasOpenRouter) {
       try {
-        const { LLMClient } = await import('../services/llm-client');
+        const { callOpenRouterJSON } = await import('../services/call-openrouter');
         
         // Test AI with simple query
-        const testResponse = await LLMClient.generate({
+        const testResponse = await callOpenRouterJSON<{ status: string }>({
           model: 'openai/gpt-5-chat',
-          system: 'Respond with exactly: "OK"',
-          user: 'Test',
-          maxTokens: 10
+          system: 'Respond with JSON: {"status": "OK"}',
+          messages: [{ role: 'user', content: 'Test' }],
+          maxTokens: 20
         });
         
         aiStatus = {
-          ok: testResponse.content.includes('OK'),
+          ok: testResponse.status === 'OK',
           details: {
             status: 'healthy',
             provider: 'OpenRouter',
@@ -174,18 +185,17 @@ router.get('/ai', async (_req, res) => {
 router.get('/database', async (_req, res) => {
   try {
     const { db } = await import('../db');
-    const { sql } = await import('drizzle-orm');
+    const { clients } = await import('@shared/schema');
     
-    // Simple database connectivity test
-    const result = await db.execute(sql`SELECT 1 as test`);
-    const rows = result as unknown as any[];
+    // Simple database connectivity test - check if we can query the clients table
+    const result = await db.select().from(clients).limit(1);
     res.json({
       ok: true,
       details: {
         status: 'healthy',
         type: 'PostgreSQL',
         connectivity: 'active',
-        response: rows.length > 0
+        response: Array.isArray(result)
       }
     });
   } catch (error) {
@@ -206,18 +216,48 @@ router.get('/database', async (_req, res) => {
  */
 router.get('/system', async (_req, res) => {
   try {
+    // Perform actual health checks in parallel
+    const checkDatabase = async () => {
+      try {
+        const { db } = await import('../db');
+        const { clients } = await import('@shared/schema');
+        await db.select().from(clients).limit(1);
+        return { ok: true, status: 'healthy' };
+      } catch {
+        return { ok: false, status: 'error' };
+      }
+    };
+
+    const checkEmail = async () => {
+      try {
+        const { getEnv } = await import('../env');
+        const env = getEnv();
+        return { ok: !!(env.MAILGUN_DOMAIN && env.MAILGUN_API_KEY), status: 'configured' };
+      } catch {
+        return { ok: false, status: 'not_configured' };
+      }
+    };
+
+    const checkAI = async () => {
+      try {
+        const { getEnv } = await import('../env');
+        const env = getEnv();
+        return { ok: !!env.OPENROUTER_API_KEY, status: 'configured' };
+      } catch {
+        return { ok: false, status: 'not_configured' };
+      }
+    };
+
     const checks = await Promise.allSettled([
-      Promise.resolve({ ok: true }), // Database check
-      Promise.resolve({ ok: false }), // Email check  
-      Promise.resolve({ ok: true }), // Realtime check
-      Promise.resolve({ ok: false })  // AI check
+      checkDatabase(),
+      checkEmail(),
+      checkAI()
     ]);
     
     const results = {
-      database: checks[0].status === 'fulfilled' ? checks[0].value : { ok: false },
-      email: checks[1].status === 'fulfilled' ? checks[1].value : { ok: false },
-      realtime: checks[2].status === 'fulfilled' ? checks[2].value : { ok: false },
-      ai: checks[3].status === 'fulfilled' ? checks[3].value : { ok: false }
+      database: checks[0].status === 'fulfilled' ? checks[0].value : { ok: false, status: 'error' },
+      email: checks[1].status === 'fulfilled' ? checks[1].value : { ok: false, status: 'error' },
+      ai: checks[2].status === 'fulfilled' ? checks[2].value : { ok: false, status: 'error' }
     };
     
     const overallHealth = Object.values(results).every(check => check.ok);

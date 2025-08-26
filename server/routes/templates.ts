@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { callOpenRouterJSON } from '../services/call-openrouter';
 import { storage } from '../storage';
+import { buildErrorResponse, createErrorContext } from '../utils/error-utils';
 
 const router = Router();
 
@@ -20,13 +21,18 @@ router.post('/generate', async (req, res) => {
           templateContext = 'General marketing campaign focused on lead generation and customer engagement';
         }
       } catch (error) {
-        console.error('Error fetching campaign for context:', error);
+        const errorContext = createErrorContext(error, { 
+          operation: 'fetch_campaign_context',
+          campaignId 
+        });
+        console.error('Error fetching campaign for context:', errorContext);
         templateContext = 'General marketing campaign focused on lead generation and customer engagement';
       }
     }
     
     if (!templateContext) {
-      return res.status(400).json({ message: 'context or campaignId required' });
+      const errorResponse = buildErrorResponse(new Error('context or campaignId required'));
+      return res.status(400).json(errorResponse);
     }
 
     const system = `System Prompt: The Straight-Talking Sales Pro
@@ -57,8 +63,14 @@ Respond JSON: { "subject_lines": string[], "templates": string[] }` }
 
     res.json({ subject_lines: json.subject_lines || [], templates: json.templates || [] });
   } catch (e) {
-    console.error('Template generation error:', e);
-    res.status(500).json({ message: 'Failed to generate templates' });
+    const errorContext = createErrorContext(e, {
+      operation: 'template_generation',
+      campaignId: req.body?.campaignId,
+      hasContext: !!templateContext
+    });
+    console.error('Template generation error:', errorContext);
+    const errorResponse = buildErrorResponse(e);
+    res.status(500).json(errorResponse);
   }
 });
 
