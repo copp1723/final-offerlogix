@@ -357,31 +357,64 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         });
         // Build references chain for proper threading
         let references: string[] = [];
+        let originalMessageId: string | undefined; // The Message-ID we should reply to
         
-        // First, add any existing References from the incoming email
+        // First, extract References and In-Reply-To from the incoming email
         try {
           const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
+          
+          // Get existing References chain
           const existingRefs = headersArr.find(h => (h[0] || '').toLowerCase() === 'references')?.[1];
           if (existingRefs) {
             const existingRefsList = existingRefs.trim().split(/\s+/).filter(ref => ref.length > 0);
             references = [...existingRefsList];
+            // The LAST reference is usually what we should reply to
+            if (existingRefsList.length > 0) {
+              originalMessageId = existingRefsList[existingRefsList.length - 1].replace(/[<>]/g, '');
+            }
           }
+          
+          // Also check In-Reply-To header from the incoming email
+          const inReplyToHeader = headersArr.find(h => (h[0] || '').toLowerCase() === 'in-reply-to')?.[1];
+          if (inReplyToHeader && !originalMessageId) {
+            originalMessageId = inReplyToHeader.replace(/[<>]/g, '');
+            references.push(inReplyToHeader);
+          }
+          
         } catch {}
         
         // Add the incoming message's Message-ID to the references chain
         if (messageId) {
           references.push(`<${messageId}>`);
         }
+        
+        // If we still don't have an original Message-ID, use the incoming one (fallback)
+        if (!originalMessageId) {
+          originalMessageId = messageId;
+        }
 
         // Generate unique Message-ID for our reply
         const replyMessageId = `reply-${conversation.id}-${Date.now()}@mg.offerlogix.com`;
         
+        // Enhanced debug logging
+        log.info('Enhanced email threading debug', {
+          component: 'inbound-email',
+          operation: 'email_threading_enhanced',
+          sender: event.sender,
+          incomingMessageId: messageId,
+          originalMessageId: originalMessageId,
+          replyMessageId: replyMessageId,
+          inReplyToHeader: originalMessageId ? `<${originalMessageId}>` : undefined,
+          referencesChain: references,
+          conversationId: conversation.id
+        });
+
         await sendThreadedReply({
           to: event.sender,
           subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
           html: aiResult.reply_body_html || '',
           messageId: replyMessageId, // Our reply's Message-ID
-          inReplyTo: messageId ? `<${messageId}>` : undefined, // Reference to incoming message
+          inReplyTo: originalMessageId ? `<${originalMessageId}>` : undefined, // Reference to ORIGINAL message we should reply to
           references: references.length > 0 ? references : undefined,
           domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || undefined,
         });
