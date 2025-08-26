@@ -5,7 +5,7 @@
 export type ORMessage = { role: 'system' | 'user' | 'assistant'; content: string };
 
 export async function callOpenRouterJSON<T = any>({
-  model = 'openai/gpt-4o-mini',
+  model = 'openai/gpt-5-chat',
   system,
   messages,
   temperature = 0.2,

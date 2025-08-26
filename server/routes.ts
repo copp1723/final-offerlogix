@@ -1454,7 +1454,7 @@ Have a normal conversation that helps them figure out what they actually want. I
 
 Return only JSON.`;
       const json = await callOpenRouterJSON<{ subject_lines: string[]; templates: string[] }>({
-        model: 'openai/gpt-4o-mini',
+        model: 'openai/gpt-5-chat',
         system,
         messages: [
           { role: 'user', content: `Generate 3 subject lines and 3 short HTML templates (no external images).

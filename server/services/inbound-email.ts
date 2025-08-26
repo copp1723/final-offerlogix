@@ -159,7 +159,7 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
       let aiResult: { should_reply: boolean; handover: boolean; reply_subject?: string; reply_body_html?: string; rationale?: string };
       try {
         aiResult = await callOpenRouterJSON({
-          model: 'openai/gpt-5-mini',
+          model: 'openai/gpt-5-chat',
           system: systemPrompt,
           messages: [
             { role: 'user', content: `Latest inbound email from ${event.sender}:\n${event['stripped-text'] || event['body-plain'] || ''}\n\nLast messages:\n${recentMessages.map(m => (m.isFromAI ? 'AI: ' : 'Lead: ') + (m.content || '')).join('\n').slice(0, 4000)}` }
