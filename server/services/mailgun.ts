@@ -223,8 +223,10 @@ export async function sendCampaignEmail(
       // Threading headers
       ...(options.inReplyTo ? { 'h:In-Reply-To': options.inReplyTo } : {}),
       ...(options.references && options.references.length ? { 'h:References': options.references.join(' ') } : {}),
-      // Custom headers
-      ...(options.headers || {} as any)
+      // Custom headers (prefix with h: for Mailgun)
+      ...(options.headers ? Object.fromEntries(
+        Object.entries(options.headers).map(([key, value]) => [`h:${key}`, value])
+      ) : {})
     } as any);
 
     const region = (process.env.MAILGUN_REGION || '').toLowerCase();

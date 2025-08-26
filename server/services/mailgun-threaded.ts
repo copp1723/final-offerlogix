@@ -7,6 +7,7 @@ export async function sendThreadedReply(opts: {
   to: string;
   subject: string;
   html: string;
+  messageId?: string; // our reply's Message-ID
   inReplyTo?: string; // original Message-ID
   references?: string[]; // chain of IDs
   domainOverride?: string; // per-tenant subdomain
@@ -26,6 +27,7 @@ export async function sendThreadedReply(opts: {
       domainOverride: opts.domainOverride,
       inReplyTo: opts.inReplyTo,
       references: opts.references,
+      headers: opts.messageId ? { 'Message-ID': `<${opts.messageId}>` } : undefined,
     }
   );
 }

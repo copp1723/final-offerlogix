@@ -37,6 +37,10 @@ interface MailgunInboundEvent {
   timestamp: number;
   token: string;
   signature: string;
+  'Message-Id'?: string;
+  'message-id'?: string;
+  // Allow for other dynamic properties
+  [key: string]: any;
 }
 
 export class InboundEmailService {
@@ -351,22 +355,23 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           hasLowercaseMessageId: !!event['message-id'],
           eventKeys: Object.keys(event).slice(0, 15) // Show available fields
         });
-        // Build references chain for better threading
+        // Build references chain for proper threading
         let references: string[] = [];
-        if (messageId) {
-          references.push(`<${messageId}>`);
-        }
         
-        // Also look for existing References header to maintain thread chain
+        // First, add any existing References from the incoming email
         try {
           const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
           const existingRefs = headersArr.find(h => (h[0] || '').toLowerCase() === 'references')?.[1];
           if (existingRefs) {
-            // Add existing references first, then our message ID
             const existingRefsList = existingRefs.trim().split(/\s+/).filter(ref => ref.length > 0);
-            references = [...existingRefsList, ...references];
+            references = [...existingRefsList];
           }
         } catch {}
+        
+        // Add the incoming message's Message-ID to the references chain
+        if (messageId) {
+          references.push(`<${messageId}>`);
+        }
 
         // Generate unique Message-ID for our reply
         const replyMessageId = `reply-${conversation.id}-${Date.now()}@mg.offerlogix.com`;
@@ -406,8 +411,8 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
       res.status(200).json({ message: 'Email processed and replied' });
     } catch (error) {
       const errorContext = createErrorContext(error, { 
-        sender: event?.sender,
-        recipient: event?.recipient,
+        sender: (req.body as any)?.sender,
+        recipient: (req.body as any)?.recipient,
         operation: 'inbound_email_processing'
       });
       log.error('Inbound email processing error (non-fatal path will ack)', {
