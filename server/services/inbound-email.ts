@@ -310,6 +310,18 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           messageId = event['message-id'].replace(/[<>]/g, '');
         }
         
+        // Method 4: Generate consistent thread ID based on conversation if no Message-ID found
+        if (!messageId) {
+          // Use conversation ID as basis for threading - this ensures replies stay in same thread
+          messageId = `conversation-${conversation.id}@mg.offerlogix.com`;
+          log.warn('No Message-ID found, using conversation-based threading', {
+            component: 'inbound-email',
+            operation: 'email_threading_fallback',
+            conversationId: conversation.id,
+            generatedMessageId: messageId
+          });
+        }
+        
         // Debug logging for threading
         log.info('Email threading debug', {
           component: 'inbound-email',
@@ -322,12 +334,29 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           hasLowercaseMessageId: !!event['message-id'],
           eventKeys: Object.keys(event).slice(0, 15) // Show available fields
         });
+        // Build references chain for better threading
+        let references: string[] = [];
+        if (messageId) {
+          references.push(`<${messageId}>`);
+        }
+        
+        // Also look for existing References header to maintain thread chain
+        try {
+          const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
+          const existingRefs = headersArr.find(h => (h[0] || '').toLowerCase() === 'references')?.[1];
+          if (existingRefs) {
+            // Add existing references first, then our message ID
+            const existingRefsList = existingRefs.trim().split(/\s+/).filter(ref => ref.length > 0);
+            references = [...existingRefsList, ...references];
+          }
+        } catch {}
+
         await sendThreadedReply({
           to: event.sender,
           subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
           html: aiResult.reply_body_html || '',
           inReplyTo: messageId ? `<${messageId}>` : undefined,
-          references: messageId ? [ `<${messageId}>` ] : undefined,
+          references: references.length > 0 ? references : undefined,
           domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || undefined,
         });
       } catch (sendErr) {
