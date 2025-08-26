@@ -37,19 +37,6 @@ function sanitizeHtmlBasic(content: string): string {
 
 // Basic safeguards
 const REPLY_RATE_LIMIT_MINUTES = parseInt(process.env.AI_REPLY_RATE_LIMIT_MINUTES || '15', 10);
-function sanitizeHtmlBasic(html: string): string {
-  if (!html) return '';
-  let out = html;
-  // Strip script/style and active embeds
-  out = out.replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '');
-  out = out.replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '');
-  out = out.replace(/<(?:iframe|object|embed)[^>]*>[\s\S]*?<\/(?:iframe|object|embed)>/gi, '');
-  // Remove inline event handlers like onclick, onload
-  out = out.replace(/\son\w+\s*=\s*(['"]).*?\1/gi, '');
-  // Neutralize javascript: URLs
-  out = out.replace(/(href|src)\s*=\s*(['"])\s*javascript:[^'"]*\2/gi, '$1="#"');
-  return out;
-}
 
 interface MailgunInboundEvent {
   sender: string;

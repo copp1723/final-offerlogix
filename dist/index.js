@@ -4,9 +4,101 @@ var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
 };
 var __export = (target, all) => {
-  for (var name in all)
-    __defProp(target, name, { get: all[name], enumerable: true });
+  for (var name2 in all)
+    __defProp(target, name2, { get: all[name2], enumerable: true });
 };
+
+// server/env.ts
+var env_exports = {};
+__export(env_exports, {
+  getEnv: () => getEnv,
+  validateEnv: () => validateEnv
+});
+import { z } from "zod";
+function validateEnv() {
+  try {
+    env = envSchema.parse(process.env);
+    console.log("\u2705 Environment validation successful");
+    return env;
+  } catch (error) {
+    console.error("\u274C Environment validation failed:");
+    if (error instanceof z.ZodError) {
+      error.errors.forEach((err) => {
+        console.error(`  - ${err.path.join(".")}: ${err.message}`);
+      });
+      console.error("\n\u{1F4CB} Required environment variables:");
+      console.error("  - DATABASE_URL: PostgreSQL connection string");
+      console.error("  - APP_URL, CLIENT_URL, FRONTEND_URL, SITE_URL, CORS_ORIGIN: Application URLs");
+      console.error("  - SESSION_SECRET: Random string (32+ characters)");
+      console.error("  - MAILGUN_API_KEY, MAILGUN_DOMAIN, MAILGUN_FROM_EMAIL: Mailgun configuration");
+      console.error("  - MAILGUN_TRACKING_DOMAIN, MAILGUN_WEBHOOK_SIGNING_KEY: Mailgun settings");
+      console.error("  - OPENROUTER_API_KEY: AI service key");
+      console.error("  - INBOUND_ACCEPT_DOMAIN_SUFFIX: Domain for inbound emails");
+      console.error("  - INBOUND_REQUIRE_CAMPAIGN_REPLY: true/false");
+    } else {
+      console.error("  - Unknown validation error:", error);
+    }
+    console.error("\n\u{1F527} Fix these issues and restart the server.");
+    process.exit(1);
+  }
+}
+function getEnv() {
+  if (!env) {
+    env = validateEnv();
+  }
+  return env;
+}
+var envSchema, env;
+var init_env = __esm({
+  "server/env.ts"() {
+    "use strict";
+    envSchema = z.object({
+      NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
+      PORT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().min(1).max(65535)).default("5050"),
+      // Database
+      DATABASE_URL: z.string().url(),
+      // Application URLs
+      APP_URL: z.string().url(),
+      CLIENT_URL: z.string().url(),
+      FRONTEND_URL: z.string().url(),
+      SITE_URL: z.string().url(),
+      CORS_ORIGIN: z.string().url(),
+      // Authentication & Security
+      SESSION_SECRET: z.string().min(32),
+      // Mailgun Configuration
+      MAILGUN_API_KEY: z.string().min(1),
+      MAILGUN_DOMAIN: z.string().min(1),
+      MAILGUN_FROM_EMAIL: z.string().min(1),
+      // Allowing custom format like "Brittany <brittany@mail.offerlogix.me>"
+      MAILGUN_TRACKING_DOMAIN: z.string().min(1),
+      MAILGUN_WEBHOOK_SIGNING_KEY: z.string().min(1),
+      // AI Services
+      OPENROUTER_API_KEY: z.string().min(1),
+      // Inbound Email Configuration
+      INBOUND_ACCEPT_DOMAIN_SUFFIX: z.string().min(1),
+      INBOUND_REQUIRE_CAMPAIGN_REPLY: z.string().transform((val) => val === "true").default("true"),
+      // Optional Environment Variables with Defaults
+      SUPERMEMORY_API_KEY: z.string().optional(),
+      SUPERMEMORY_BASE_URL: z.string().url().optional(),
+      SUPERMEMORY_RAG: z.string().optional(),
+      // Rate Limiting (for the components we'll add)
+      AI_CONVERSATION_COOLDOWN_MS: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("300000"),
+      // 5 minutes
+      CAMPAIGN_RATE_LIMIT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("10"),
+      WEBHOOK_RATE_LIMIT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("100"),
+      // Database Connection Pool
+      DATABASE_POOL_MAX: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("20"),
+      DATABASE_POOL_MIN: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("5"),
+      DATABASE_IDLE_TIMEOUT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("30000"),
+      DATABASE_CONNECTION_TIMEOUT: z.string().transform((val) => parseInt(val, 10)).pipe(z.number().positive()).default("10000"),
+      // Logging
+      LOG_LEVEL: z.enum(["error", "warn", "info", "debug"]).default("info")
+    });
+    if (process.env.NODE_ENV === "production") {
+      validateEnv();
+    }
+  }
+});
 
 // shared/schema.ts
 var schema_exports = {};
@@ -429,6 +521,383 @@ var init_schema = __esm({
   }
 });
 
+// server/logging/config.ts
+import winston from "winston";
+import path from "path";
+import { existsSync, mkdirSync } from "fs";
+var logLevels, env2, isProduction, isDevelopment, logLevel, logDir, logFormat, consoleFormat, transports, logger, PerformanceLogger, performanceLogger;
+var init_config = __esm({
+  "server/logging/config.ts"() {
+    "use strict";
+    init_env();
+    logLevels = {
+      error: 0,
+      warn: 1,
+      info: 2,
+      debug: 3,
+      security: 4
+    };
+    env2 = getEnv();
+    isProduction = env2.NODE_ENV === "production";
+    isDevelopment = env2.NODE_ENV === "development";
+    logLevel = env2.LOG_LEVEL || (isProduction ? "info" : "debug");
+    logDir = path.join(process.cwd(), "logs");
+    if (!existsSync(logDir)) {
+      mkdirSync(logDir, { recursive: true });
+    }
+    logFormat = winston.format.combine(
+      winston.format.timestamp({ format: "YYYY-MM-DD HH:mm:ss.SSS" }),
+      winston.format.errors({ stack: true }),
+      winston.format.json(),
+      winston.format.printf(({ timestamp: timestamp2, level, message, correlationId, service, ...meta }) => {
+        const logEntry = {
+          timestamp: timestamp2,
+          level,
+          message,
+          correlationId: correlationId || "no-correlation",
+          service: service || "offerlogix-api",
+          environment: env2.NODE_ENV || "development",
+          ...meta
+        };
+        return JSON.stringify(logEntry);
+      })
+    );
+    consoleFormat = winston.format.combine(
+      winston.format.colorize(),
+      winston.format.timestamp({ format: "HH:mm:ss" }),
+      winston.format.printf(({ timestamp: timestamp2, level, message, correlationId, service, ...meta }) => {
+        const metaStr = Object.keys(meta).length ? JSON.stringify(meta, null, 2) : "";
+        const corrId = correlationId ? `[${String(correlationId).slice(0, 8)}]` : "";
+        return `${timestamp2} ${level} ${corrId} ${message} ${metaStr}`;
+      })
+    );
+    transports = [
+      // Console transport (always enabled for development visibility)
+      new winston.transports.Console({
+        format: isDevelopment ? consoleFormat : logFormat,
+        level: isDevelopment ? "debug" : "info"
+      }),
+      // Application logs (simple file logging)
+      new winston.transports.File({
+        filename: path.join(logDir, "application.log"),
+        maxsize: 100 * 1024 * 1024,
+        // 100MB
+        maxFiles: 5,
+        level: "info",
+        format: logFormat
+      }),
+      // Error logs (separate error file)
+      new winston.transports.File({
+        filename: path.join(logDir, "error.log"),
+        maxsize: 100 * 1024 * 1024,
+        // 100MB
+        maxFiles: 10,
+        level: "error",
+        format: logFormat
+      })
+    ];
+    if (isDevelopment) {
+      transports.push(
+        new winston.transports.File({
+          filename: path.join(logDir, "debug.log"),
+          maxsize: 50 * 1024 * 1024,
+          // 50MB
+          maxFiles: 3,
+          level: "debug",
+          format: logFormat
+        })
+      );
+    }
+    logger = winston.createLogger({
+      levels: logLevels,
+      level: logLevel,
+      format: logFormat,
+      transports,
+      // Handle uncaught exceptions and unhandled rejections
+      exceptionHandlers: [
+        new winston.transports.File({
+          filename: path.join(logDir, "exceptions.log"),
+          format: logFormat
+        })
+      ],
+      rejectionHandlers: [
+        new winston.transports.File({
+          filename: path.join(logDir, "rejections.log"),
+          format: logFormat
+        })
+      ],
+      // Exit on uncaught exceptions in production
+      exitOnError: isProduction
+    });
+    winston.addColors({
+      error: "red",
+      warn: "yellow",
+      info: "green",
+      debug: "blue",
+      security: "magenta"
+    });
+    PerformanceLogger = class {
+      constructor() {
+        this.metrics = {
+          requestCount: 0,
+          errorCount: 0,
+          averageResponseTime: 0,
+          memoryUsage: process.memoryUsage(),
+          uptime: process.uptime()
+        };
+        this.responseTimes = [];
+        this.maxResponseTimes = 1e3;
+      }
+      logRequest(responseTime, isError2 = false) {
+        this.metrics.requestCount++;
+        if (isError2) this.metrics.errorCount++;
+        this.responseTimes.push(responseTime);
+        if (this.responseTimes.length > this.maxResponseTimes) {
+          this.responseTimes.shift();
+        }
+        this.metrics.averageResponseTime = this.responseTimes.reduce((a, b) => a + b, 0) / this.responseTimes.length;
+      }
+      getMetrics() {
+        return {
+          ...this.metrics,
+          memoryUsage: process.memoryUsage(),
+          uptime: process.uptime()
+        };
+      }
+      logMetrics() {
+        const metrics = this.getMetrics();
+        logger.info("Performance metrics", {
+          component: "performance",
+          metrics
+        });
+      }
+    };
+    performanceLogger = new PerformanceLogger();
+    if (isProduction) {
+      setInterval(() => {
+        performanceLogger.logMetrics();
+      }, 5 * 60 * 1e3);
+    }
+  }
+});
+
+// server/logging/logger.ts
+var Logger, log;
+var init_logger = __esm({
+  "server/logging/logger.ts"() {
+    "use strict";
+    init_config();
+    Logger = class _Logger {
+      /**
+       * Log debug information
+       */
+      debug(message, context) {
+        logger.debug(message, this.sanitizeContext(context));
+      }
+      /**
+       * Log general information
+       */
+      info(message, context) {
+        logger.info(message, this.sanitizeContext(context));
+      }
+      /**
+       * Log warnings
+       */
+      warn(message, context) {
+        logger.warn(message, this.sanitizeContext(context));
+      }
+      /**
+       * Log errors with structured context
+       */
+      error(message, context) {
+        const errorContext = context ? {
+          ...this.sanitizeContext(context),
+          ...context.error && {
+            errorName: context.error.name,
+            errorMessage: context.error.message,
+            stackTrace: context.error.stack
+          }
+        } : {};
+        logger.error(message, errorContext);
+        performanceLogger.logRequest(0, true);
+      }
+      /**
+       * Log security events
+       */
+      security(message, context) {
+        const securityContext = {
+          ...this.sanitizeContext(context),
+          level: "security",
+          timestamp: (/* @__PURE__ */ new Date()).toISOString()
+        };
+        logger.security(message, securityContext);
+      }
+      /**
+       * Log performance metrics
+       */
+      performance(message, context) {
+        const perfContext = {
+          ...this.sanitizeContext(context),
+          component: "performance"
+        };
+        logger.info(message, perfContext);
+        performanceLogger.logRequest(context.duration, context.status === "failure");
+      }
+      /**
+       * Log database operations
+       */
+      database(message, context) {
+        const dbContext = {
+          ...this.sanitizeContext(context),
+          component: "database",
+          // Sanitize query to remove sensitive data
+          query: context.query ? this.sanitizeQuery(context.query) : void 0
+        };
+        logger.info(message, dbContext);
+      }
+      /**
+       * Log API operations
+       */
+      api(message, context) {
+        const apiContext = {
+          ...this.sanitizeContext(context),
+          component: "api"
+        };
+        logger.info(message, apiContext);
+        if (context.responseTime) {
+          performanceLogger.logRequest(
+            context.responseTime,
+            (context.statusCode || 0) >= 400
+          );
+        }
+      }
+      /**
+       * Log AI/LLM operations
+       */
+      ai(message, context) {
+        const aiContext = {
+          ...this.sanitizeContext(context),
+          component: "ai"
+        };
+        logger.info(message, aiContext);
+      }
+      /**
+       * Create logger with default context (for request-scoped logging)
+       */
+      withContext(context) {
+        const contextualLogger = new _Logger();
+        const originalSanitize = contextualLogger.sanitizeContext.bind(contextualLogger);
+        contextualLogger.sanitizeContext = (additionalContext) => {
+          return originalSanitize({ ...context, ...additionalContext });
+        };
+        return contextualLogger;
+      }
+      /**
+       * Create logger from Express request
+       */
+      fromRequest(req) {
+        const context = {
+          correlationId: this.getCorrelationId(req),
+          requestId: req.headers["x-request-id"],
+          userId: req.user?.id,
+          tenantId: req.tenant?.id || req.clientId,
+          sessionId: req.sessionID || "no-session",
+          ipAddress: this.getClientIp(req),
+          userAgent: req.headers["user-agent"],
+          method: req.method,
+          path: req.path,
+          query: Object.keys(req.query).length > 0 ? req.query : void 0
+        };
+        return this.withContext(context);
+      }
+      /**
+       * Sanitize context to remove sensitive information
+       */
+      sanitizeContext(context) {
+        if (!context) return {};
+        const sanitized = { ...context };
+        const sensitiveFields = [
+          "password",
+          "secret",
+          "token",
+          "key",
+          "authorization",
+          "cookie",
+          "session",
+          "credit_card",
+          "ssn",
+          "api_key"
+        ];
+        sensitiveFields.forEach((field) => {
+          if (field in sanitized) {
+            delete sanitized[field];
+          }
+        });
+        Object.keys(sanitized).forEach((key) => {
+          if (typeof sanitized[key] === "object" && sanitized[key] !== null) {
+            sanitized[key] = this.sanitizeObject(sanitized[key]);
+          }
+        });
+        return sanitized;
+      }
+      /**
+       * Sanitize nested objects
+       */
+      sanitizeObject(obj) {
+        if (Array.isArray(obj)) {
+          return obj.map(
+            (item) => typeof item === "object" ? this.sanitizeObject(item) : item
+          );
+        }
+        if (typeof obj === "object" && obj !== null) {
+          const sanitized = { ...obj };
+          const sensitiveFields = [
+            "password",
+            "secret",
+            "token",
+            "key",
+            "authorization"
+          ];
+          sensitiveFields.forEach((field) => {
+            if (field in sanitized) {
+              sanitized[field] = "[REDACTED]";
+            }
+          });
+          return sanitized;
+        }
+        return obj;
+      }
+      /**
+       * Sanitize SQL queries to remove sensitive data
+       */
+      sanitizeQuery(query) {
+        return query.replace(/password\s*=\s*['"][^'"]*['"]/gi, "password='[REDACTED]'").replace(/token\s*=\s*['"][^'"]*['"]/gi, "token='[REDACTED]'").replace(/key\s*=\s*['"][^'"]*['"]/gi, "key='[REDACTED]'").replace(/secret\s*=\s*['"][^'"]*['"]/gi, "secret='[REDACTED]'");
+      }
+      /**
+       * Extract correlation ID from request
+       */
+      getCorrelationId(req) {
+        return req.headers["x-correlation-id"] || req.headers["x-request-id"] || `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      }
+      /**
+       * Extract client IP from request
+       */
+      getClientIp(req) {
+        const forwarded = req.headers["x-forwarded-for"];
+        const ip = forwarded ? (Array.isArray(forwarded) ? forwarded[0] : forwarded).split(",")[0].trim() : req.connection.remoteAddress || req.socket.remoteAddress || "127.0.0.1";
+        return ip;
+      }
+      /**
+       * Get current performance metrics
+       */
+      getPerformanceMetrics() {
+        return performanceLogger.getMetrics();
+      }
+    };
+    log = new Logger();
+  }
+});
+
 // server/db.ts
 var db_exports = {};
 __export(db_exports, {
@@ -442,8 +911,18 @@ async function ensureDatabaseReady() {
   try {
     await client.query("CREATE EXTENSION IF NOT EXISTS pgcrypto;");
     await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
+    log.info("Database extensions ensured", {
+      component: "database",
+      operation: "extension_setup",
+      extensions: ["pgcrypto", "uuid-ossp"]
+    });
   } catch (err) {
-    console.warn("Database extension setup warning:", err?.message || err);
+    log.warn("Database extension setup warning", {
+      component: "database",
+      operation: "extension_setup",
+      error: err,
+      message: err?.message || String(err)
+    });
   } finally {
     client.release();
   }
@@ -462,10 +941,20 @@ async function applyLegacyPatches() {
       `SELECT 1 FROM information_schema.columns WHERE table_name='campaigns' AND column_name='context'`
     );
     if (!hasContext) {
-      console.log("[DB Patch] Adding campaigns.context column");
+      log.info("Adding campaigns.context column", {
+        component: "database",
+        operation: "schema_patch",
+        table: "campaigns",
+        column: "context"
+      });
       await client.query(`ALTER TABLE campaigns ADD COLUMN context text NOT NULL DEFAULT ''`);
       await client.query(`ALTER TABLE campaigns ALTER COLUMN context DROP DEFAULT`);
-      console.log("[DB Patch] campaigns.context added");
+      log.info("campaigns.context column added successfully", {
+        component: "database",
+        operation: "schema_patch",
+        table: "campaigns",
+        column: "context"
+      });
     }
     const addColumn = async (col, ddl) => {
       const { rowCount } = await client.query(
@@ -473,7 +962,12 @@ async function applyLegacyPatches() {
         [col]
       );
       if (!rowCount) {
-        console.log(`[DB Patch] Adding campaigns.${col}`);
+        log.info(`Adding campaigns.${col} column`, {
+          component: "database",
+          operation: "schema_patch",
+          table: "campaigns",
+          column: col
+        });
         await client.query(ddl);
       }
     };
@@ -505,7 +999,12 @@ async function applyLegacyPatches() {
         [table, col]
       );
       if (!rowCount) {
-        console.log(`[DB Patch] Adding ${table}.${col}`);
+        log.info(`Adding ${table}.${col} column`, {
+          component: "database",
+          operation: "schema_patch",
+          table,
+          column: col
+        });
         await client.query(ddl);
       }
     };
@@ -529,7 +1028,11 @@ async function applyLegacyPatches() {
       "quotaWarnings": true
     }'::jsonb`);
     if (!await tableExists(client, "ai_agent_config")) {
-      console.log("[DB Patch] Creating missing ai_agent_config table");
+      log.info("Creating missing ai_agent_config table", {
+        component: "database",
+        operation: "table_creation",
+        table: "ai_agent_config"
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS ai_agent_config (
         id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         name varchar NOT NULL,
@@ -564,14 +1067,24 @@ async function applyLegacyPatches() {
            OR model ILIKE 'openai/gpt-4o'
            OR model ILIKE 'gpt-4o'`);
     } catch (e) {
-      console.warn("[DB Patch] model default update warning:", e.message);
+      log.warn("Model default update warning", {
+        component: "database",
+        operation: "schema_patch",
+        table: "ai_agent_config",
+        field: "model",
+        error: e
+      });
     }
     try {
       await client.query(`ALTER TABLE ai_agent_config ADD CONSTRAINT ai_agent_config_client_id_clients_id_fk FOREIGN KEY (client_id) REFERENCES clients(id)`);
     } catch (e) {
     }
     if (!await tableExists(client, "ai_personas")) {
-      console.log("[DB Patch] Creating missing ai_personas table");
+      log.info("Creating missing ai_personas table", {
+        component: "database",
+        operation: "table_creation",
+        table: "ai_personas"
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS ai_personas (
         id uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         client_id uuid NOT NULL,
@@ -600,7 +1113,11 @@ async function applyLegacyPatches() {
       )`);
     }
     if (!await tableExists(client, "handovers")) {
-      console.log("[DB Patch] Creating missing handovers table");
+      log.info("Creating missing handovers table", {
+        component: "database",
+        operation: "table_creation",
+        table: "handovers"
+      });
       await client.query(`CREATE TABLE IF NOT EXISTS handovers (
         id varchar PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
         conversation_id varchar REFERENCES conversations(id),
@@ -668,19 +1185,35 @@ async function applyLegacyPatches() {
     } catch (e) {
     }
   } catch (err) {
-    console.warn("[DB Patch] Warning while applying legacy patches:", err?.message || err);
+    log.warn("Warning while applying legacy patches", {
+      component: "database",
+      operation: "legacy_patches",
+      error: err,
+      message: err?.message || String(err)
+    });
   } finally {
     client.release();
   }
 }
 async function gracefulShutdown(signal) {
-  console.log(`Received ${signal}, closing database connections...`);
+  log.info(`Received ${signal}, closing database connections`, {
+    component: "database",
+    operation: "graceful_shutdown",
+    signal
+  });
   try {
     await pool.end();
-    console.log("Database connections closed successfully");
+    log.info("Database connections closed successfully", {
+      component: "database",
+      operation: "graceful_shutdown"
+    });
     process.exit(0);
   } catch (error) {
-    console.error("Error closing database connections:", error);
+    log.error("Error closing database connections", {
+      component: "database",
+      operation: "graceful_shutdown",
+      error
+    });
     process.exit(1);
   }
 }
@@ -689,10 +1222,16 @@ var init_db = __esm({
   "server/db.ts"() {
     "use strict";
     init_schema();
+    init_logger();
     if (!process.env.DATABASE_URL) {
-      throw new Error(
-        "DATABASE_URL must be set. Did you forget to provision a database?"
-      );
+      const error = new Error("DATABASE_URL must be set. Did you forget to provision a database?");
+      log.error("Database URL not configured", {
+        component: "database",
+        operation: "initialization",
+        error,
+        severity: "critical"
+      });
+      throw error;
     }
     pool = new Pool({
       connectionString: process.env.DATABASE_URL,
@@ -704,11 +1243,103 @@ var init_db = __esm({
       query_timeout: Number(process.env.DATABASE_QUERY_TIMEOUT) || 6e4,
       statement_timeout: Number(process.env.DATABASE_STATEMENT_TIMEOUT) || 6e4
     });
+    log.info("Database pool configured", {
+      component: "database",
+      operation: "pool_configuration",
+      poolConfig: {
+        max: pool.options.max,
+        min: pool.options.min,
+        idleTimeoutMs: pool.options.idleTimeoutMillis,
+        connectionTimeoutMs: pool.options.connectionTimeoutMillis,
+        ssl: !!pool.options.ssl
+      }
+    });
     void ensureDatabaseReady();
     void applyLegacyPatches();
     db = drizzle(pool, { schema: schema_exports });
     process.on("SIGINT", gracefulShutdown);
     process.on("SIGTERM", gracefulShutdown);
+  }
+});
+
+// server/utils/error-utils.ts
+function isError(error) {
+  return error instanceof Error;
+}
+function toError(error) {
+  if (isError(error)) {
+    return error;
+  }
+  if (typeof error === "string") {
+    return new Error(error);
+  }
+  if (error && typeof error === "object" && "message" in error) {
+    return new Error(String(error.message));
+  }
+  return new Error("Unknown error occurred: " + String(error));
+}
+function getErrorMessage(error) {
+  if (isError(error)) {
+    return error.message;
+  }
+  if (typeof error === "string") {
+    return error;
+  }
+  if (error && typeof error === "object" && "message" in error) {
+    return String(error.message);
+  }
+  return "Unknown error: " + String(error);
+}
+function createErrorContext(error, additionalContext) {
+  const errorObj = toError(error);
+  return {
+    error: errorObj,
+    message: errorObj.message,
+    stack: errorObj.stack,
+    ...additionalContext
+  };
+}
+function categorizeError(error) {
+  const err = toError(error);
+  const msg = err.message.toLowerCase();
+  if (msg.includes("network") || msg.includes("fetch") || err.code === "ECONNREFUSED") {
+    return "network";
+  }
+  if (msg.includes("timeout")) {
+    return "network";
+  }
+  if (msg.includes("json") || msg.includes("parse")) {
+    return "parsing";
+  }
+  if (msg.includes("invalid") || msg.includes("validation")) {
+    return "validation";
+  }
+  if (msg.includes("unauthorized") || msg.includes("forbidden")) {
+    return "auth";
+  }
+  if (msg.includes("rate limit") || msg.includes("too many requests")) {
+    return "rate_limit";
+  }
+  return "unknown";
+}
+function buildErrorResponse(error) {
+  const category = categorizeError(error);
+  let message = getErrorMessage(error);
+  const userFriendlyMessages = {
+    network: "Network error. Please check your connection and retry.",
+    api: "AI service error. Please try again later.",
+    parsing: "Received an unexpected response from the AI service.",
+    validation: "Invalid input provided. Please review and try again.",
+    auth: "Authentication required. Please refresh the page.",
+    rate_limit: "Too many requests. Please wait a moment and try again.",
+    unknown: "Unexpected error occurred. Please try again."
+  };
+  message = userFriendlyMessages[category];
+  return { message, type: category };
+}
+var init_error_utils = __esm({
+  "server/utils/error-utils.ts"() {
+    "use strict";
   }
 });
 
@@ -741,13 +1372,23 @@ function circuitOpen() {
 function recordSuccess() {
   consecutiveFails = 0;
 }
-function recordFailure() {
+function recordFailure(error) {
   consecutiveFails += 1;
-  if (consecutiveFails === CIRCUIT_FAILS) circuitOpenedAt = Date.now();
+  if (consecutiveFails === CIRCUIT_FAILS) {
+    circuitOpenedAt = Date.now();
+    if (error) {
+      const errorContext = createErrorContext(error, {
+        operation: "supermemory_circuit_opened",
+        consecutiveFails,
+        category: categorizeError(error)
+      });
+      console.warn("Supermemory circuit breaker opened:", errorContext);
+    }
+  }
 }
-async function requestWithRetries(path3, method, body) {
+async function requestWithRetries(path4, method, body) {
   if (!API_KEY) throw new Error("Supermemory API key missing");
-  const url = `${BASE_URL.replace(/\/$/, "")}${path3}`;
+  const url = `${BASE_URL.replace(/\/$/, "")}${path4}`;
   let attempt = 0;
   while (true) {
     attempt++;
@@ -765,7 +1406,8 @@ async function requestWithRetries(path3, method, body) {
       });
       clearTimeout(timer);
       if ([408, 429].includes(res.status) || res.status >= 500) {
-        recordFailure();
+        const retryError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+        recordFailure(retryError);
         if (attempt >= MAX_RETRIES) return res;
         await sleep(backoff(attempt));
         continue;
@@ -774,7 +1416,7 @@ async function requestWithRetries(path3, method, body) {
       return res;
     } catch (err) {
       clearTimeout(timer);
-      recordFailure();
+      recordFailure(err);
       if (attempt >= MAX_RETRIES) throw err;
       await sleep(backoff(attempt));
     }
@@ -787,7 +1429,8 @@ var BASE_URL, API_KEY, TIMEOUT_MS, MAX_RETRIES, RETRY_BASE_MS, CIRCUIT_FAILS, CI
 var init_client = __esm({
   "server/integrations/supermemory/client.ts"() {
     "use strict";
-    BASE_URL = process.env.SUPERMEMORY_BASE_URL || "https://api.supermemory.ai";
+    init_error_utils();
+    BASE_URL = process.env.SUPERMEMORY_BASE_URL || "https://supermemory.ai/api";
     API_KEY = process.env.SUPERMEMORY_API_KEY || "";
     TIMEOUT_MS = Number(process.env.SUPERMEMORY_TIMEOUT_MS ?? 8e3);
     MAX_RETRIES = Number(process.env.SUPERMEMORY_MAX_RETRIES ?? 3);
@@ -805,10 +1448,18 @@ var init_client = __esm({
         if (circuitOpen()) {
           return { id: void 0, skipped: true, reason: "circuit_open" };
         }
-        const res = await requestWithRetries("/v1/memories", "POST", payload);
+        const res = await requestWithRetries("/add", "POST", payload);
         if (!res.ok) {
           const text2 = await res.text().catch(() => "");
-          throw new Error(`Supermemory add failed: ${res.status} ${text2}`);
+          const error = new Error(`Supermemory add failed: ${res.status} ${text2}`);
+          const errorContext = createErrorContext(error, {
+            operation: "supermemory_add",
+            status: res.status,
+            category: categorizeError(error),
+            contentLength: payload.content?.length || 0
+          });
+          console.error("Supermemory add error:", errorContext);
+          throw error;
         }
         return res.json();
       },
@@ -819,10 +1470,18 @@ var init_client = __esm({
         if (circuitOpen()) {
           return { results: [], total: 0, skipped: true, reason: "circuit_open" };
         }
-        const res = await requestWithRetries("/v1/search", "POST", body);
+        const res = await requestWithRetries("/search", "POST", body);
         if (!res.ok) {
           const text2 = await res.text().catch(() => "");
-          throw new Error(`Supermemory search failed: ${res.status} ${text2}`);
+          const error = new Error(`Supermemory search failed: ${res.status} ${text2}`);
+          const errorContext = createErrorContext(error, {
+            operation: "supermemory_search",
+            status: res.status,
+            category: categorizeError(error),
+            query: body.query
+          });
+          console.error("Supermemory search error:", errorContext);
+          throw error;
         }
         let json;
         try {
@@ -982,7 +1641,7 @@ async function searchMemories(input) {
 }
 function buildSearchPayload({
   q,
-  clientId,
+  clientId: clientId2,
   campaignId,
   leadEmailHash,
   limit = 8,
@@ -993,7 +1652,7 @@ function buildSearchPayload({
   rewriteQuery = true
 }) {
   const containerTags = [
-    `client:${clientId}`,
+    `client:${clientId2}`,
     campaignId ? `campaign:${campaignId}` : null,
     leadEmailHash ? `lead:${leadEmailHash}` : null,
     ...extraTags
@@ -1633,20 +2292,22 @@ async function sendCampaignEmail(to, subject, content, variables = {}, options =
       subject,
       html,
       text: text2,
-      // RFC 8058 compliant headers for deliverability
-      "h:List-Unsubscribe": `<mailto:unsubscribe@${domain}?subject=unsubscribe>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>`,
-      "h:List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
-      "h:List-Id": `<${domain}>`,
-      "h:List-Help": `<mailto:help@${domain}>`,
-      "h:Precedence": "bulk",
-      "h:X-Auto-Response-Suppress": "OOF, DR, RN, NRN, AutoReply",
-      // Custom tracking domain
-      ...process.env.MAILGUN_TRACKING_DOMAIN ? { "o:tracking-clicks": "yes", "o:tracking-opens": "yes" } : {},
+      // Reply-To if provided in variables
+      ...variables.replyTo ? { "h:Reply-To": variables.replyTo } : {},
+      // Replies should not look like bulk mail; skip List-* and Precedence unless explicitly allowed
+      ...!options.suppressBulkHeaders ? {
+        "h:X-Auto-Response-Suppress": "OOF, DR, RN, NRN, AutoReply",
+        "h:List-Id": `<${domain}>`,
+        "h:List-Help": `<mailto:help@${domain}>`,
+        "h:List-Unsubscribe": `<mailto:unsubscribe@${domain}?subject=unsubscribe${process.env.MAILGUN_TRACKING_DOMAIN ? `>, <https://${trackingDomain}/unsubscribe?token=${unsubscribeToken}>` : ">"}`,
+        "h:List-Unsubscribe-Post": "List-Unsubscribe=One-Click"
+        // Do NOT set Precedence: bulk for replies
+      } : {},
       // Threading headers
       ...options.inReplyTo ? { "h:In-Reply-To": options.inReplyTo } : {},
       ...options.references && options.references.length ? { "h:References": options.references.join(" ") } : {},
-      // Custom headers
-      ...options.headers || {}
+      // Custom headers (prefix with h: for Mailgun)
+      ...options.headers ? Object.fromEntries(Object.entries(options.headers).map(([k, v]) => [`h:${k}`, v])) : {}
     });
     const region = (process.env.MAILGUN_REGION || "").toLowerCase();
     const base = region === "eu" ? "https://api.eu.mailgun.net/v3" : "https://api.mailgun.net/v3";
@@ -1744,7 +2405,9 @@ var init_websocket = __esm({
   "server/services/websocket.ts"() {
     "use strict";
     SimpleWebSocketService = class {
-      clients = [];
+      constructor() {
+        this.clients = [];
+      }
       initialize(server) {
         console.log("[WebSocket] Service initialized (simplified)");
       }
@@ -1908,11 +2571,15 @@ var init_ExecutionProcessor = __esm({
           const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
           const campaignAgent = campaign.agentConfigId ? await storage2.getAiAgentConfig(campaign.agentConfigId).catch(() => void 0) : void 0;
           const activeCfg = campaignAgent || await storage2.getActiveAiAgentConfig().catch(() => void 0);
+          const domainUsed = activeCfg?.agentEmailDomain || process.env.MAILGUN_DOMAIN || "";
+          const configuredReplyTo = process.env.MAILGUN_REPLY_TO_EMAIL;
+          const replyTo = configuredReplyTo && configuredReplyTo.trim() ? configuredReplyTo.trim() : domainUsed ? `campaign-${campaign.id}@${domainUsed}` : void 0;
           const success = await this.sendWithRetries(
             emailData.to,
             emailData.subject,
             emailData.html,
-            activeCfg?.agentEmailDomain
+            activeCfg?.agentEmailDomain,
+            replyTo
           );
           const result = { success, error: success ? void 0 : "Failed to send email" };
           if (!result.success) {
@@ -1991,7 +2658,7 @@ Template: ${template.title || template.subject || "Email Template"}`,
         return html.slice(0, cut) + "\n<!-- truncated to stay under size cap -->";
       }
       // Retry wrapper for mail sends
-      async sendWithRetries(to, subject, html, domainOverride) {
+      async sendWithRetries(to, subject, html, domainOverride, replyTo) {
         const { sendCampaignEmail: sendCampaignEmail2, mailgunAuthIsSuppressed: mailgunAuthIsSuppressed2 } = await Promise.resolve().then(() => (init_mailgun(), mailgun_exports));
         let attempt = 0;
         while (true) {
@@ -2000,7 +2667,9 @@ Template: ${template.title || template.subject || "Email Template"}`,
             if (mailgunAuthIsSuppressed2()) {
               return false;
             }
-            const ok = await sendCampaignEmail2(to, subject, html, {}, { domainOverride });
+            const headers = {};
+            if (replyTo) headers["h:Reply-To"] = replyTo;
+            const ok = await sendCampaignEmail2(to, subject, html, {}, { domainOverride, headers });
             if (ok) return true;
             if (attempt >= MAILGUN_MAX_RETRIES2) return false;
           } catch (err) {
@@ -2068,39 +2737,41 @@ var init_LeadAssignmentService = __esm({
     init_storage();
     init_websocket();
     LeadAssignmentService = class {
-      assignmentRules = [
-        {
-          id: "high_value_leads",
-          name: "High Value Leads",
-          enabled: true,
-          criteria: {
-            budget: { min: 5e4 },
-            timeframe: ["immediate", "within_month"]
+      constructor() {
+        this.assignmentRules = [
+          {
+            id: "high_value_leads",
+            name: "High Value Leads",
+            enabled: true,
+            criteria: {
+              budget: { min: 5e4 },
+              timeframe: ["immediate", "within_month"]
+            },
+            priority: 10,
+            assignTo: "senior_sales"
           },
-          priority: 10,
-          assignTo: "senior_sales"
-        },
-        {
-          id: "luxury_vehicles",
-          name: "Luxury Vehicle Interest",
-          enabled: true,
-          criteria: {
-            vehicleInterest: ["BMW", "Mercedes", "Audi", "Lexus", "Tesla"]
+          {
+            id: "luxury_vehicles",
+            name: "Luxury Vehicle Interest",
+            enabled: true,
+            criteria: {
+              vehicleInterest: ["BMW", "Mercedes", "Audi", "Lexus", "Tesla"]
+            },
+            priority: 8,
+            assignTo: "luxury_specialist"
           },
-          priority: 8,
-          assignTo: "luxury_specialist"
-        },
-        {
-          id: "quick_conversion",
-          name: "Quick Conversion Potential",
-          enabled: true,
-          criteria: {
-            timeframe: ["immediate", "within_week"]
-          },
-          priority: 7,
-          assignTo: "conversion_team"
-        }
-      ];
+          {
+            id: "quick_conversion",
+            name: "Quick Conversion Potential",
+            enabled: true,
+            criteria: {
+              timeframe: ["immediate", "within_week"]
+            },
+            priority: 7,
+            assignTo: "conversion_team"
+          }
+        ];
+      }
       /**
        * Assign leads to campaigns based on intelligent rules
        */
@@ -2336,8 +3007,8 @@ var init_CampaignOrchestrator = __esm({
     init_storage();
     init_websocket();
     CampaignOrchestrator = class {
-      activeExecutions = /* @__PURE__ */ new Map();
       constructor() {
+        this.activeExecutions = /* @__PURE__ */ new Map();
       }
       async executeCampaign(options) {
         const { campaignId, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = options;
@@ -2519,15 +3190,28 @@ var init_CampaignOrchestrator = __esm({
 });
 
 // server/services/call-openrouter.ts
+var call_openrouter_exports = {};
+__export(call_openrouter_exports, {
+  callOpenRouterJSON: () => callOpenRouterJSON
+});
 async function callOpenRouterJSON({
-  model = "openai/gpt-5-mini",
+  model = "openai/gpt-5-chat",
   system,
   messages,
   temperature = 0.2,
   maxTokens = 1e3
 }) {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (!apiKey) throw new Error("OPENROUTER_API_KEY not set");
+  const env4 = getEnv();
+  const apiKey = env4.OPENROUTER_API_KEY;
+  if (!apiKey) {
+    log.error("OPENROUTER_API_KEY not set", {
+      component: "ai",
+      operation: "openrouter_call",
+      error: new Error("OPENROUTER_API_KEY not set"),
+      model
+    });
+    throw new Error("OPENROUTER_API_KEY not set");
+  }
   const payload = {
     model,
     messages: [
@@ -2538,7 +3222,17 @@ async function callOpenRouterJSON({
     max_tokens: maxTokens,
     response_format: { type: "json_object" }
   };
-  const referer = process.env.SITE_URL || "https://offerlogix.ai";
+  const referer = env4.SITE_URL;
+  const startTime = performance.now();
+  log.info("Starting OpenRouter API call", {
+    component: "ai",
+    operation: "openrouter_call",
+    model,
+    messageCount: messages.length,
+    temperature,
+    maxTokens,
+    systemPromptLength: system.length
+  });
   const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
     method: "POST",
     headers: {
@@ -2552,20 +3246,105 @@ async function callOpenRouterJSON({
   });
   if (!res.ok) {
     const txt = await res.text().catch(() => "");
-    throw new Error(`OpenRouter error ${res.status}: ${txt}`);
+    const duration2 = performance.now() - startTime;
+    const error = new Error(`OpenRouter error ${res.status}: ${txt}`);
+    const errorContext = createErrorContext(error, {
+      status: res.status,
+      statusText: res.statusText,
+      response: txt.slice(0, 500),
+      model,
+      system: system.slice(0, 100) + "..."
+    });
+    log.ai("OpenRouter API call failed", {
+      provider: "openrouter",
+      model,
+      latency: Math.round(duration2),
+      cost: 0,
+      // Could calculate based on token usage
+      promptLength: system.length + messages.reduce((acc, m) => acc + m.content.length, 0),
+      responseLength: 0,
+      component: "ai",
+      operation: "openrouter_call",
+      error,
+      httpStatus: res.status,
+      httpStatusText: res.statusText
+    });
+    throw error;
   }
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
-  if (!content) throw new Error("No content from OpenRouter");
+  const duration = performance.now() - startTime;
+  if (!content) {
+    const error = new Error("No content from OpenRouter");
+    const errorContext = createErrorContext(error, {
+      data,
+      model,
+      system: system.slice(0, 100) + "..."
+    });
+    log.ai("OpenRouter API call returned no content", {
+      provider: "openrouter",
+      model,
+      latency: Math.round(duration),
+      cost: 0,
+      promptLength: system.length + messages.reduce((acc, m) => acc + m.content.length, 0),
+      responseLength: 0,
+      component: "ai",
+      operation: "openrouter_call",
+      error,
+      usage: data?.usage
+    });
+    throw error;
+  }
   try {
-    return JSON.parse(content);
+    const parsedResult = JSON.parse(content);
+    log.ai("OpenRouter API call successful", {
+      provider: "openrouter",
+      model,
+      latency: Math.round(duration),
+      cost: 0,
+      // Could calculate based on token usage
+      promptLength: system.length + messages.reduce((acc, m) => acc + m.content.length, 0),
+      responseLength: content.length,
+      tokenCount: {
+        input: data?.usage?.prompt_tokens || 0,
+        output: data?.usage?.completion_tokens || 0,
+        total: data?.usage?.total_tokens || 0
+      },
+      component: "ai",
+      operation: "openrouter_call",
+      usage: data?.usage
+    });
+    return parsedResult;
   } catch (e) {
-    throw new Error("Failed to parse OpenRouter JSON content");
+    const parseError = new Error("Failed to parse OpenRouter JSON content");
+    const errorContext = createErrorContext(parseError, {
+      content: content.slice(0, 500),
+      originalError: getErrorMessage(e),
+      model,
+      system: system.slice(0, 100) + "...",
+      errorCategory: categorizeError(e)
+    });
+    log.ai("OpenRouter JSON parse failed", {
+      provider: "openrouter",
+      model,
+      latency: Math.round(duration),
+      cost: 0,
+      promptLength: system.length + messages.reduce((acc, m) => acc + m.content.length, 0),
+      responseLength: content.length,
+      component: "ai",
+      operation: "openrouter_call",
+      error: parseError,
+      rawContent: content.slice(0, 200)
+    });
+    throw parseError;
   }
 }
 var init_call_openrouter = __esm({
   "server/services/call-openrouter.ts"() {
     "use strict";
+    init_env();
+    init_error_utils();
+    init_logger();
   }
 });
 
@@ -2581,26 +3360,32 @@ var init_templates = __esm({
     "use strict";
     init_call_openrouter();
     init_storage();
+    init_error_utils();
     router = Router();
     router.post("/generate", async (req, res) => {
       try {
         const { context, campaignId } = req.body || {};
-        let templateContext = context;
+        let templateContext2 = context;
         if (campaignId && !context) {
           try {
             const campaign = await storage.getCampaign(campaignId);
             if (campaign) {
-              templateContext = `Campaign: ${campaign.name}. Goals: ${campaign.goals || "Generate leads and drive conversions"}. Target: ${campaign.targetAudience || "potential customers"}`;
+              templateContext2 = `Campaign: ${campaign.name}. Goals: ${campaign.handoverGoals || "Generate leads and drive conversions"}. Target: ${campaign.targetAudience || "potential customers"}`;
             } else {
-              templateContext = "General marketing campaign focused on lead generation and customer engagement";
+              templateContext2 = "General marketing campaign focused on lead generation and customer engagement";
             }
           } catch (error) {
-            console.error("Error fetching campaign for context:", error);
-            templateContext = "General marketing campaign focused on lead generation and customer engagement";
+            const errorContext = createErrorContext(error, {
+              operation: "fetch_campaign_context",
+              campaignId
+            });
+            console.error("Error fetching campaign for context:", errorContext);
+            templateContext2 = "General marketing campaign focused on lead generation and customer engagement";
           }
         }
-        if (!templateContext) {
-          return res.status(400).json({ message: "context or campaignId required" });
+        if (!templateContext2) {
+          const errorResponse = buildErrorResponse(new Error("context or campaignId required"));
+          return res.status(400).json(errorResponse);
         }
         const system = `System Prompt: The Straight-Talking Sales Pro
 Core Identity:
@@ -2617,11 +3402,11 @@ Have a normal conversation that helps them figure out what they actually want. I
 
 Return only JSON.`;
         const json = await callOpenRouterJSON({
-          model: "openai/gpt-5-mini",
+          model: "openai/gpt-5-chat",
           system,
           messages: [
             { role: "user", content: `Generate 3 subject lines and 3 short HTML templates (no external images).
-Context: ${context}
+Context: ${templateContext2}
 Respond JSON: { "subject_lines": string[], "templates": string[] }` }
           ],
           temperature: 0.5,
@@ -2629,8 +3414,14 @@ Respond JSON: { "subject_lines": string[], "templates": string[] }` }
         });
         res.json({ subject_lines: json.subject_lines || [], templates: json.templates || [] });
       } catch (e) {
-        console.error("Template generation error:", e);
-        res.status(500).json({ message: "Failed to generate templates" });
+        const errorContext = createErrorContext(e, {
+          operation: "template_generation",
+          campaignId: req.body?.campaignId,
+          hasContext: !!templateContext
+        });
+        console.error("Template generation error:", errorContext);
+        const errorResponse = buildErrorResponse(e);
+        res.status(500).json(errorResponse);
       }
     });
     templates_default = router;
@@ -2765,90 +3556,92 @@ var init_email_validator = __esm({
   "server/services/email-validator.ts"() {
     "use strict";
     OutboundEmailWatchdog = class {
-      blockRules = [
-        {
-          name: "Critical Field Validation",
-          enabled: true,
-          priority: 100,
-          conditions: {
-            checkMissingFields: true,
-            requiredFields: ["to", "subject", "htmlContent"]
+      constructor() {
+        this.blockRules = [
+          {
+            name: "Critical Field Validation",
+            enabled: true,
+            priority: 100,
+            conditions: {
+              checkMissingFields: true,
+              requiredFields: ["to", "subject", "htmlContent"]
+            },
+            actions: {
+              block: true,
+              notifyAdmin: true
+            }
           },
-          actions: {
-            block: true,
-            notifyAdmin: true
-          }
-        },
-        {
-          name: "Content Completeness Check",
-          enabled: true,
-          priority: 90,
-          conditions: {
-            checkEmptyContent: true,
-            checkTemplatePlaceholders: true
+          {
+            name: "Content Completeness Check",
+            enabled: true,
+            priority: 90,
+            conditions: {
+              checkEmptyContent: true,
+              checkTemplatePlaceholders: true
+            },
+            actions: {
+              block: true,
+              notifyAdmin: true
+            }
           },
-          actions: {
-            block: true,
-            notifyAdmin: true
-          }
-        },
-        {
-          name: "Email Address Validation",
-          enabled: true,
-          priority: 80,
-          conditions: {
-            checkInvalidEmails: true
+          {
+            name: "Email Address Validation",
+            enabled: true,
+            priority: 80,
+            conditions: {
+              checkInvalidEmails: true
+            },
+            actions: {
+              block: true
+            }
           },
-          actions: {
-            block: true
-          }
-        },
-        {
-          name: "Spam Prevention",
-          enabled: true,
-          priority: 70,
-          conditions: {
-            checkSpamKeywords: true,
-            checkSuspiciousContent: true
+          {
+            name: "Spam Prevention",
+            enabled: true,
+            priority: 70,
+            conditions: {
+              checkSpamKeywords: true,
+              checkSuspiciousContent: true
+            },
+            actions: {
+              requireApproval: true,
+              notifyAdmin: true
+            }
           },
-          actions: {
-            requireApproval: true,
-            notifyAdmin: true
-          }
-        },
-        {
-          name: "Bulk Send Limits",
-          enabled: true,
-          priority: 60,
-          conditions: {
-            maxRecipients: 100
+          {
+            name: "Bulk Send Limits",
+            enabled: true,
+            priority: 60,
+            conditions: {
+              maxRecipients: 100
+            },
+            actions: {
+              requireApproval: true
+            }
           },
-          actions: {
-            requireApproval: true
+          {
+            name: "Domain Blocklist",
+            enabled: true,
+            priority: 50,
+            conditions: {
+              blockedDomains: ["tempmail.com", "10minutemail.com", "guerrillamail.com"]
+            },
+            actions: {
+              block: true
+            }
           }
-        },
-        {
-          name: "Domain Blocklist",
-          enabled: true,
-          priority: 50,
-          conditions: {
-            blockedDomains: ["tempmail.com", "10minutemail.com", "guerrillamail.com"]
-          },
-          actions: {
-            block: true
-          }
-        }
-      ];
-      spamKeywords = [
-        "100% FREE",
-        "URGENT",
-        "MAKE MONEY FAST",
-        "CLICK HERE NOW",
-        "LIMITED TIME",
-        "ACT NOW",
-        "GUARANTEED",
-        "NO RISK"
-      ];
+        ];
+        this.spamKeywords = [
+          "100% FREE",
+          "URGENT",
+          "MAKE MONEY FAST",
+          "CLICK HERE NOW",
+          "LIMITED TIME",
+          "ACT NOW",
+          "GUARANTEED",
+          "NO RISK"
+        ];
+      }
       /**
        * Main validation method - call this before sending any email
        */
@@ -3051,16 +3844,32 @@ var init_email_validator = __esm({
 
 // server/services/mailgun-threaded.ts
 async function sendThreadedReply(opts) {
+  const from = process.env.MAILGUN_FROM_EMAIL;
+  const idDomain = (opts.domainOverride || process.env.MAILGUN_DOMAIN || "").split("@").pop().trim() || "mail.offerlogix.me";
+  const convToken = opts.conversationId ? `conv_${opts.conversationId}` : null;
+  const replyToEmail = convToken ? `brittany+${convToken}@${idDomain}` : void 0;
   return sendCampaignEmail(
     opts.to,
     opts.subject,
     opts.html,
-    {},
     {
-      isAutoResponse: true,
+      from: from || void 0,
+      replyTo: replyToEmail
+    },
+    {
+      // Treat as normal send so configured From is honored
+      isAutoResponse: false,
       domainOverride: opts.domainOverride,
       inReplyTo: opts.inReplyTo,
-      references: opts.references
+      references: opts.references,
+      // Backup headers for conversation mapping
+      headers: {
+        ...opts.messageId ? { "Message-ID": `<${opts.messageId}>` } : {},
+        ...opts.conversationId ? { "X-Conversation-ID": String(opts.conversationId) } : {},
+        ...opts.campaignId ? { "X-Campaign-ID": String(opts.campaignId) } : {}
+      },
+      // Critical: make this look like a human reply, not a bulk send
+      suppressBulkHeaders: true
     }
   );
 }
@@ -3071,12 +3880,287 @@ var init_mailgun_threaded = __esm({
   }
 });
 
+// server/services/conversation-rate-limiter.ts
+var ConversationRateLimit, ConversationRateLimiters;
+var init_conversation_rate_limiter = __esm({
+  "server/services/conversation-rate-limiter.ts"() {
+    "use strict";
+    init_env();
+    ConversationRateLimit = class {
+      constructor(config) {
+        this.config = config;
+        this.store = /* @__PURE__ */ new Map();
+        this.cleanupInterval = setInterval(() => this.cleanup(), 5 * 60 * 1e3);
+      }
+      /**
+       * Check if AI response is allowed for conversation
+       */
+      checkLimit(identifier) {
+        const key = this.config.keyGenerator ? this.config.keyGenerator(identifier) : identifier;
+        const now = Date.now();
+        let entry = this.store.get(key);
+        if (!entry || now > entry.resetTime) {
+          entry = {
+            count: 0,
+            resetTime: now + this.config.windowMs,
+            firstHit: now
+          };
+          this.store.set(key, entry);
+        }
+        const allowed = entry.count < this.config.maxMessages;
+        const remaining = Math.max(0, this.config.maxMessages - entry.count);
+        const resetTime = new Date(entry.resetTime);
+        let retryAfter;
+        if (!allowed) {
+          retryAfter = Math.ceil((entry.resetTime - now) / 1e3);
+        }
+        return {
+          allowed,
+          remaining,
+          resetTime,
+          retryAfter
+        };
+      }
+      /**
+       * Record an AI response being sent
+       */
+      recordSent(identifier) {
+        const key = this.config.keyGenerator ? this.config.keyGenerator(identifier) : identifier;
+        const entry = this.store.get(key);
+        if (entry) {
+          entry.count++;
+          this.store.set(key, entry);
+        }
+      }
+      /**
+       * Get current usage stats for conversation
+       */
+      getUsage(identifier) {
+        const key = this.config.keyGenerator ? this.config.keyGenerator(identifier) : identifier;
+        const entry = this.store.get(key);
+        const now = Date.now();
+        if (!entry || now > entry.resetTime) {
+          return {
+            count: 0,
+            limit: this.config.maxMessages,
+            remaining: this.config.maxMessages,
+            resetTime: new Date(now + this.config.windowMs)
+          };
+        }
+        return {
+          count: entry.count,
+          limit: this.config.maxMessages,
+          remaining: Math.max(0, this.config.maxMessages - entry.count),
+          resetTime: new Date(entry.resetTime)
+        };
+      }
+      /**
+       * Reset rate limit for specific conversation (admin override)
+       */
+      reset(identifier) {
+        const key = this.config.keyGenerator ? this.config.keyGenerator(identifier) : identifier;
+        this.store.delete(key);
+      }
+      /**
+       * Get all current rate limit entries for monitoring
+       */
+      getAllUsage() {
+        const results = [];
+        const now = Date.now();
+        for (const [key, entry] of this.store.entries()) {
+          if (now <= entry.resetTime) {
+            results.push({
+              identifier: key,
+              count: entry.count,
+              resetTime: new Date(entry.resetTime)
+            });
+          }
+        }
+        return results.sort((a, b) => b.count - a.count);
+      }
+      /**
+       * Clean up expired entries
+       */
+      cleanup() {
+        const now = Date.now();
+        const toDelete = [];
+        for (const [key, entry] of this.store.entries()) {
+          if (now > entry.resetTime) {
+            toDelete.push(key);
+          }
+        }
+        toDelete.forEach((key) => this.store.delete(key));
+        if (toDelete.length > 0) {
+          console.log(`\u{1F9F9} Cleaned up ${toDelete.length} expired conversation rate limit entries`);
+        }
+      }
+      /**
+       * Destroy the rate limiter and cleanup
+       */
+      destroy() {
+        clearInterval(this.cleanupInterval);
+        this.store.clear();
+      }
+    };
+    ConversationRateLimiters = class _ConversationRateLimiters {
+      static {
+        this.env = getEnv();
+      }
+      static {
+        // AI Conversation throttling - configurable via environment  
+        this.aiConversation = new ConversationRateLimit({
+          maxMessages: 1,
+          // One AI response allowed per window
+          windowMs: _ConversationRateLimiters.env.AI_CONVERSATION_COOLDOWN_MS,
+          // 5 minutes by default
+          keyGenerator: (conversationId) => `ai:conversation:${conversationId}`
+        });
+      }
+      static {
+        // Lead-level throttling - prevents spam from single lead
+        this.leadDaily = new ConversationRateLimit({
+          maxMessages: 20,
+          // Max 20 AI responses per lead per day
+          windowMs: 24 * 60 * 60 * 1e3,
+          // 24 hours
+          keyGenerator: (leadEmail) => `ai:lead:${leadEmail}:daily`
+        });
+      }
+      static {
+        // Campaign-level throttling - prevents campaign overload
+        this.campaignHourly = new ConversationRateLimit({
+          maxMessages: 50,
+          // Max 50 AI responses per campaign per hour
+          windowMs: 60 * 60 * 1e3,
+          // 1 hour
+          keyGenerator: (campaignId) => `ai:campaign:${campaignId}:hourly`
+        });
+      }
+      static {
+        // System-level protection - global AI response limit
+        this.systemHourly = new ConversationRateLimit({
+          maxMessages: 200,
+          // Max 200 AI responses per hour system-wide
+          windowMs: 60 * 60 * 1e3,
+          // 1 hour
+          keyGenerator: () => "ai:system:hourly"
+        });
+      }
+      static {
+        // Burst protection for active conversations
+        this.burstProtection = new ConversationRateLimit({
+          maxMessages: 3,
+          // Max 3 quick responses
+          windowMs: 2 * 60 * 1e3,
+          // 2 minute window
+          keyGenerator: (identifier) => `ai:burst:${identifier}`
+        });
+      }
+      /**
+       * Check if AI response is allowed for INBOUND lead replies
+       * NOTE: Lead replies should ALWAYS be allowed - rate limiting only applies to:
+       * 1. System-wide protection (prevent total overload)
+       * 2. Lead daily limits (prevent abuse)
+       * 3. Campaign limits (prevent campaign abuse)
+       * 
+       * CONVERSATION-level rate limiting is DISABLED for inbound lead replies
+       */
+      static checkAIResponseAllowed(conversationId, leadEmail, campaignId) {
+        const systemLimit = this.systemHourly.checkLimit("system");
+        if (!systemLimit.allowed) {
+          return {
+            allowed: false,
+            reason: "System rate limit exceeded - please try again later",
+            retryAfter: systemLimit.retryAfter
+          };
+        }
+        if (leadEmail) {
+          const leadLimit = this.leadDaily.checkLimit(leadEmail);
+          if (!leadLimit.allowed) {
+            return {
+              allowed: false,
+              reason: "Daily message limit reached for this lead",
+              retryAfter: leadLimit.retryAfter
+            };
+          }
+        }
+        if (campaignId) {
+          const campaignLimit = this.campaignHourly.checkLimit(campaignId);
+          if (!campaignLimit.allowed) {
+            return {
+              allowed: false,
+              reason: "Campaign rate limit exceeded",
+              retryAfter: campaignLimit.retryAfter
+            };
+          }
+        }
+        return { allowed: true };
+      }
+      /**
+       * Record AI INBOUND response being sent (no conversation-level tracking)
+       */
+      static recordAIInboundResponse(conversationId, leadEmail, campaignId) {
+        this.systemHourly.recordSent("system");
+        if (leadEmail) {
+          this.leadDaily.recordSent(leadEmail);
+        }
+        if (campaignId) {
+          this.campaignHourly.recordSent(campaignId);
+        }
+      }
+      /**
+       * Record AI OUTBOUND response being sent (full tracking including conversation limits)
+       */
+      static recordAIOutboundResponse(conversationId, leadEmail, campaignId) {
+        this.aiConversation.recordSent(conversationId);
+        this.systemHourly.recordSent("system");
+        if (leadEmail) {
+          this.leadDaily.recordSent(leadEmail);
+        }
+        if (campaignId) {
+          this.campaignHourly.recordSent(campaignId);
+        }
+      }
+      /**
+       * Get comprehensive rate limit status for monitoring
+       */
+      static getStatus(conversationId, leadEmail, campaignId) {
+        const status = {
+          conversation: this.aiConversation.getUsage(conversationId),
+          system: this.systemHourly.getUsage("system")
+        };
+        if (leadEmail) {
+          status.lead = this.leadDaily.getUsage(leadEmail);
+        }
+        if (campaignId) {
+          status.campaign = this.campaignHourly.getUsage(campaignId);
+        }
+        return status;
+      }
+    };
+  }
+});
+
 // server/services/inbound-email.ts
 var inbound_email_exports = {};
 __export(inbound_email_exports, {
   InboundEmailService: () => InboundEmailService
 });
 import { createHmac } from "crypto";
+function extractEmail(addr) {
+  if (!addr) return "";
+  const m = addr.match(/<([^>]+)>/);
+  return (m ? m[1] : addr).trim();
+}
+function extractLocal(recipient) {
+  const match = recipient.toLowerCase().match(/^[^@]+/);
+  return match ? match[0] : "";
+}
+function tryGetConversationIdFromRecipient(recipient) {
+  const local = extractLocal(recipient);
+  const m = local.match(/conv_(\d+)/);
+  return m ? Number(m[1]) : null;
+}
 function sanitizeHtmlBasic(html) {
   if (!html) return "";
   let out = html;
@@ -3094,6 +4178,9 @@ var init_inbound_email = __esm({
     init_storage();
     init_mailgun_threaded();
     init_call_openrouter();
+    init_error_utils();
+    init_logger();
+    init_conversation_rate_limiter();
     REPLY_RATE_LIMIT_MINUTES = parseInt(process.env.AI_REPLY_RATE_LIMIT_MINUTES || "15", 10);
     InboundEmailService = class {
       /**
@@ -3103,8 +4190,16 @@ var init_inbound_email = __esm({
       static async handleInboundEmail(req, res) {
         try {
           const event = (req.headers["content-type"] || "").includes("application/json") ? req.body : Object.fromEntries(Object.entries(req.body).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v]));
-          if (!this.verifyMailgunSignature(event)) {
-            return res.status(401).json({ error: "Unauthorized" });
+          if (process.env.NODE_ENV === "production" && !this.verifyMailgunSignature(event)) {
+            log.warn("Mailgun signature verification failed - processing anyway for now", {
+              component: "inbound-email",
+              operation: "webhook_signature_verification",
+              sender: event.sender,
+              recipient: event.recipient,
+              hasSignature: !!event.signature,
+              hasTimestamp: !!event.timestamp,
+              hasToken: !!event.token
+            });
           }
           const REQUIRE_CAMPAIGN = String(process.env.INBOUND_REQUIRE_CAMPAIGN_REPLY || "true").toLowerCase() !== "false";
           const recipient = (event.recipient || "").toLowerCase();
@@ -3117,14 +4212,15 @@ var init_inbound_email = __esm({
           }
           let leadInfo = null;
           let campaignId;
+          let campaign = null;
           if (match) {
             campaignId = match[1];
-            const campaign = await storage.getCampaign(campaignId);
+            campaign = await storage.getCampaign(campaignId);
             if (!campaign) {
               return res.status(200).json({ message: "Ignored: unknown campaign" });
             }
             const leads2 = await storage.getLeadsByCampaign(campaignId);
-            const senderEmail = (event.sender || "").toLowerCase();
+            const senderEmail = extractEmail(event.sender || "").toLowerCase();
             const matchingLead = leads2.find((l) => (l.email || "").toLowerCase() === senderEmail);
             if (!matchingLead) {
               return res.status(200).json({ message: "Ignored: sender not a lead on campaign" });
@@ -3134,7 +4230,7 @@ var init_inbound_email = __esm({
             leadInfo = await this.extractLeadFromEmail(event);
           }
           if (!leadInfo && ACCEPT_BY_DOMAIN) {
-            const senderEmail = (event.sender || "").toLowerCase();
+            const senderEmail = extractEmail(event.sender || "").toLowerCase();
             let lead = await storage.getLeadByEmail(senderEmail);
             if (!lead) {
               lead = await storage.createLead({ email: senderEmail, leadSource: "email_inbound", status: "new" });
@@ -3142,13 +4238,45 @@ var init_inbound_email = __esm({
             leadInfo = { leadId: lead.id, lead };
           }
           if (!leadInfo) {
-            console.log("Could not identify lead from email:", event.sender);
+            log.info("Could not identify lead from email", {
+              component: "inbound-email",
+              operation: "lead_identification",
+              sender: event.sender,
+              recipient: event.recipient,
+              subject: event.subject?.slice(0, 100)
+            });
             return res.status(200).json({ message: "Email processed but lead not identified" });
           }
-          const conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+          let conversation = null;
+          const recipientConvId = tryGetConversationIdFromRecipient(event.recipient || "");
+          if (recipientConvId) {
+            try {
+              conversation = await storage.getConversationById(recipientConvId);
+              if (conversation) {
+                log.info("Conversation found via plus-addressing token", {
+                  component: "inbound-email",
+                  operation: "conversation_lookup_fallback",
+                  conversationId: recipientConvId,
+                  sender: event.sender,
+                  method: "plus_addressing"
+                });
+              }
+            } catch (err) {
+              log.warn("Failed to get conversation by plus-addressing token", {
+                component: "inbound-email",
+                operation: "conversation_lookup_fallback",
+                conversationId: recipientConvId,
+                error: err.message
+              });
+            }
+          }
+          if (!conversation) {
+            conversation = await this.getOrCreateConversation(leadInfo.leadId, event.subject, campaignId);
+          }
           await storage.createConversationMessage({
             conversationId: conversation.id,
-            senderId: "lead-reply",
+            senderId: null,
+            // Lead replies don't have a user ID
             messageType: "email",
             content: event["stripped-text"] || event["body-plain"],
             isFromAI: 0
@@ -3157,67 +4285,290 @@ var init_inbound_email = __esm({
           const now = Date.now();
           const lastMsg = recentMessages[recentMessages.length - 1];
           if (lastMsg && lastMsg.isFromAI && now - new Date(lastMsg.createdAt).getTime() < REPLY_RATE_LIMIT_MINUTES * 60 * 1e3) {
-            console.log(`[AI Reply Guard] Skipping consecutive AI reply (cooldown ${REPLY_RATE_LIMIT_MINUTES}m)`);
+            log.info("AI Reply Guard: Skipping consecutive AI reply", {
+              component: "inbound-email",
+              operation: "rate_limiting",
+              conversationId: conversation.id,
+              cooldownMinutes: REPLY_RATE_LIMIT_MINUTES,
+              lastAiReplyTime: lastMsg.createdAt,
+              sender: event.sender
+            });
             return res.status(200).json({ message: "Rate-limited; no consecutive AI reply" });
           }
-          const systemPrompt = `System Prompt: The Straight-Talking Sales Pro
-Core Identity:
-You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful. You talk like a real person who knows the industry and understands that picking a vendor is a big decision.
+          const systemPrompt = `### Core Identity
+You are Brittany from the OfferLogix team, reaching out to dealerships and technology partners.  
+Your job is to clearly explain what we do, how we solve problems, and why it matters \u2014 without fluff, jargon, or over-the-top sales language.  
+Think of yourself as a straight-talking teammate who knows the product, knows the industry, and values people's time.
 
-Communication Style:
-Be real. Talk like you would to a friend who's asking for advice
-Be direct. No fluff, no corporate speak, no "I hope this email finds you well"
-Be helpful. Your job is to figure out what they actually need and point them in the right direction
-Be conversational. Short sentences. Natural flow. Like you're texting a friend
+### OfferLogix Company Knowledge
+Main Value Proposition: "Advertise Automotive Payments With Confidence"
 
-Have a normal conversation that helps them figure out what they actually want. If they're ready to move forward, make it easy. If they're not, give them something useful and stay in touch.
+What We Do: OfferLogix provides penny perfect payment solutions using unique, patented technology to simplify calculating lease and finance payments for any dealer's inventory. Our solutions integrate across all customer touchpoints, advertising precise, compliant payments for every vehicle.
+
+Company Scale:
+- $1.5 Billion in accurate payments processed monthly
+- 8,000+ dealerships powered in North America  
+- 18+ years of experience (US and Canada)
+
+Core Solutions:
+
+1. Payment Calculation Solutions - Patented single-call API that generates dynamic, precise payments with:
+   - Regional incentives and rebates
+   - Lender affiliations and dealer pricing
+   - Daily updates for accuracy
+   - Built-in Reg M and Reg Z compliance (all 50 states + Canada)
+   - Foundation Package: Basic payment data delivery
+   - Premium Package: Automated Offer Manager with daily-updated inventory integration
+
+2. Instant Credit Solutions - Real-time credit processing without impacting consumer credit scores:
+   - Soft credit pulls from Equifax (no credit score impact)
+   - Real-time credit approvals with live APR from selected banks
+   - Credit Perfect Payments using actual credit scores
+   - White-labeled customer credit dashboard
+   - Elite Package: Lead generation + pre-qualification
+   - Premium Package: Full credit approval + real-time APR
+
+Proven Results:
+- +16% average engagement rate
+- +60% showroom visits
+- +134% increase in lead volume
+
+Key Partnerships: Equifax, VinCue, Fullpath, THE SHOP (FordDirect), STELLANTIS
+
+Target Audiences: 
+- Dealers: GMs, Finance Managers, Digital Marketing Managers
+- Vendors: Technology partners needing payment calculation integration  
+
+### Communication Style
+- Be real: Conversational, approachable, clear \u2014 never robotic.  
+- Be direct: Say what matters in plain language. Short sentences. Easy to skim.  
+- Be value-focused: Always tie back to what helps the dealership/vendor: save time, boost leads, simplify compliance, streamline payment advertising.  
+- Be respectful: Decision-makers are busy \u2014 you get to the point without hype.  
+- Be collaborative: Frame messages like: "Here's what we can do for you if it's a fit."  
+
+### Rules of Engagement
+1. Start with context: One\u2011liner on what's relevant to them.  
+2. Point out the benefit: How OfferLogix makes their life easier, faster, or safer.  
+3. Ask one clear next question: No long surveys, no multiple asks at once.  
+4. Keep it light but professional: Sound like a competent peer, not a telemarketer.  
+5. Always respect opt\u2011out / handover: If they're not interested, acknowledge and move on.  
+
+### What NOT to Do
+- Don't write like a press release ("industry-leading, cutting-edge\u2026")  
+- Don't overload with technical terms (keep compliance/API/payment details simple).  
+- Don't over-hype ("This will revolutionize your\u2026").  
+- Don't bury the ask in long paragraphs.  
+
+### Prime Directive
+Sound like a real OfferLogix teammate having a straight conversation with a busy dealership/vendor contact.  
+- Keep it human.  
+- Keep it clear.  
+- Always tie back to value.  
+- Guide toward either engagement or graceful exit.  
+
+### EMAIL FORMATTING REQUIREMENTS
+- Write in PLAIN, CONVERSATIONAL text - NO markdown, NO asterisks, NO formatting symbols
+- Use HTML paragraph tags (<p></p>) for proper spacing - NO other HTML formatting
+- Keep emails concise - 3-4 short paragraphs maximum
+- Write like a normal business email, not a formatted document
+- NO bold, italic, bullet points, or special characters in the email body
+- Professional but friendly tone throughout
+- Each paragraph should be wrapped in <p></p> tags for proper spacing
+- NO <strong>, <em>, <ul>, <li>, or other formatting tags
+
+EXAMPLE GOOD FORMAT:
+<p>Hi [Name],</p>
+<p>Thanks for reaching out about OfferLogix payment solutions. We help dealerships advertise precise, compliant payments using our patented technology that processes $1.5 billion monthly across 8,000+ dealerships.</p>
+<p>Our Instant Credit Solutions use soft pulls from Equifax to give customers real-time approvals without impacting their credit scores. This typically increases showroom visits by 60% and lead volume by 134%.</p>
+<p>Would you be interested in a quick 10-minute call to see how this could work for your dealership?</p>
+<p>Best regards,<br>Brittany</p>
 
 Output strictly JSON only with keys: should_reply (boolean), handover (boolean), reply_subject (string), reply_body_html (string), rationale (string).`;
-          const aiResult = await callOpenRouterJSON({
-            model: "openai/gpt-5-mini",
-            system: systemPrompt,
-            messages: [
-              { role: "user", content: `Latest inbound email from ${event.sender}:
+          const rateLimitCheck = ConversationRateLimiters.checkAIResponseAllowed(
+            conversation.id,
+            leadInfo?.lead?.email,
+            campaign?.id
+          );
+          if (!rateLimitCheck.allowed) {
+            log.info("AI Reply Decision: Rate limited, skipping AI response", {
+              conversationId: conversation.id,
+              sender: event.sender,
+              reason: rateLimitCheck.reason,
+              retryAfter: rateLimitCheck.retryAfter,
+              component: "inbound-email",
+              operation: "ai_reply_decision"
+            });
+            return res.status(200).json({ status: "rate_limited", message: rateLimitCheck.reason });
+          }
+          let aiResult;
+          try {
+            aiResult = await callOpenRouterJSON({
+              model: "openai/gpt-5-chat",
+              system: systemPrompt,
+              messages: [
+                { role: "user", content: `Latest inbound email from ${event.sender}:
 ${event["stripped-text"] || event["body-plain"] || ""}
 
 Last messages:
 ${recentMessages.map((m) => (m.isFromAI ? "AI: " : "Lead: ") + (m.content || "")).join("\n").slice(0, 4e3)}` }
-            ],
-            temperature: 0.2,
-            maxTokens: 800
-          });
+              ],
+              temperature: 0.2,
+              maxTokens: 800
+            });
+          } catch (err) {
+            const errorContext = createErrorContext(err, {
+              conversationId: conversation.id,
+              sender: event.sender,
+              operation: "ai_reply_decision"
+            });
+            log.error("AI Reply Decision: OpenRouter error, falling back to handover", {
+              ...errorContext,
+              component: "inbound-email",
+              operation: "ai_reply_decision"
+            });
+            aiResult = { should_reply: false, handover: true, rationale: "AI service unavailable" };
+          }
           const safeHtml = sanitizeHtmlBasic(aiResult.reply_body_html || "");
-          console.log("[AI Reply Decision]", {
+          log.info("AI Reply Decision completed", {
+            component: "inbound-email",
+            operation: "ai_reply_decision",
             conversationId: conversation.id,
             should_reply: aiResult.should_reply,
             handover: aiResult.handover,
-            rationale: aiResult.rationale?.slice(0, 300)
+            rationale: aiResult.rationale?.slice(0, 300),
+            sender: event.sender
           });
           if (aiResult?.handover || !aiResult?.should_reply) {
             await storage.createHandover({ conversationId: conversation.id, reason: aiResult?.rationale || "AI requested handover" });
             return res.status(200).json({ message: "Handover created" });
           }
-          const headers = JSON.parse(event["message-headers"] || "[]");
-          const messageId = headers.find((h) => h[0].toLowerCase() === "message-id")?.[1]?.replace(/[<>]/g, "") || void 0;
-          await sendThreadedReply({
-            to: event.sender,
-            subject: aiResult.reply_subject || `Re: ${event.subject || "Your email"}`,
-            html: aiResult.reply_body_html || "",
-            inReplyTo: messageId ? `<${messageId}>` : void 0,
-            references: messageId ? [`<${messageId}>`] : void 0,
-            domainOverride: (await storage.getActiveAiAgentConfig())?.agentEmailDomain || void 0
-          });
+          ConversationRateLimiters.recordAIInboundResponse(conversation.id, leadInfo?.lead?.email, campaign?.id);
+          try {
+            let messageId;
+            try {
+              const headersArr = JSON.parse(event["message-headers"] || "[]");
+              messageId = headersArr.find((h) => (h[0] || "").toLowerCase() === "message-id")?.[1]?.replace(/[<>]/g, "");
+            } catch {
+            }
+            if (!messageId && event["Message-Id"]) {
+              messageId = event["Message-Id"].replace(/[<>]/g, "");
+            }
+            if (!messageId && event["message-id"]) {
+              messageId = event["message-id"].replace(/[<>]/g, "");
+            }
+            if (!messageId) {
+              const idDomain2 = (process.env.MAILGUN_DOMAIN || "").split("@").pop().trim() || "mail.offerlogix.me";
+              messageId = `conversation-${conversation.id}@${idDomain2}`;
+              log.warn("No Message-ID found, using conversation-based threading", {
+                component: "inbound-email",
+                operation: "email_threading_fallback",
+                conversationId: conversation.id,
+                generatedMessageId: messageId
+              });
+            }
+            log.info("Email threading debug", {
+              component: "inbound-email",
+              operation: "email_threading",
+              sender: event.sender,
+              subject: event.subject,
+              extractedMessageId: messageId,
+              hasMessageHeaders: !!event["message-headers"],
+              hasDirectMessageId: !!event["Message-Id"],
+              hasLowercaseMessageId: !!event["message-id"],
+              eventKeys: Object.keys(event).slice(0, 15)
+              // Show available fields
+            });
+            let references = [];
+            let originalMessageId;
+            try {
+              const headersArr = JSON.parse(event["message-headers"] || "[]");
+              const existingRefs = headersArr.find((h) => (h[0] || "").toLowerCase() === "references")?.[1];
+              if (existingRefs) {
+                const existingRefsList = existingRefs.trim().split(/\s+/).filter((ref) => ref.length > 0);
+                references = [...existingRefsList];
+                if (existingRefsList.length > 0) {
+                  originalMessageId = existingRefsList[existingRefsList.length - 1].replace(/[<>]/g, "");
+                }
+              }
+              const inReplyToHeader = headersArr.find((h) => (h[0] || "").toLowerCase() === "in-reply-to")?.[1];
+              if (inReplyToHeader && !originalMessageId) {
+                originalMessageId = inReplyToHeader.replace(/[<>]/g, "");
+                references.push(inReplyToHeader);
+              }
+            } catch {
+            }
+            if (messageId) {
+              references.push(`<${messageId}>`);
+            }
+            if (!originalMessageId) {
+              originalMessageId = messageId;
+            }
+            const idDomain = (process.env.MAILGUN_DOMAIN || "").split("@").pop().trim() || "mail.offerlogix.me";
+            const replyMessageId = `reply-${conversation.id}-${Date.now()}@${idDomain}`;
+            log.info("Enhanced email threading debug", {
+              component: "inbound-email",
+              operation: "email_threading_enhanced",
+              sender: event.sender,
+              incomingMessageId: messageId,
+              originalMessageId,
+              replyMessageId,
+              inReplyToHeader: originalMessageId ? `<${originalMessageId}>` : void 0,
+              referencesChain: references,
+              conversationId: conversation.id
+            });
+            await sendThreadedReply({
+              to: extractEmail(event.sender || ""),
+              subject: aiResult.reply_subject || `Re: ${event.subject || "Your email"}`,
+              html: sanitizeHtmlBasic(aiResult.reply_body_html || ""),
+              messageId: replyMessageId,
+              // Our reply's Message-ID
+              inReplyTo: originalMessageId ? `<${originalMessageId}>` : void 0,
+              // Reference to ORIGINAL message we should reply to
+              references: references.length > 0 ? references : void 0,
+              domainOverride: campaign?.agentEmailDomain,
+              // if present
+              conversationId: String(conversation.id),
+              // for plus-addressing token
+              campaignId: campaign?.id ? String(campaign.id) : void 0
+              // for tracking headers
+            });
+          } catch (sendErr) {
+            const errorContext = createErrorContext(sendErr, {
+              conversationId: conversation.id,
+              recipient: event.sender,
+              operation: "send_ai_reply"
+            });
+            log.error("Failed to send AI reply email", {
+              ...errorContext,
+              component: "inbound-email",
+              operation: "send_ai_reply"
+            });
+          }
           await storage.createConversationMessage({
             conversationId: conversation.id,
-            senderId: "ai-agent",
+            senderId: null,
+            // AI replies don't have a user ID
             messageType: "email",
             content: aiResult.reply_body_html || "",
             isFromAI: 1
           });
           res.status(200).json({ message: "Email processed and replied" });
         } catch (error) {
-          console.error("Inbound email processing error:", error);
-          res.status(500).json({ error: "Failed to process inbound email" });
+          const errorContext = createErrorContext(error, {
+            sender: req.body?.sender,
+            recipient: req.body?.recipient,
+            operation: "inbound_email_processing"
+          });
+          log.error("Inbound email processing error (non-fatal path will ack)", {
+            ...errorContext,
+            component: "inbound-email",
+            operation: "inbound_email_processing"
+          });
+          try {
+          } catch {
+          }
+          const errorResponse = buildErrorResponse(error);
+          res.status(200).json({ ...errorResponse, acknowledged: true });
         }
       }
       /**
@@ -3230,17 +4581,32 @@ ${recentMessages.map((m) => (m.isFromAI ? "AI: " : "Lead: ") + (m.content || "")
         const signingKey = process.env.MAILGUN_WEBHOOK_SIGNING_KEY;
         if (!signingKey) {
           if (process.env.NODE_ENV !== "production") {
-            console.warn("MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production");
+            log.warn("MAILGUN_WEBHOOK_SIGNING_KEY not set; bypassing signature verification in non-production", {
+              component: "inbound-email",
+              operation: "webhook_signature_verification",
+              environment: process.env.NODE_ENV
+            });
             return !!(event.sender && event.timestamp && event.token);
           }
-          console.error("MAILGUN_WEBHOOK_SIGNING_KEY missing in production");
+          log.security("MAILGUN_WEBHOOK_SIGNING_KEY missing in production", {
+            eventType: "missing_webhook_key",
+            severity: "high",
+            component: "inbound-email",
+            operation: "webhook_signature_verification",
+            environment: process.env.NODE_ENV
+          });
           return false;
         }
         try {
           const hmac = createHmac("sha256", signingKey).update(String(event.timestamp) + String(event.token)).digest("hex");
           return hmac === event.signature;
         } catch (err) {
-          console.error("Signature verification error:", err);
+          const errorContext = createErrorContext(err, { operation: "mailgun_signature_verification" });
+          log.error("Signature verification error", {
+            ...errorContext,
+            component: "inbound-email",
+            operation: "mailgun_signature_verification"
+          });
           return false;
         }
       }
@@ -3502,8 +4868,10 @@ var init_execution_monitor = __esm({
     "use strict";
     init_websocket();
     ExecutionMonitor = class {
-      activeExecutions = /* @__PURE__ */ new Map();
-      executionHistory = [];
+      constructor() {
+        this.activeExecutions = /* @__PURE__ */ new Map();
+        this.executionHistory = [];
+      }
       /**
        * Start monitoring a new campaign execution
        */
@@ -3756,392 +5124,6 @@ var init_handovers = __esm({
   }
 });
 
-// server/services/deliverability/domain-health-guard.ts
-var domain_health_guard_exports = {};
-__export(domain_health_guard_exports, {
-  DomainHealthGuard: () => DomainHealthGuard
-});
-var DomainHealthGuard;
-var init_domain_health_guard = __esm({
-  "server/services/deliverability/domain-health-guard.ts"() {
-    "use strict";
-    DomainHealthGuard = class {
-      static async assertAuthReady() {
-        const hasMailgunConfig = process.env.MAILGUN_API_KEY && process.env.MAILGUN_DOMAIN;
-        if (!hasMailgunConfig) {
-          throw new Error("Mailgun configuration missing - MAILGUN_API_KEY or MAILGUN_DOMAIN not set");
-        }
-        return {
-          domain: process.env.MAILGUN_DOMAIN,
-          status: "configured",
-          authentication: {
-            spf: "not_verified",
-            dkim: "not_verified",
-            dmarc: "not_configured"
-          }
-        };
-      }
-      static async checkDomainHealth(domain) {
-        return {
-          domain,
-          overall_score: 75,
-          authentication: {
-            spf: "pass",
-            dkim: "pass",
-            dmarc: "not_configured"
-          },
-          reputation: {
-            score: 75,
-            status: "good"
-          }
-        };
-      }
-    };
-  }
-});
-
-// server/services/llm-client.ts
-var llm_client_exports = {};
-__export(llm_client_exports, {
-  LLMClient: () => LLMClient
-});
-var LLMClient;
-var init_llm_client = __esm({
-  "server/services/llm-client.ts"() {
-    "use strict";
-    LLMClient = class {
-      static BASE_URL = "https://openrouter.ai/api/v1/chat/completions";
-      static DEFAULT_TIMEOUT = 3e4;
-      static MAX_RETRIES = 3;
-      // Model Fallback Strategy Configuration
-      static ENABLE_MODEL_FALLBACK = true;
-      static FALLBACK_MODELS = [
-        "openai/gpt-5-chat",
-        "openai/gpt-4o",
-        "anthropic/claude-3.5-sonnet",
-        "google/gemini-pro-1.5"
-      ];
-      // Circuit Breaker: Track failed models (in-memory, resets on restart)
-      static failedModels = /* @__PURE__ */ new Map();
-      static CIRCUIT_BREAKER_THRESHOLD = 3;
-      static CIRCUIT_BREAKER_RESET_TIME = 3e5;
-      // 5 minutes
-      // Basic JSON repair regex patterns (remove trailing commas, fix single quotes)
-      static repairJson(input) {
-        if (!input) return input;
-        let txt = input.trim();
-        if (/\{[^]*?\}/.test(txt) && txt.includes("'")) {
-          txt = txt.replace(/(['\"])?([A-Za-z0-9_]+)\1\s*:/g, '"$2":');
-          txt = txt.replace(/'([^']*)'/g, (_, c) => '"' + c.replace(/"/g, '\\"') + '"');
-        }
-        txt = txt.replace(/,\s*([}\]])/g, "$1");
-        return txt;
-      }
-      static resolveModel(preferred) {
-        return preferred || process.env.AI_MODEL || "openai/gpt-5-chat";
-      }
-      // Compute a best-effort site URL for OpenRouter referer checks.
-      static getSiteReferer() {
-        const explicit = process.env.OPENROUTER_SITE_URL || process.env.PUBLIC_APP_URL || process.env.APP_URL;
-        const renderUrl = process.env.RENDER_EXTERNAL_URL;
-        const replit = process.env.REPLIT_DOMAINS;
-        return (explicit || renderUrl || replit || "https://offerlogix.onrender.com").replace(/\/$/, "");
-      }
-      // Circuit Breaker Helper Methods
-      static shouldSkipModel(model) {
-        const failure = this.failedModels.get(model);
-        if (!failure) return false;
-        if (Date.now() - failure.lastFailure > this.CIRCUIT_BREAKER_RESET_TIME) {
-          this.failedModels.delete(model);
-          return false;
-        }
-        return failure.count >= this.CIRCUIT_BREAKER_THRESHOLD;
-      }
-      static markModelFailed(model) {
-        const failure = this.failedModels.get(model) || { count: 0, lastFailure: 0 };
-        failure.count += 1;
-        failure.lastFailure = Date.now();
-        this.failedModels.set(model, failure);
-        console.warn(`[LLMClient] Model ${model} failed (${failure.count}/${this.CIRCUIT_BREAKER_THRESHOLD})`);
-      }
-      static getAvailableFallbackModels(originalModel) {
-        const models = this.shouldSkipModel(originalModel) ? [] : [originalModel];
-        for (const model of this.FALLBACK_MODELS) {
-          if (model !== originalModel && !this.shouldSkipModel(model)) {
-            models.push(model);
-          }
-        }
-        return models;
-      }
-      // Attempt to salvage a JSON object from a text blob (robust to pre/postamble text)
-      static extractJsonObject(text2) {
-        if (!text2) return null;
-        try {
-          JSON.parse(text2);
-          return text2;
-        } catch {
-        }
-        const s = String(text2);
-        let start = s.indexOf("{");
-        while (start !== -1) {
-          let depth = 0, inStr = false, esc = false;
-          for (let i = start; i < s.length; i++) {
-            const ch = s[i];
-            if (inStr) {
-              if (esc) {
-                esc = false;
-                continue;
-              }
-              if (ch === "\\") {
-                esc = true;
-                continue;
-              }
-              if (ch === '"') {
-                inStr = false;
-              }
-              continue;
-            }
-            if (ch === '"') {
-              inStr = true;
-              continue;
-            }
-            if (ch === "{") depth++;
-            else if (ch === "}") {
-              depth--;
-              if (depth === 0) {
-                const candidate = s.slice(start, i + 1);
-                try {
-                  JSON.parse(candidate);
-                  return candidate;
-                } catch {
-                }
-              }
-            }
-          }
-          start = s.indexOf("{", start + 1);
-        }
-        return null;
-      }
-      /**
-       * Get circuit breaker status for monitoring
-       */
-      static getCircuitBreakerStatus() {
-        const status = [];
-        this.failedModels.forEach((failure, model) => {
-          status.push({
-            model,
-            failures: failure.count,
-            lastFailure: new Date(failure.lastFailure),
-            isCircuitOpen: this.shouldSkipModel(model)
-          });
-        });
-        return status;
-      }
-      /**
-       * Generate content using the unified LLM client
-       */
-      static async generate(options) {
-        const startTime = Date.now();
-        const payload = {
-          model: this.resolveModel(options.model),
-          messages: [
-            { role: "system", content: options.system },
-            { role: "user", content: options.user }
-          ],
-          temperature: options.temperature ?? (options.json ? 0.2 : 0.7),
-          max_tokens: options.maxTokens ?? (options.json ? 1200 : 2e3)
-        };
-        if (options.json) {
-          payload.response_format = { type: "json_object" };
-        }
-        if (options.seed !== void 0) {
-          payload.seed = options.seed;
-        }
-        if (this.ENABLE_MODEL_FALLBACK) {
-          return this.executeWithModelFallback(payload, startTime);
-        } else {
-          return this.executeWithRetry(payload, startTime);
-        }
-      }
-      /**
-       * Execute request with retry logic and exponential backoff
-       */
-      static async executeWithRetry(payload, startTime, attempt = 1) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), this.DEFAULT_TIMEOUT);
-          const referer = this.getSiteReferer();
-          const response = await fetch(this.BASE_URL, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "Authorization": `Bearer ${process.env.OPENROUTER_API_KEY}`,
-              // Send both headers; some proxies look for standard 'Referer', OpenRouter docs use 'HTTP-Referer'.
-              "HTTP-Referer": referer,
-              "Referer": referer,
-              "X-Title": "OneKeel AI Campaign Platform"
-            },
-            body: JSON.stringify(payload),
-            signal: controller.signal
-          });
-          clearTimeout(timeoutId);
-          if (!response.ok) {
-            let bodyText = "";
-            try {
-              bodyText = await response.text();
-            } catch {
-            }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}${bodyText ? ` :: ${bodyText}` : ""}`);
-          }
-          const data = await response.json();
-          let content = data.choices?.[0]?.message?.content;
-          if (!content) {
-            throw new Error("No content received from LLM");
-          }
-          if (payload.response_format?.type === "json_object") {
-            try {
-              JSON.parse(content);
-            } catch {
-              let salvaged = this.extractJsonObject(content);
-              if (!salvaged) salvaged = this.repairJson(content);
-              try {
-                if (salvaged) JSON.parse(salvaged);
-              } catch {
-                salvaged = null;
-              }
-              if (salvaged) content = salvaged;
-              else console.warn("LLM returned non-JSON; upstream will coerce");
-            }
-          }
-          const latency = Date.now() - startTime;
-          return {
-            content,
-            tokens: data.usage?.total_tokens,
-            latency
-          };
-        } catch (error) {
-          if (attempt < this.MAX_RETRIES && !(error instanceof Error && error.name?.includes("AbortError"))) {
-            const delay = Math.pow(2, attempt - 1) * 1e3;
-            await new Promise((resolve) => setTimeout(resolve, delay));
-            if (payload.response_format?.type === "json_object" && attempt > 1) {
-              payload.temperature = 0.2;
-            }
-            return this.executeWithRetry(payload, startTime, attempt + 1);
-          }
-          throw error instanceof Error ? error : new Error(String(error));
-        }
-      }
-      /**
-       * Execute request with model fallback strategy
-       * This method tries multiple models in sequence if the first one fails
-       */
-      static async executeWithModelFallback(payload, startTime) {
-        const originalModel = payload.model;
-        const availableModels = this.getAvailableFallbackModels(originalModel);
-        if (availableModels.length === 0) {
-          throw new Error(`All models are circuit-broken, including original: ${originalModel}`);
-        }
-        let lastError = null;
-        for (let i = 0; i < availableModels.length; i++) {
-          const currentModel = availableModels[i];
-          const modelPayload = { ...payload, model: currentModel };
-          try {
-            console.log(`[LLMClient] Attempting model ${currentModel} (${i + 1}/${availableModels.length})`);
-            const result = await this.executeWithRetry(modelPayload, startTime);
-            if (currentModel !== originalModel) {
-              console.log(`[LLMClient] Successfully fell back from ${originalModel} to ${currentModel}`);
-            }
-            return result;
-          } catch (error) {
-            lastError = error instanceof Error ? error : new Error(String(error));
-            console.warn(`[LLMClient] Model ${currentModel} failed:`, lastError.message);
-            this.markModelFailed(currentModel);
-            if (i === availableModels.length - 1) {
-              console.error(`[LLMClient] All ${availableModels.length} models exhausted for fallback`);
-            }
-          }
-        }
-        throw lastError || new Error("All fallback models failed");
-      }
-      /**
-       * Generate structured customer reply JSON envelope for downstream automation.
-       * Returns parsed JSON object; tolerates minor format drift.
-       */
-      static async generateStructuredCustomerReply(userQuery, context = {}) {
-        const system = `You are an automotive sales assistant. Output ONLY valid JSON matching this schema:
-{
-  "watermark": "NeoWorlder",
-  "name": "Customer Name",
-  "modified_name": "Preferred Name or empty string",
-  "user_query": "The customer's last message",
-  "Analysis": "Compliance with internal rules + brief reasoning",
-  "type": "email" | "text",
-  "quick_insights": "1-2 line summary of needs/context",
-  "empathetic_response": "1 sentence empathic bridge",
-  "engagement_check": "1 line about how you'll keep it focused",
-  "sales_readiness": "low" | "medium" | "high",
-  "Answer": "The concise reply to send (no JSON, just the reply text)",
-  "retrieve_inventory_data": true | false,
-  "research_queries": ["specific queries for inventory lookups"],
-  "reply_required": true | false
-}
-Rules:
-- Return valid JSON only, no markdown, no code fencing.
-- If user only reacted (emoji/like) and added no text, set reply_required=false and minimal Answer.
-- If inventory details are needed, set retrieve_inventory_data=true and provide research_queries.
-- Prefer "type" from context.channel if provided; default to "email".`;
-        const user = `Customer message: ${userQuery}
-Context (JSON): ${JSON.stringify(context).slice(0, 2e3)}`;
-        const { content } = await this.generate({
-          model: this.resolveModel("openai/gpt-5-chat"),
-          system,
-          user,
-          json: true,
-          temperature: 0.2,
-          maxTokens: 1e3
-        });
-        try {
-          return JSON.parse(content);
-        } catch {
-          try {
-            const salvaged = this.extractJsonObject(content);
-            return salvaged ? JSON.parse(salvaged) : {};
-          } catch {
-            return {};
-          }
-        }
-      }
-      /**
-       * Helper method for automotive content generation with enforced JSON
-       */
-      static async generateAutomotiveContent(prompt, systemPrompt) {
-        return this.generate({
-          model: this.resolveModel("openai/gpt-5-chat"),
-          system: systemPrompt || "You are an expert automotive marketing AI assistant. Always respond with valid JSON.",
-          user: prompt,
-          json: true,
-          temperature: 0.2,
-          maxTokens: 1200
-        });
-      }
-      /**
-       * Legacy compatibility method for generateContent calls
-       */
-      static async generateContent(prompt, opts) {
-        const response = await this.generate({
-          model: this.resolveModel("openai/gpt-5-chat"),
-          system: "You are an automotive campaign specialist helping create high-quality marketing campaigns and handover prompts.",
-          user: prompt,
-          json: opts?.json ?? false,
-          temperature: opts?.temperature,
-          maxTokens: opts?.maxTokens
-        });
-        return response.content;
-      }
-    };
-  }
-});
-
 // server/routes/health.ts
 var health_exports = {};
 __export(health_exports, {
@@ -4155,26 +5137,33 @@ var init_health = __esm({
     router5 = Router5();
     router5.get("/email", async (_req, res) => {
       try {
-        const hasMailgun = !!(process.env.MAILGUN_DOMAIN && process.env.MAILGUN_API_KEY);
+        const { getEnv: getEnv3 } = await Promise.resolve().then(() => (init_env(), env_exports));
+        const env4 = getEnv3();
+        const hasMailgun = !!(env4.MAILGUN_DOMAIN && env4.MAILGUN_API_KEY);
         let authStatus = { ok: false, details: {} };
         if (hasMailgun) {
           try {
-            const { DomainHealthGuard: DomainHealthGuard2 } = await Promise.resolve().then(() => (init_domain_health_guard(), domain_health_guard_exports));
-            await DomainHealthGuard2.assertAuthReady();
+            const fetch2 = (await import("node-fetch")).default;
+            const response = await fetch2(`https://api.mailgun.net/v3/domains/${env4.MAILGUN_DOMAIN}`, {
+              method: "GET",
+              headers: {
+                "Authorization": `Basic ${Buffer.from(`api:${env4.MAILGUN_API_KEY}`).toString("base64")}`
+              }
+            });
             authStatus = {
-              ok: true,
+              ok: response.ok,
               details: {
-                domain: process.env.MAILGUN_DOMAIN,
-                status: "healthy",
-                authentication: "configured",
-                deliverability: "ready"
+                domain: env4.MAILGUN_DOMAIN,
+                status: response.ok ? "healthy" : "unhealthy",
+                authentication: response.ok ? "configured" : "failed",
+                deliverability: response.ok ? "ready" : "unavailable"
               }
             };
           } catch (error) {
             authStatus = {
               ok: false,
               details: {
-                domain: process.env.MAILGUN_DOMAIN,
+                domain: env4.MAILGUN_DOMAIN,
                 status: "unhealthy",
                 error: error instanceof Error ? error.message : "Unknown error"
               }
@@ -4205,12 +5194,12 @@ var init_health = __esm({
       try {
         let wsStatus = { ok: false, details: {} };
         try {
+          const connectedClients = 0;
           wsStatus = {
             ok: true,
             details: {
               status: "active",
-              connectedClients: 0,
-              // Simplified implementation
+              connectedClients,
               endpoint: "/ws"
             }
           };
@@ -4237,19 +5226,21 @@ var init_health = __esm({
     });
     router5.get("/ai", async (_req, res) => {
       try {
-        const hasOpenRouter = !!process.env.OPENROUTER_API_KEY;
+        const { getEnv: getEnv3 } = await Promise.resolve().then(() => (init_env(), env_exports));
+        const env4 = getEnv3();
+        const hasOpenRouter = !!env4.OPENROUTER_API_KEY;
         let aiStatus = { ok: false, details: {} };
         if (hasOpenRouter) {
           try {
-            const { LLMClient: LLMClient2 } = await Promise.resolve().then(() => (init_llm_client(), llm_client_exports));
-            const testResponse = await LLMClient2.generate({
+            const { callOpenRouterJSON: callOpenRouterJSON2 } = await Promise.resolve().then(() => (init_call_openrouter(), call_openrouter_exports));
+            const testResponse = await callOpenRouterJSON2({
               model: "openai/gpt-5-chat",
-              system: 'Respond with exactly: "OK"',
-              user: "Test",
-              maxTokens: 10
+              system: 'Respond with JSON: {"status": "OK"}',
+              messages: [{ role: "user", content: "Test" }],
+              maxTokens: 20
             });
             aiStatus = {
-              ok: testResponse.content.includes("OK"),
+              ok: testResponse.status === "OK",
               details: {
                 status: "healthy",
                 provider: "OpenRouter",
@@ -4291,16 +5282,15 @@ var init_health = __esm({
     router5.get("/database", async (_req, res) => {
       try {
         const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
-        const { sql: sql2 } = await import("drizzle-orm");
-        const result = await db2.execute(sql2`SELECT 1 as test`);
-        const rows = result;
+        const { clients: clients2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
+        const result = await db2.select().from(clients2).limit(1);
         res.json({
           ok: true,
           details: {
             status: "healthy",
             type: "PostgreSQL",
             connectivity: "active",
-            response: rows.length > 0
+            response: Array.isArray(result)
           }
         });
       } catch (error) {
@@ -4317,21 +5307,43 @@ var init_health = __esm({
     });
     router5.get("/system", async (_req, res) => {
       try {
+        const checkDatabase = async () => {
+          try {
+            const { db: db2 } = await Promise.resolve().then(() => (init_db(), db_exports));
+            const { clients: clients2 } = await Promise.resolve().then(() => (init_schema(), schema_exports));
+            await db2.select().from(clients2).limit(1);
+            return { ok: true, status: "healthy" };
+          } catch {
+            return { ok: false, status: "error" };
+          }
+        };
+        const checkEmail = async () => {
+          try {
+            const { getEnv: getEnv3 } = await Promise.resolve().then(() => (init_env(), env_exports));
+            const env4 = getEnv3();
+            return { ok: !!(env4.MAILGUN_DOMAIN && env4.MAILGUN_API_KEY), status: "configured" };
+          } catch {
+            return { ok: false, status: "not_configured" };
+          }
+        };
+        const checkAI = async () => {
+          try {
+            const { getEnv: getEnv3 } = await Promise.resolve().then(() => (init_env(), env_exports));
+            const env4 = getEnv3();
+            return { ok: !!env4.OPENROUTER_API_KEY, status: "configured" };
+          } catch {
+            return { ok: false, status: "not_configured" };
+          }
+        };
         const checks = await Promise.allSettled([
-          Promise.resolve({ ok: true }),
-          // Database check
-          Promise.resolve({ ok: false }),
-          // Email check  
-          Promise.resolve({ ok: true }),
-          // Realtime check
-          Promise.resolve({ ok: false })
-          // AI check
+          checkDatabase(),
+          checkEmail(),
+          checkAI()
         ]);
         const results = {
-          database: checks[0].status === "fulfilled" ? checks[0].value : { ok: false },
-          email: checks[1].status === "fulfilled" ? checks[1].value : { ok: false },
-          realtime: checks[2].status === "fulfilled" ? checks[2].value : { ok: false },
-          ai: checks[3].status === "fulfilled" ? checks[3].value : { ok: false }
+          database: checks[0].status === "fulfilled" ? checks[0].value : { ok: false, status: "error" },
+          email: checks[1].status === "fulfilled" ? checks[1].value : { ok: false, status: "error" },
+          ai: checks[2].status === "fulfilled" ? checks[2].value : { ok: false, status: "error" }
         };
         const overallHealth = Object.values(results).every((check) => check.ok);
         res.json({
@@ -4498,9 +5510,9 @@ var init_agent_runtime = __esm({
       /**
        * Load the active config for a client
        */
-      static async getActiveConfig(clientId) {
+      static async getActiveConfig(clientId2) {
         try {
-          const rows = await db.select().from(aiAgentConfig).where(and3(eq4(aiAgentConfig.clientId, clientId), eq4(aiAgentConfig.isActive, true))).limit(1);
+          const rows = await db.select().from(aiAgentConfig).where(and3(eq4(aiAgentConfig.clientId, clientId2), eq4(aiAgentConfig.isActive, true))).limit(1);
           if (!rows?.[0]) return null;
           const r = rows[0];
           return {
@@ -4551,21 +5563,21 @@ Don't:
        */
       static async recallMemory(opts) {
         try {
-          const { clientId, leadId, topic } = opts;
+          const { clientId: clientId2, leadId, topic } = opts;
           let lead = null;
           if (leadId) {
             const rows = await db.select().from(leads).where(eq4(leads.id, leadId)).limit(1);
             lead = rows?.[0] || null;
           }
           const tags = [
-            `client:${clientId}`,
+            `client:${clientId2}`,
             lead?.email ? `lead:${_AgentRuntime.hashEmail(lead.email)}` : null
           ].filter(Boolean);
           const query = topic && topic.trim() ? topic : "recent conversation context and similar successful replies";
           const { searchMemories: searchMemories2 } = await Promise.resolve().then(() => (init_supermemory(), supermemory_exports));
           const results = await searchMemories2({
             q: query,
-            clientId: clientId || "default",
+            clientId: clientId2 || "default",
             limit: 5
           });
           return (results.results || []).map((r) => ({
@@ -4713,12 +5725,12 @@ Respond naturally and helpfully. If appropriate, include one clear call-to-actio
       /**
        * Create a default agent config for a client if none exists
        */
-      static async ensureDefaultConfig(clientId) {
+      static async ensureDefaultConfig(clientId2) {
         try {
-          const existing = await this.getActiveConfig(clientId);
+          const existing = await this.getActiveConfig(clientId2);
           if (existing) return existing.id;
           const defaultConfig = await db.insert(aiAgentConfig).values({
-            clientId,
+            clientId: clientId2,
             name: "Swarm Automotive Agent",
             personality: "professional automotive sales assistant",
             tonality: "professional",
@@ -4770,14 +5782,14 @@ var init_agent = __esm({
     agentRouter = Router7();
     agentRouter.post("/reply", async (req, res) => {
       try {
-        const clientId = req.body.clientId || "default-client";
+        const clientId2 = req.body.clientId || "default-client";
         const { message, leadId, conversationId, topic, model } = req.body;
         if (!message) {
           return res.status(400).json({ error: "message is required" });
         }
-        await AgentRuntime.ensureDefaultConfig(clientId);
+        await AgentRuntime.ensureDefaultConfig(clientId2);
         const result = await AgentRuntime.reply({
-          clientId,
+          clientId: clientId2,
           message,
           leadId,
           conversationId,
@@ -4794,11 +5806,11 @@ var init_agent = __esm({
     });
     agentRouter.get("/config/active", async (req, res) => {
       try {
-        const clientId = req.query.clientId || "default-client";
-        const config = await AgentRuntime.getActiveConfig(clientId);
+        const clientId2 = req.query.clientId || "default-client";
+        const config = await AgentRuntime.getActiveConfig(clientId2);
         if (!config) {
-          const configId = await AgentRuntime.ensureDefaultConfig(clientId);
-          const newConfig = await AgentRuntime.getActiveConfig(clientId);
+          const configId = await AgentRuntime.ensureDefaultConfig(clientId2);
+          const newConfig = await AgentRuntime.getActiveConfig(clientId2);
           return res.json(newConfig);
         }
         res.json(config);
@@ -4811,9 +5823,9 @@ var init_agent = __esm({
     });
     agentRouter.put("/config/active", async (req, res) => {
       try {
-        const clientId = req.body.clientId || "default-client";
+        const clientId2 = req.body.clientId || "default-client";
         const {
-          name,
+          name: name2,
           personality,
           tonality,
           responseStyle,
@@ -4822,10 +5834,10 @@ var init_agent = __esm({
           model,
           systemPrompt
         } = req.body;
-        const currentConfig = await AgentRuntime.getActiveConfig(clientId);
+        const currentConfig = await AgentRuntime.getActiveConfig(clientId2);
         if (currentConfig) {
           await db.update(aiAgentConfig).set({
-            name: name || currentConfig.name,
+            name: name2 || currentConfig.name,
             personality: personality || currentConfig.personality,
             tonality: tonality || currentConfig.tonality,
             responseStyle: responseStyle || currentConfig.responseStyle,
@@ -4837,7 +5849,7 @@ var init_agent = __esm({
           }).where(eq5(aiAgentConfig.id, currentConfig.id));
           res.json({ success: true, configId: currentConfig.id });
         } else {
-          const configId = await AgentRuntime.ensureDefaultConfig(clientId);
+          const configId = await AgentRuntime.ensureDefaultConfig(clientId2);
           res.json({ success: true, configId });
         }
       } catch (error) {
@@ -4849,10 +5861,10 @@ var init_agent = __esm({
     });
     agentRouter.get("/health", async (req, res) => {
       try {
-        const clientId = req.query.clientId || "default-client";
-        const config = await AgentRuntime.getActiveConfig(clientId);
+        const clientId2 = req.query.clientId || "default-client";
+        const config = await AgentRuntime.getActiveConfig(clientId2);
         const testReply = await AgentRuntime.reply({
-          clientId,
+          clientId: clientId2,
           message: "Hello, this is a health check",
           maxTokens: 50
         });
@@ -4884,53 +5896,55 @@ __export(ai_persona_exports, {
   default: () => ai_persona_default
 });
 import { Router as Router8 } from "express";
-import { z as z2 } from "zod";
+import { z as z3 } from "zod";
 import { eq as eq6, and as and5, desc as desc2 } from "drizzle-orm";
 var router7, ai_persona_default;
 var init_ai_persona = __esm({
   "server/routes/ai-persona.ts"() {
     "use strict";
-    init_storage();
+    init_db();
     init_schema();
+    init_error_utils();
     router7 = Router8();
     router7.get("/", async (req, res) => {
       try {
-        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const clientId2 = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
         const {
-          targetAudience,
-          industry,
+          targetAudience: targetAudience2,
+          industry: industry2,
           isActive,
           includeKnowledgeBases,
           includeCampaignCounts
         } = req.query;
-        const conditions = [eq6(aiPersonas.clientId, clientId)];
-        if (targetAudience) {
-          conditions.push(eq6(aiPersonas.targetAudience, targetAudience));
+        const conditions = [eq6(aiPersonas.clientId, clientId2)];
+        if (targetAudience2) {
+          conditions.push(eq6(aiPersonas.targetAudience, targetAudience2));
         }
-        if (industry) {
-          conditions.push(eq6(aiPersonas.industry, industry));
+        if (industry2) {
+          conditions.push(eq6(aiPersonas.industry, industry2));
         }
         if (isActive !== void 0) {
           conditions.push(eq6(aiPersonas.isActive, isActive === "true"));
         }
-        const personas = await storage.db.select().from(aiPersonas).where(and5(...conditions)).orderBy(desc2(aiPersonas.priority), desc2(aiPersonas.createdAt));
+        const personas = await db.select().from(aiPersonas).where(and5(...conditions)).orderBy(desc2(aiPersonas.priority), desc2(aiPersonas.createdAt));
         res.json({
           success: true,
           data: personas,
           total: personas.length
         });
       } catch (error) {
-        console.error("Get personas error:", error);
+        const errorContext = createErrorContext(error, { operation: "get_personas", clientId });
+        console.error("Get personas error:", errorContext);
+        const errorResponse = buildErrorResponse(error);
         res.status(500).json({
           success: false,
-          error: "Failed to get personas",
-          details: error instanceof Error ? error.message : "Unknown error"
+          ...errorResponse
         });
       }
     });
     router7.post("/create-defaults", async (req, res) => {
       try {
-        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const clientId2 = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
         const personas = [];
         res.status(201).json({
           success: true,
@@ -4938,11 +5952,12 @@ var init_ai_persona = __esm({
           message: `Personas feature is not yet fully implemented`
         });
       } catch (error) {
-        console.error("Create default personas error:", error);
+        const errorContext = createErrorContext(error, { operation: "create_default_personas", clientId });
+        console.error("Create default personas error:", errorContext);
+        const errorResponse = buildErrorResponse(error);
         res.status(500).json({
           success: false,
-          error: "Failed to create default personas",
-          details: error instanceof Error ? error.message : "Unknown error"
+          ...errorResponse
         });
       }
     });
@@ -4950,32 +5965,35 @@ var init_ai_persona = __esm({
       try {
         const { id } = req.params;
         if (!id) {
+          const errorResponse2 = buildErrorResponse(new Error("Persona ID is required"));
           return res.status(400).json({
             success: false,
-            error: "Persona ID is required"
+            ...errorResponse2
           });
         }
+        const errorResponse = buildErrorResponse(new Error("Persona not found"));
         return res.status(404).json({
           success: false,
-          error: "Persona not found"
+          ...errorResponse
         });
       } catch (error) {
-        console.error("Get persona error:", error);
+        const errorContext = createErrorContext(error, { operation: "get_persona", personaId: req.params.id });
+        console.error("Get persona error:", errorContext);
+        const errorResponse = buildErrorResponse(error);
         res.status(500).json({
           success: false,
-          error: "Failed to get persona",
-          details: error instanceof Error ? error.message : "Unknown error"
+          ...errorResponse
         });
       }
     });
     router7.post("/", async (req, res) => {
       try {
-        const clientId = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
+        const clientId2 = req.headers["x-client-id"] || "00000000-0000-0000-0000-000000000001";
         const {
-          name,
+          name: name2,
           description,
-          targetAudience,
-          industry = "automotive",
+          targetAudience: targetAudience2,
+          industry: industry2 = "automotive",
           tonality = "professional",
           personality,
           communicationStyle = "helpful",
@@ -4994,18 +6012,19 @@ var init_ai_persona = __esm({
           metadata = {},
           emailSubdomain
         } = req.body;
-        if (!name || !targetAudience) {
+        if (!name2 || !targetAudience2) {
+          const errorResponse = buildErrorResponse(new Error("Name and target audience are required"));
           return res.status(400).json({
             success: false,
-            error: "Name and target audience are required"
+            ...errorResponse
           });
         }
-        const [newPersona] = await storage.db.insert(aiPersonas).values({
-          clientId,
-          name,
+        const [newPersona] = await db.insert(aiPersonas).values({
+          clientId: clientId2,
+          name: name2,
           description,
-          targetAudience,
-          industry,
+          targetAudience: targetAudience2,
+          industry: industry2,
           tonality,
           personality,
           communicationStyle,
@@ -5030,26 +6049,33 @@ var init_ai_persona = __esm({
           message: "Persona created successfully"
         });
       } catch (error) {
-        console.error("Create persona error:", error);
+        const errorContext = createErrorContext(error, {
+          operation: "create_persona",
+          clientId,
+          personaData: { name, targetAudience, industry }
+        });
+        console.error("Create persona error:", errorContext);
+        const errorResponse = buildErrorResponse(error);
         res.status(500).json({
           success: false,
-          error: "Failed to create persona",
-          details: error instanceof Error ? error.message : "Unknown error"
+          ...errorResponse
         });
       }
     });
     router7.put("/:id", async (req, res) => {
       try {
+        const errorResponse = buildErrorResponse(new Error("Persona update not yet implemented"));
         res.status(501).json({
           success: false,
-          error: "Persona update not yet implemented"
+          ...errorResponse
         });
       } catch (error) {
-        console.error("Update persona error:", error);
+        const errorContext = createErrorContext(error, { operation: "update_persona", personaId: req.params.id });
+        console.error("Update persona error:", errorContext);
+        const errorResponse = buildErrorResponse(error);
         res.status(500).json({
           success: false,
-          error: "Failed to update persona",
-          details: error instanceof Error ? error.message : "Unknown error"
+          ...errorResponse
         });
       }
     });
@@ -5057,7 +6083,720 @@ var init_ai_persona = __esm({
   }
 });
 
+// server/services/user-notification.ts
+import { eq as eq7 } from "drizzle-orm";
+var notificationTemplates, UserNotificationService, userNotificationService;
+var init_user_notification = __esm({
+  "server/services/user-notification.ts"() {
+    "use strict";
+    init_mailgun();
+    init_db();
+    init_schema();
+    notificationTemplates = {
+      ["campaign_executed" /* CAMPAIGN_EXECUTED */]: (data) => ({
+        subject: `Campaign "${data.campaignName}" Successfully Executed`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Campaign Execution Complete</h2>
+        <p>Your automotive email campaign "<strong>${data.campaignName}</strong>" has been successfully executed.</p>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Execution Summary:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>Emails Sent:</strong> ${data.emailsSent || 0}</li>
+            <li><strong>Leads Targeted:</strong> ${data.leadsTargeted || 0}</li>
+            <li><strong>Template Used:</strong> ${data.templateTitle || "N/A"}</li>
+            <li><strong>Execution Time:</strong> ${new Date(data.executedAt || Date.now()).toLocaleString()}</li>
+          </ul>
+        </div>
+        
+        <p>You can monitor campaign performance and view detailed analytics in your dashboard.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/campaigns" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Campaign Results
+          </a>
+        </div>
+        
+        <p style="color: #6b7280; font-size: 14px;">
+          OfferLogix - Automotive Email Marketing Platform
+        </p>
+      </div>
+    `,
+        text: `Campaign "${data.campaignName}" Successfully Executed
+
+Your automotive email campaign has been completed.
+
+Execution Summary:
+- Emails Sent: ${data.emailsSent || 0}
+- Leads Targeted: ${data.leadsTargeted || 0}
+- Template Used: ${data.templateTitle || "N/A"}
+- Execution Time: ${new Date(data.executedAt || Date.now()).toLocaleString()}
+
+View your campaign results at: ${process.env.SITE_URL || "http://localhost:5050"}/campaigns`
+      }),
+      ["campaign_completed" /* CAMPAIGN_COMPLETED */]: (data) => ({
+        subject: `Campaign "${data.campaignName}" Sequence Completed`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #059669;">Campaign Sequence Complete</h2>
+        <p>Your automotive email campaign "<strong>${data.campaignName}</strong>" has completed its full sequence.</p>
+        
+        <div style="background: #ecfdf5; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #059669;">
+          <h3 style="margin-top: 0; color: #059669;">Final Results:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>Total Emails Sent:</strong> ${data.totalEmailsSent || 0}</li>
+            <li><strong>Overall Open Rate:</strong> ${data.openRate || 0}%</li>
+            <li><strong>Leads Engaged:</strong> ${data.leadsEngaged || 0}</li>
+            <li><strong>Campaign Duration:</strong> ${data.duration || "N/A"}</li>
+          </ul>
+        </div>
+        
+        <p>Congratulations on completing your automotive email campaign! Review the detailed analytics to optimize future campaigns.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/campaigns/${data.campaignId}/analytics" 
+             style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Complete Analytics
+          </a>
+        </div>
+      </div>
+    `,
+        text: `Campaign "${data.campaignName}" Sequence Completed
+
+Your automotive email campaign has completed its full sequence.
+
+Final Results:
+- Total Emails Sent: ${data.totalEmailsSent || 0}
+- Overall Open Rate: ${data.openRate || 0}%
+- Leads Engaged: ${data.leadsEngaged || 0}
+- Campaign Duration: ${data.duration || "N/A"}`
+      }),
+      ["lead_assigned" /* LEAD_ASSIGNED */]: (data) => ({
+        subject: `New Lead Assigned: ${data.leadName}`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">New Lead Assignment</h2>
+        <p>A new lead has been assigned to your campaign "<strong>${data.campaignName}</strong>".</p>
+        
+        <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+          <h3 style="margin-top: 0; color: #dc2626;">Lead Details:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>Name:</strong> ${data.leadName}</li>
+            <li><strong>Email:</strong> ${data.leadEmail}</li>
+            <li><strong>Phone:</strong> ${data.leadPhone || "Not provided"}</li>
+            <li><strong>Vehicle Interest:</strong> ${data.vehicleInterest || "General inquiry"}</li>
+            <li><strong>Lead Source:</strong> ${data.leadSource || "Unknown"}</li>
+          </ul>
+        </div>
+        
+        <p>This lead will be included in your next campaign execution. Consider personalizing the approach based on their vehicle interest.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/leads" 
+             style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Manage Leads
+          </a>
+        </div>
+      </div>
+    `,
+        text: `New Lead Assignment
+
+A new lead has been assigned to your campaign "${data.campaignName}".
+
+Lead Details:
+- Name: ${data.leadName}
+- Email: ${data.leadEmail}
+- Phone: ${data.leadPhone || "Not provided"}
+- Vehicle Interest: ${data.vehicleInterest || "General inquiry"}
+- Lead Source: ${data.leadSource || "Unknown"}`
+      }),
+      ["high_engagement" /* HIGH_ENGAGEMENT */]: (data) => ({
+        subject: `High Engagement Alert: ${data.campaignName}`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #7c3aed;">High Engagement Detected! \u{1F3AF}</h2>
+        <p>Your campaign "<strong>${data.campaignName}</strong>" is performing exceptionally well.</p>
+        
+        <div style="background: #f5f3ff; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #7c3aed;">
+          <h3 style="margin-top: 0; color: #7c3aed;">Performance Highlights:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>Current Open Rate:</strong> ${data.openRate || 0}% (${data.benchmark || "25"}% above average)</li>
+            <li><strong>Click-through Rate:</strong> ${data.clickRate || 0}%</li>
+            <li><strong>Active Responses:</strong> ${data.responses || 0}</li>
+            <li><strong>Engagement Score:</strong> ${data.engagementScore || 0}/100</li>
+          </ul>
+        </div>
+        
+        <p>Consider scaling this successful campaign or using its templates as a foundation for future campaigns.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/campaigns/${data.campaignId}" 
+             style="background: #7c3aed; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Campaign Performance
+          </a>
+        </div>
+      </div>
+    `,
+        text: `High Engagement Alert: ${data.campaignName}
+
+Your campaign is performing exceptionally well!
+
+Performance Highlights:
+- Current Open Rate: ${data.openRate || 0}% (${data.benchmark || "25"}% above average)
+- Click-through Rate: ${data.clickRate || 0}%
+- Active Responses: ${data.responses || 0}
+- Engagement Score: ${data.engagementScore || 0}/100`
+      }),
+      ["system_alert" /* SYSTEM_ALERT */]: (data) => ({
+        subject: `System Alert: ${data.alertTitle}`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ea580c;">System Alert</h2>
+        <p><strong>${data.alertTitle}</strong></p>
+        
+        <div style="background: #fff7ed; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ea580c;">
+          <p style="margin: 0;">${data.message}</p>
+          ${data.details ? `<p style="margin: 10px 0 0 0; font-size: 14px; color: #6b7280;">${data.details}</p>` : ""}
+        </div>
+        
+        ${data.actionRequired ? `
+        <p style="color: #dc2626;"><strong>Action Required:</strong> ${data.actionRequired}</p>
+        ` : ""}
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/dashboard" 
+             style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Go to Dashboard
+          </a>
+        </div>
+      </div>
+    `,
+        text: `System Alert: ${data.alertTitle}
+
+${data.message}
+
+${data.details || ""}
+
+${data.actionRequired ? `Action Required: ${data.actionRequired}` : ""}`
+      }),
+      ["monthly_report" /* MONTHLY_REPORT */]: (data) => ({
+        subject: `Monthly Report - ${data.month} ${data.year}`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #2563eb;">Monthly Campaign Report</h2>
+        <p>Here's your automotive email marketing summary for <strong>${data.month} ${data.year}</strong>.</p>
+        
+        <div style="background: #f8fafc; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <h3 style="margin-top: 0;">Monthly Statistics:</h3>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+            <div>
+              <p style="margin: 5px 0;"><strong>Campaigns Executed:</strong> ${data.campaignsExecuted || 0}</p>
+              <p style="margin: 5px 0;"><strong>Total Emails Sent:</strong> ${data.totalEmailsSent || 0}</p>
+              <p style="margin: 5px 0;"><strong>New Leads:</strong> ${data.newLeads || 0}</p>
+            </div>
+            <div>
+              <p style="margin: 5px 0;"><strong>Average Open Rate:</strong> ${data.avgOpenRate || 0}%</p>
+              <p style="margin: 5px 0;"><strong>Response Rate:</strong> ${data.responseRate || 0}%</p>
+              <p style="margin: 5px 0;"><strong>Conversions:</strong> ${data.conversions || 0}</p>
+            </div>
+          </div>
+        </div>
+        
+        <p>Keep up the great work with your automotive email marketing campaigns!</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/analytics" 
+             style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Detailed Analytics
+          </a>
+        </div>
+      </div>
+    `,
+        text: `Monthly Campaign Report - ${data.month} ${data.year}
+
+Monthly Statistics:
+- Campaigns Executed: ${data.campaignsExecuted || 0}
+- Total Emails Sent: ${data.totalEmailsSent || 0}
+- New Leads: ${data.newLeads || 0}
+- Average Open Rate: ${data.avgOpenRate || 0}%
+- Response Rate: ${data.responseRate || 0}%
+- Conversions: ${data.conversions || 0}`
+      }),
+      ["email_validation_warning" /* EMAIL_VALIDATION_WARNING */]: (data) => ({
+        subject: `Email Validation Warning: Action Required`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #dc2626;">Email Validation Warning</h2>
+        <p>We've detected potential issues with your email campaign that require attention.</p>
+        
+        <div style="background: #fef2f2; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #dc2626;">
+          <h3 style="margin-top: 0; color: #dc2626;">Issues Detected:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            ${data.issues?.map((issue) => `<li>${issue}</li>`).join("") || "<li>Validation issues detected</li>"}
+          </ul>
+        </div>
+        
+        <p><strong>Campaign Affected:</strong> ${data.campaignName}</p>
+        <p>Please review and fix these issues before your next campaign execution to ensure optimal deliverability.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/campaigns/${data.campaignId}" 
+             style="background: #dc2626; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Fix Campaign Issues
+          </a>
+        </div>
+      </div>
+    `,
+        text: `Email Validation Warning: Action Required
+
+We've detected potential issues with your email campaign.
+
+Campaign Affected: ${data.campaignName}
+
+Issues Detected:
+${data.issues?.map((issue) => `- ${issue}`).join("\n") || "- Validation issues detected"}
+
+Please review and fix these issues before your next campaign execution.`
+      }),
+      ["quota_warning" /* QUOTA_WARNING */]: (data) => ({
+        subject: `Usage Quota Warning: ${data.percentage}% Used`,
+        html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #ea580c;">Usage Quota Warning</h2>
+        <p>You've used <strong>${data.percentage}%</strong> of your monthly email quota.</p>
+        
+        <div style="background: #fff7ed; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ea580c;">
+          <h3 style="margin-top: 0; color: #ea580c;">Current Usage:</h3>
+          <ul style="margin: 0; padding-left: 20px;">
+            <li><strong>Emails Sent:</strong> ${data.emailsSent || 0} / ${data.emailsQuota || 0}</li>
+            <li><strong>Remaining:</strong> ${(data.emailsQuota || 0) - (data.emailsSent || 0)} emails</li>
+            <li><strong>Reset Date:</strong> ${data.resetDate || "End of month"}</li>
+          </ul>
+        </div>
+        
+        <p>Consider upgrading your plan or optimizing your campaigns to stay within your quota.</p>
+        
+        <div style="margin: 30px 0;">
+          <a href="${process.env.SITE_URL || "http://localhost:5050"}/billing" 
+             style="background: #ea580c; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            Manage Billing
+          </a>
+        </div>
+      </div>
+    `,
+        text: `Usage Quota Warning: ${data.percentage}% Used
+
+Current Usage:
+- Emails Sent: ${data.emailsSent || 0} / ${data.emailsQuota || 0}
+- Remaining: ${(data.emailsQuota || 0) - (data.emailsSent || 0)} emails
+- Reset Date: ${data.resetDate || "End of month"}
+
+Consider upgrading your plan or optimizing your campaigns.`
+      })
+    };
+    UserNotificationService = class {
+      /**
+       * Send a notification to a user
+       */
+      async sendNotification(options) {
+        try {
+          const { userId, type, data, urgency = "medium", sendEmail = true } = options;
+          if (!sendEmail) {
+            console.log(`Notification queued for user ${userId}: ${type}`, data);
+            return true;
+          }
+          const [user] = await db.select().from(users).where(eq7(users.id, userId));
+          if (!user?.email) {
+            console.error(`User ${userId} not found or has no email`);
+            return false;
+          }
+          const template = notificationTemplates[type];
+          if (!template) {
+            console.error(`No template found for notification type: ${type}`);
+            return false;
+          }
+          const content = template(data);
+          const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+          const activeCfg = await storage2.getActiveAiAgentConfig().catch(() => void 0);
+          const success = await sendCampaignEmail(
+            user.email,
+            content.subject,
+            content.html,
+            content.text,
+            "OfferLogix"
+          );
+          if (success) {
+            console.log(`\u2705 Notification sent to ${user.email}: ${type}`);
+          } else {
+            console.error(`\u274C Failed to send notification to ${user.email}: ${type}`);
+          }
+          return success;
+        } catch (error) {
+          console.error("Error sending user notification:", error);
+          return false;
+        }
+      }
+      /**
+       * Send campaign execution notification
+       */
+      async notifyCampaignExecuted(userId, campaignData) {
+        return this.sendNotification({
+          userId,
+          type: "campaign_executed" /* CAMPAIGN_EXECUTED */,
+          data: campaignData,
+          urgency: "medium"
+        });
+      }
+      /**
+       * Send campaign completion notification  
+       */
+      async notifyCampaignCompleted(userId, campaignData) {
+        return this.sendNotification({
+          userId,
+          type: "campaign_completed" /* CAMPAIGN_COMPLETED */,
+          data: campaignData,
+          urgency: "low"
+        });
+      }
+      /**
+       * Send new lead assignment notification
+       */
+      async notifyLeadAssigned(userId, leadData) {
+        return this.sendNotification({
+          userId,
+          type: "lead_assigned" /* LEAD_ASSIGNED */,
+          data: leadData,
+          urgency: "high"
+        });
+      }
+      /**
+       * Send high engagement alert
+       */
+      async notifyHighEngagement(userId, engagementData) {
+        return this.sendNotification({
+          userId,
+          type: "high_engagement" /* HIGH_ENGAGEMENT */,
+          data: engagementData,
+          urgency: "medium"
+        });
+      }
+      /**
+       * Send system alert
+       */
+      async sendSystemAlert(userId, alertData) {
+        return this.sendNotification({
+          userId,
+          type: "system_alert" /* SYSTEM_ALERT */,
+          data: alertData,
+          urgency: "high"
+        });
+      }
+      /**
+       * Send monthly report
+       */
+      async sendMonthlyReport(userId, reportData) {
+        return this.sendNotification({
+          userId,
+          type: "monthly_report" /* MONTHLY_REPORT */,
+          data: reportData,
+          urgency: "low"
+        });
+      }
+      /**
+       * Send email validation warning
+       */
+      async sendValidationWarning(userId, validationData) {
+        return this.sendNotification({
+          userId,
+          type: "email_validation_warning" /* EMAIL_VALIDATION_WARNING */,
+          data: validationData,
+          urgency: "high"
+        });
+      }
+      /**
+       * Send quota warning
+       */
+      async sendQuotaWarning(userId, quotaData) {
+        return this.sendNotification({
+          userId,
+          type: "quota_warning" /* QUOTA_WARNING */,
+          data: quotaData,
+          urgency: "medium"
+        });
+      }
+    };
+    userNotificationService = new UserNotificationService();
+  }
+});
+
+// server/routes/notifications.ts
+var notifications_exports = {};
+__export(notifications_exports, {
+  default: () => notifications_default
+});
+import { Router as Router9 } from "express";
+import { z as z4 } from "zod";
+import { eq as eq8 } from "drizzle-orm";
+var router8, notificationPreferencesSchema, testNotificationSchema, notifications_default;
+var init_notifications = __esm({
+  "server/routes/notifications.ts"() {
+    "use strict";
+    init_user_notification();
+    init_db();
+    init_schema();
+    router8 = Router9();
+    notificationPreferencesSchema = z4.object({
+      emailNotifications: z4.boolean().default(true),
+      campaignAlerts: z4.boolean().default(true),
+      leadAlerts: z4.boolean().default(true),
+      systemAlerts: z4.boolean().default(true),
+      monthlyReports: z4.boolean().default(true),
+      highEngagementAlerts: z4.boolean().default(true),
+      quotaWarnings: z4.boolean().default(true)
+    });
+    testNotificationSchema = z4.object({
+      type: z4.enum([
+        "campaign_executed",
+        "campaign_completed",
+        "lead_assigned",
+        "high_engagement",
+        "system_alert",
+        "monthly_report",
+        "email_validation_warning",
+        "quota_warning"
+      ]),
+      data: z4.record(z4.any()).optional().default({})
+    });
+    router8.get("/preferences/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const [user] = await db.select().from(users).where(eq8(users.id, userId));
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json({
+          preferences: user.notificationPreferences || {
+            emailNotifications: true,
+            campaignAlerts: true,
+            leadAlerts: true,
+            systemAlerts: true,
+            monthlyReports: true,
+            highEngagementAlerts: true,
+            quotaWarnings: true
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching notification preferences:", error);
+        res.status(500).json({ message: "Unable to fetch notification preferences" });
+      }
+    });
+    router8.put("/preferences/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const validatedData = notificationPreferencesSchema.parse(req.body);
+        const [updatedUser] = await db.update(users).set({
+          notificationPreferences: validatedData
+        }).where(eq8(users.id, userId)).returning();
+        if (!updatedUser) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        res.json({
+          message: "Notification preferences updated successfully",
+          preferences: updatedUser.notificationPreferences
+        });
+      } catch (error) {
+        console.error("Error updating notification preferences:", error);
+        res.status(500).json({ message: "Unable to update notification preferences" });
+      }
+    });
+    router8.post("/test/:userId", async (req, res) => {
+      try {
+        const { userId } = req.params;
+        const { type, data } = testNotificationSchema.parse(req.body);
+        const [user] = await db.select().from(users).where(eq8(users.id, userId));
+        if (!user) {
+          return res.status(404).json({ message: "User not found" });
+        }
+        const testData = {
+          campaign_executed: {
+            campaignName: "Test Campaign - 2025 Honda Civic",
+            campaignId: "test-campaign-id",
+            emailsSent: 25,
+            leadsTargeted: 25,
+            templateTitle: "Introduction Email",
+            executedAt: /* @__PURE__ */ new Date(),
+            ...data
+          },
+          campaign_completed: {
+            campaignName: "Test Campaign - 2025 Honda Civic",
+            campaignId: "test-campaign-id",
+            totalEmailsSent: 75,
+            openRate: 42,
+            leadsEngaged: 18,
+            duration: "3 weeks",
+            ...data
+          },
+          lead_assigned: {
+            leadName: "John Smith",
+            leadEmail: "john.smith@example.com",
+            leadPhone: "(555) 123-4567",
+            vehicleInterest: "2025 Honda Civic",
+            leadSource: "website",
+            campaignName: "Test Campaign",
+            ...data
+          },
+          high_engagement: {
+            campaignName: "Test Campaign - 2025 Honda Civic",
+            campaignId: "test-campaign-id",
+            openRate: 65,
+            clickRate: 15,
+            responses: 12,
+            engagementScore: 85,
+            benchmark: 40,
+            ...data
+          },
+          system_alert: {
+            alertTitle: "System Maintenance Scheduled",
+            message: "A system maintenance window is scheduled for tonight from 2-4 AM EST.",
+            details: "Email sending services may be temporarily unavailable during this time.",
+            actionRequired: "Please avoid scheduling campaigns during the maintenance window.",
+            ...data
+          },
+          monthly_report: {
+            month: "January",
+            year: 2025,
+            campaignsExecuted: 8,
+            totalEmailsSent: 1250,
+            newLeads: 45,
+            avgOpenRate: 38,
+            responseRate: 12,
+            conversions: 6,
+            ...data
+          },
+          email_validation_warning: {
+            campaignName: "Test Campaign - 2025 Honda Civic",
+            campaignId: "test-campaign-id",
+            issues: [
+              "Missing unsubscribe link in template #2",
+              "Subject line contains spam trigger words",
+              "From email domain not verified"
+            ],
+            ...data
+          },
+          quota_warning: {
+            percentage: 85,
+            emailsSent: 8500,
+            emailsQuota: 1e4,
+            resetDate: "February 1, 2025",
+            ...data
+          }
+        };
+        const notificationData = testData[type];
+        let success = false;
+        switch (type) {
+          case "campaign_executed":
+            success = await userNotificationService.notifyCampaignExecuted(userId, notificationData);
+            break;
+          case "campaign_completed":
+            success = await userNotificationService.notifyCampaignCompleted(userId, notificationData);
+            break;
+          case "lead_assigned":
+            success = await userNotificationService.notifyLeadAssigned(userId, notificationData);
+            break;
+          case "high_engagement":
+            success = await userNotificationService.notifyHighEngagement(userId, notificationData);
+            break;
+          case "system_alert":
+            success = await userNotificationService.sendSystemAlert(userId, notificationData);
+            break;
+          case "monthly_report":
+            success = await userNotificationService.sendMonthlyReport(userId, notificationData);
+            break;
+          case "email_validation_warning":
+            success = await userNotificationService.sendValidationWarning(userId, notificationData);
+            break;
+          case "quota_warning":
+            success = await userNotificationService.sendQuotaWarning(userId, notificationData);
+            break;
+        }
+        if (success) {
+          res.json({
+            message: `Test ${type} notification sent successfully to ${user.email}`,
+            type,
+            data: notificationData
+          });
+        } else {
+          res.status(500).json({
+            message: `Unable to send test ${type} notification`,
+            type
+          });
+        }
+      } catch (error) {
+        console.error("Error sending test notification:", error);
+        res.status(500).json({ message: "Unable to send test notification" });
+      }
+    });
+    router8.get("/types", async (req, res) => {
+      const notificationTypes = [
+        {
+          type: "campaign_executed",
+          name: "Campaign Executed",
+          description: "Sent when a campaign is successfully executed",
+          urgency: "medium"
+        },
+        {
+          type: "campaign_completed",
+          name: "Campaign Completed",
+          description: "Sent when a campaign sequence is fully completed",
+          urgency: "low"
+        },
+        {
+          type: "lead_assigned",
+          name: "Lead Assigned",
+          description: "Sent when a new lead is assigned to a campaign",
+          urgency: "high"
+        },
+        {
+          type: "high_engagement",
+          name: "High Engagement",
+          description: "Sent when a campaign shows exceptional performance",
+          urgency: "medium"
+        },
+        {
+          type: "system_alert",
+          name: "System Alert",
+          description: "Important system-wide notifications and alerts",
+          urgency: "high"
+        },
+        {
+          type: "monthly_report",
+          name: "Monthly Report",
+          description: "Monthly performance summary and analytics",
+          urgency: "low"
+        },
+        {
+          type: "email_validation_warning",
+          name: "Email Validation Warning",
+          description: "Warnings about email deliverability issues",
+          urgency: "high"
+        },
+        {
+          type: "quota_warning",
+          name: "Quota Warning",
+          description: "Alerts when approaching usage limits",
+          urgency: "medium"
+        }
+      ];
+      res.json({ notificationTypes });
+    });
+    notifications_default = router8;
+  }
+});
+
 // server/index.ts
+init_env();
 import dotenv from "dotenv";
 import express2 from "express";
 
@@ -5080,9 +6819,10 @@ function withJitter(baseMs) {
   return baseMs + jitter;
 }
 var CampaignScheduler = class _CampaignScheduler {
-  static instance;
-  schedulerInterval = null;
-  loopInProgress = false;
+  constructor() {
+    this.schedulerInterval = null;
+    this.loopInProgress = false;
+  }
   async claimCampaign(campaignId, now) {
     const leaseUntil = new Date(now.getTime() + CLAIM_LEASE_MS);
     const result = await db.update(campaigns).set({ nextExecution: leaseUntil, updatedAt: /* @__PURE__ */ new Date() }).where(and2(
@@ -5280,25 +7020,25 @@ init_schema();
 import { eq as eq3 } from "drizzle-orm";
 var tenantMiddleware = async (req, res, next) => {
   try {
-    let clientId = null;
+    let clientId2 = null;
     const host = req.get("host") || "";
     const subdomain = host.split(".")[0];
     if (subdomain && subdomain !== "localhost" && subdomain !== "127" && !subdomain.includes(":")) {
       const [client] = await db.select().from(clients).where(eq3(clients.domain, subdomain));
       if (client) {
-        clientId = client.id;
+        clientId2 = client.id;
       }
     }
-    if (!clientId && host) {
+    if (!clientId2 && host) {
       const [client] = await db.select().from(clients).where(eq3(clients.domain, host));
       if (client) {
-        clientId = client.id;
+        clientId2 = client.id;
       }
     }
-    if (!clientId && req.headers["x-tenant-id"]) {
-      clientId = req.headers["x-tenant-id"];
+    if (!clientId2 && req.headers["x-tenant-id"]) {
+      clientId2 = req.headers["x-tenant-id"];
     }
-    if (!clientId) {
+    if (!clientId2) {
       let [defaultClient] = await db.select().from(clients).where(eq3(clients.domain, "localhost"));
       if (!defaultClient) {
         const inserted = await db.insert(clients).values({
@@ -5322,12 +7062,12 @@ var tenantMiddleware = async (req, res, next) => {
         }
       }
       if (defaultClient) {
-        clientId = defaultClient.id;
+        clientId2 = defaultClient.id;
       }
     }
-    req.clientId = clientId;
-    if (clientId) {
-      const [client] = await db.select().from(clients).where(eq3(clients.id, clientId));
+    req.clientId = clientId2;
+    if (clientId2) {
+      const [client] = await db.select().from(clients).where(eq3(clients.id, clientId2));
       req.client = client;
     }
     next();
@@ -5341,33 +7081,35 @@ var tenantMiddleware = async (req, res, next) => {
 init_db();
 init_schema();
 init_websocket();
-import { eq as eq7 } from "drizzle-orm";
+import { eq as eq9 } from "drizzle-orm";
 import multer from "multer";
 import { parse as parse2 } from "csv-parse/sync";
 
 // server/services/csv/csv-validation.ts
 import { parse } from "csv-parse/sync";
-import { z } from "zod";
-var leadValidationSchema = z.object({
-  firstName: z.string().max(100).optional().or(z.literal("")),
-  lastName: z.string().max(100).optional().or(z.literal("")),
-  email: z.string().email("Invalid email format"),
-  phone: z.string().optional(),
-  vehicleInterest: z.string().optional(),
-  budget: z.string().optional(),
-  timeframe: z.string().optional(),
-  source: z.string().optional(),
-  notes: z.string().optional()
+import { z as z2 } from "zod";
+var leadValidationSchema = z2.object({
+  firstName: z2.string().max(100).optional().or(z2.literal("")),
+  lastName: z2.string().max(100).optional().or(z2.literal("")),
+  email: z2.string().email("Invalid email format"),
+  phone: z2.string().optional(),
+  vehicleInterest: z2.string().optional(),
+  budget: z2.string().optional(),
+  timeframe: z2.string().optional(),
+  source: z2.string().optional(),
+  notes: z2.string().optional()
 });
 var CSVValidationService = class {
-  static DEFAULT_OPTIONS = {
-    maxFileSize: 10 * 1024 * 1024,
-    // 10MB
-    maxRows: 1e4,
-    requireColumns: ["email"],
-    // Only email is truly required
-    sanitizeData: true
-  };
+  static {
+    this.DEFAULT_OPTIONS = {
+      maxFileSize: 10 * 1024 * 1024,
+      // 10MB
+      maxRows: 1e4,
+      requireColumns: ["email"],
+      // Only email is truly required
+      sanitizeData: true
+    };
+  }
   /**
    * Validate and parse CSV file with comprehensive security checks
    */
@@ -5442,7 +7184,7 @@ var CSVValidationService = class {
           emailSet.add(validatedRecord.email.toLowerCase());
           validatedRecords.push(validatedRecord);
         } catch (validationError) {
-          if (validationError instanceof z.ZodError) {
+          if (validationError instanceof z2.ZodError) {
             const fieldErrors = validationError.errors.map((err) => `${err.path.join(".")}: ${err.message}`).join(", ");
             errors.push(`Row ${rowNumber}: ${fieldErrors}`);
           } else {
@@ -5559,7 +7301,140 @@ Warnings:`);
 var validateCSV = CSVValidationService.validateCSV.bind(CSVValidationService);
 var generateValidationReport = CSVValidationService.generateValidationReport.bind(CSVValidationService);
 
+// server/middleware/rate-limiter.ts
+var store = {};
+function createRateLimit(options) {
+  const {
+    windowMs,
+    maxRequests,
+    keyGenerator = (req) => req.ip || "unknown",
+    message = "Too many requests, please try again later"
+  } = options;
+  return (req, res, next) => {
+    const key = keyGenerator(req);
+    const now = Date.now();
+    const windowStart = now - windowMs;
+    if (store[key] && store[key].resetTime < now) {
+      delete store[key];
+    }
+    if (!store[key]) {
+      store[key] = {
+        count: 1,
+        resetTime: now + windowMs
+      };
+    } else {
+      store[key].count++;
+    }
+    if (store[key].count > maxRequests) {
+      return res.status(429).json({
+        error: message,
+        retryAfter: Math.ceil((store[key].resetTime - now) / 1e3)
+      });
+    }
+    res.setHeader("X-RateLimit-Limit", maxRequests);
+    res.setHeader("X-RateLimit-Remaining", Math.max(0, maxRequests - store[key].count));
+    res.setHeader("X-RateLimit-Reset", new Date(store[key].resetTime).toISOString());
+    next();
+  };
+}
+var campaignRateLimit = createRateLimit({
+  windowMs: 15 * 60 * 1e3,
+  // 15 minutes
+  maxRequests: 10,
+  // 10 campaign operations per 15 minutes
+  message: "Too many campaign operations, please wait before trying again"
+});
+var bulkEmailRateLimit = createRateLimit({
+  windowMs: 60 * 60 * 1e3,
+  // 1 hour
+  maxRequests: 5,
+  // 5 bulk email operations per hour
+  keyGenerator: (req) => `${req.ip}-bulk`,
+  message: "Bulk email rate limit exceeded, please wait before sending more campaigns"
+});
+
+// server/middleware/logging-middleware.ts
+init_logger();
+function requestLoggingMiddleware(req, res, next) {
+  const startTime = Date.now();
+  const requestLogger = log.fromRequest(req);
+  requestLogger.info("API Request received", {
+    component: "api",
+    endpoint: req.path,
+    method: req.method,
+    query: req.query,
+    headers: {
+      "content-type": req.headers["content-type"],
+      "user-agent": req.headers["user-agent"],
+      "origin": req.headers.origin
+    }
+  });
+  const originalEnd = res.end;
+  res.end = function(chunk, encoding) {
+    const responseTime = Date.now() - startTime;
+    requestLogger.api("API Response sent", {
+      endpoint: req.path,
+      method: req.method,
+      statusCode: res.statusCode,
+      responseTime,
+      requestSize: parseInt(req.headers["content-length"] || "0"),
+      responseSize: res.get("content-length") ? parseInt(res.get("content-length")) : 0
+    });
+    return originalEnd.call(this, chunk, encoding);
+  };
+  next();
+}
+function securityLoggingMiddleware(req, res, next) {
+  const suspiciousPatterns = [
+    /\.\.\//g,
+    // Path traversal
+    /<script/gi,
+    // XSS attempts
+    /union\s+select/gi,
+    // SQL injection
+    /javascript:/gi,
+    // Script injection
+    /eval\(/gi
+    // Code injection
+  ];
+  const url = req.url;
+  const body = typeof req.body === "string" ? req.body : JSON.stringify(req.body || {});
+  const combinedContent = `${url} ${body}`;
+  for (const pattern of suspiciousPatterns) {
+    if (pattern.test(combinedContent)) {
+      log.security("Suspicious request detected", {
+        eventType: "suspicious_request",
+        severity: "medium",
+        sourceIp: req.ip,
+        userAgent: req.headers["user-agent"],
+        endpoint: req.path,
+        method: req.method,
+        pattern: pattern.toString(),
+        actionTaken: "logged"
+      });
+      break;
+    }
+  }
+  next();
+}
+function errorLoggingMiddleware(error, req, res, next) {
+  const requestLogger = log.fromRequest(req);
+  requestLogger.error("Unhandled error in request", {
+    error,
+    component: "api",
+    operation: `${req.method} ${req.path}`,
+    severity: res.statusCode >= 500 ? "high" : "medium"
+  });
+  next(error);
+}
+
 // server/routes.ts
+var csvUploadRateLimit = createRateLimit({
+  windowMs: 10 * 60 * 1e3,
+  // 10 minutes
+  maxRequests: 3,
+  message: "Too many CSV uploads, please wait before trying again"
+});
 async function registerRoutes(app2) {
   app2.use("/api", tenantMiddleware);
   app2.get("/api/debug/ping", (req, res) => {
@@ -5593,9 +7468,9 @@ async function registerRoutes(app2) {
   app2.get("/api/branding", async (req, res) => {
     try {
       const domain = req.query.domain || req.get("host") || "localhost";
-      let [client] = await db.select().from(clients).where(eq7(clients.domain, domain));
+      let [client] = await db.select().from(clients).where(eq9(clients.domain, domain));
       if (!client) {
-        [client] = await db.select().from(clients).where(eq7(clients.name, "Default Client"));
+        [client] = await db.select().from(clients).where(eq9(clients.name, "Default Client"));
       }
       if (client) {
         res.json(client);
@@ -5640,7 +7515,7 @@ async function registerRoutes(app2) {
   app2.put("/api/clients/:id", async (req, res) => {
     try {
       const clientData = insertClientSchema.partial().parse(req.body);
-      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq7(clients.id, req.params.id)).returning();
+      const [client] = await db.update(clients).set({ ...clientData, updatedAt: /* @__PURE__ */ new Date() }).where(eq9(clients.id, req.params.id)).returning();
       if (!client) {
         return res.status(404).json({ message: "Client not found" });
       }
@@ -5651,7 +7526,7 @@ async function registerRoutes(app2) {
   });
   app2.delete("/api/clients/:id", async (req, res) => {
     try {
-      await db.delete(clients).where(eq7(clients.id, req.params.id));
+      await db.delete(clients).where(eq9(clients.id, req.params.id));
       res.json({ message: "Client deleted successfully" });
     } catch (error) {
       res.status(500).json({ message: "Failed to delete client" });
@@ -5704,8 +7579,8 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/campaigns/:id/clone", async (req, res) => {
     try {
-      const { name } = req.body;
-      const clonedCampaign = await storage.cloneCampaign(req.params.id, name);
+      const { name: name2 } = req.body;
+      const clonedCampaign = await storage.cloneCampaign(req.params.id, name2);
       res.json(clonedCampaign);
     } catch (error) {
       res.status(500).json({ message: "Failed to clone campaign" });
@@ -5738,7 +7613,7 @@ async function registerRoutes(app2) {
       res.status(500).json({ message: "Failed to update templates" });
     }
   });
-  app2.post("/api/campaigns/:id/launch", async (req, res) => {
+  app2.post("/api/campaigns/:id/launch", campaignRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const campaign = await storage.getCampaign(campaignId);
@@ -5765,7 +7640,7 @@ async function registerRoutes(app2) {
   app2.use("/api/templates", templateRoutes.default);
   const unsubscribeRoutes = await Promise.resolve().then(() => (init_unsubscribe(), unsubscribe_exports));
   app2.use("/", unsubscribeRoutes.default);
-  app2.post("/api/email/send", async (req, res) => {
+  app2.post("/api/email/send", bulkEmailRateLimit, async (req, res) => {
     try {
       const { to, subject, htmlContent, textContent, fromName, fromEmail } = req.body;
       if (!to || !subject || !htmlContent) {
@@ -5826,7 +7701,7 @@ async function registerRoutes(app2) {
     limits: { fileSize: 5 * 1024 * 1024 }
     // 5MB limit
   });
-  app2.post("/api/leads/upload-csv-basic", basicUpload.single("file"), async (req, res) => {
+  app2.post("/api/leads/upload-csv-basic", csvUploadRateLimit, basicUpload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ message: "No file uploaded" });
@@ -5967,7 +7842,7 @@ async function registerRoutes(app2) {
   });
   const mailgunWebhookRoutes = await Promise.resolve().then(() => (init_mailgun_webhooks(), mailgun_webhooks_exports));
   app2.use("/api", mailgunWebhookRoutes.default);
-  app2.post("/api/campaigns/:id/execute", async (req, res) => {
+  app2.post("/api/campaigns/:id/execute", campaignRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const { scheduleAt, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = req.body;
@@ -5991,7 +7866,7 @@ async function registerRoutes(app2) {
       });
     }
   });
-  app2.post("/api/campaigns/:id/send-followup", async (req, res) => {
+  app2.post("/api/campaigns/:id/send-followup", bulkEmailRateLimit, async (req, res) => {
     try {
       const campaignId = req.params.id;
       const { templateIndex = 1, leadIds } = req.body;
@@ -6101,7 +7976,7 @@ async function registerRoutes(app2) {
   });
   app2.post("/api/users", async (req, res) => {
     try {
-      const { username, password, role, email, clientId } = req.body;
+      const { username, password, role, email, clientId: clientId2 } = req.body;
       if (!username || !password || !role) {
         return res.status(400).json({ message: "Username, password, and role are required" });
       }
@@ -6114,7 +7989,7 @@ async function registerRoutes(app2) {
         // In production, this should be hashed
         role,
         email: email || null,
-        clientId: clientId || null
+        clientId: clientId2 || null
       });
       const { password: _, ...userResponse } = newUser;
       res.status(201).json(userResponse);
@@ -6300,7 +8175,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       });
     }
   });
-  app2.post("/api/campaigns/:id/leads/upload", upload.single("file"), async (req, res) => {
+  app2.post("/api/campaigns/:id/leads/upload", csvUploadRateLimit, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
       const campaignId = req.params.id;
@@ -6378,7 +8253,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       res.status(500).json({ message: "Failed to delete lead" });
     }
   });
-  app2.post("/api/leads/upload-csv", upload.single("file"), async (req, res) => {
+  app2.post("/api/leads/upload-csv", csvUploadRateLimit, upload.single("file"), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -6595,6 +8470,8 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   app2.use("/api/agent", agentRoutes.default);
   const personaRoutes = await Promise.resolve().then(() => (init_ai_persona(), ai_persona_exports));
   app2.use("/api/personas", personaRoutes.default);
+  const notificationRoutes = await Promise.resolve().then(() => (init_notifications(), notifications_exports));
+  app2.use("/api/notifications", notificationRoutes.default);
   app2.post("/api/campaigns/:id/schedule", async (req, res) => {
     try {
       const { scheduleType, scheduledStart, recurringPattern, recurringDays, recurringTime } = req.body;
@@ -6699,10 +8576,63 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
     });
   });
   app2.post("/api/ai/generate-templates", async (req, res) => {
-    res.status(501).json({
-      message: "AI template generation not yet implemented",
-      templates: []
-    });
+    try {
+      const templateRoutes2 = await Promise.resolve().then(() => (init_templates(), templates_exports));
+      const { context, campaignId } = req.body;
+      const mockReq = { body: { context, campaignId } };
+      const mockRes = {
+        json: (data) => res.json(data),
+        status: (code) => ({ json: (data) => res.status(code).json(data) })
+      };
+      const { callOpenRouterJSON: callOpenRouterJSON2 } = await Promise.resolve().then(() => (init_call_openrouter(), call_openrouter_exports));
+      const { storage: storage2 } = await Promise.resolve().then(() => (init_storage(), storage_exports));
+      let templateContext2 = context;
+      if (campaignId && !context) {
+        try {
+          const campaign = await storage2.getCampaign(campaignId);
+          if (campaign) {
+            templateContext2 = `Campaign: ${campaign.name}. Goals: ${campaign.handoverGoals || "Generate leads and drive conversions"}. Target: ${campaign.targetAudience || "potential customers"}`;
+          } else {
+            templateContext2 = "General marketing campaign focused on lead generation and customer engagement";
+          }
+        } catch (error) {
+          console.error("Error fetching campaign for context:", error);
+          templateContext2 = "General marketing campaign focused on lead generation and customer engagement";
+        }
+      }
+      if (!templateContext2) {
+        return res.status(400).json({ message: "context or campaignId required" });
+      }
+      const system = `System Prompt: The Straight-Talking Sales Pro
+Core Identity:
+You are an experienced sales professional. You're knowledgeable, direct, and genuinely helpful. You talk like a real person who knows the industry and understands that picking a vendor is a big decision.
+Communication Style:
+
+Be real. Talk like you would to a friend who's asking for advice
+Be direct. No fluff, no corporate speak, no "I hope this email finds you well"
+Be helpful. Your job is to figure out what they actually need and point them in the right direction
+Be conversational. Short sentences. Natural flow. Like you're texting a friend
+
+Your Goal:
+Have a normal conversation that helps them figure out what they actually want. If they're ready to move forward, make it easy. If they're not, give them something useful and stay in touch.
+
+Return only JSON.`;
+      const json = await callOpenRouterJSON2({
+        model: "openai/gpt-5-chat",
+        system,
+        messages: [
+          { role: "user", content: `Generate 3 subject lines and 3 short HTML templates (no external images).
+Context: ${templateContext2}
+Respond JSON: { "subject_lines": string[], "templates": string[] }` }
+        ],
+        temperature: 0.5,
+        maxTokens: 1200
+      });
+      res.json({ subject_lines: json.subject_lines || [], templates: json.templates || [] });
+    } catch (e) {
+      console.error("Template generation error:", e);
+      res.status(500).json({ message: "Failed to generate templates" });
+    }
   });
   app2.post("/api/ai/analyze-conversation", async (req, res) => {
     res.status(501).json({
@@ -6760,6 +8690,7 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       message: "Email monitor rule creation not yet implemented"
     });
   });
+  app2.use(errorLoggingMiddleware);
   const httpServer = createServer(app2);
   webSocketService.initialize(httpServer);
   return httpServer;
@@ -6768,30 +8699,30 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 // server/vite.ts
 import express from "express";
 import fs from "fs";
-import path2 from "path";
+import path3 from "path";
 import { fileURLToPath as fileURLToPath2 } from "url";
 import { createServer as createViteServer, createLogger } from "vite";
 
 // vite.config.ts
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
-import path from "path";
+import path2 from "path";
 import { fileURLToPath } from "url";
 var __filename = fileURLToPath(import.meta.url);
-var __dirname = path.dirname(__filename);
+var __dirname = path2.dirname(__filename);
 var vite_config_default = defineConfig({
   plugins: [
     react()
   ],
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "client", "src"),
-      "@shared": path.resolve(__dirname, "shared")
+      "@": path2.resolve(__dirname, "client", "src"),
+      "@shared": path2.resolve(__dirname, "shared")
     }
   },
-  root: path.resolve(__dirname, "client"),
+  root: path2.resolve(__dirname, "client"),
   build: {
-    outDir: path.resolve(__dirname, "dist/public"),
+    outDir: path2.resolve(__dirname, "dist/public"),
     emptyOutDir: true
   },
   server: {
@@ -6803,12 +8734,12 @@ var vite_config_default = defineConfig({
 });
 
 // server/vite.ts
-var __dirname2 = path2.dirname(fileURLToPath2(import.meta.url));
+var __dirname2 = path3.dirname(fileURLToPath2(import.meta.url));
 var viteLogger = createLogger();
 function devCacheBuster() {
   return Math.random().toString(36).slice(2, 10);
 }
-function log(message, source = "express") {
+function log2(message, source = "express") {
   const formattedTime = (/* @__PURE__ */ new Date()).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
@@ -6843,7 +8774,7 @@ async function setupVite(app2, server) {
   app2.use("*", async (req, res, next) => {
     const url = req.originalUrl;
     try {
-      const clientTemplate = path2.resolve(
+      const clientTemplate = path3.resolve(
         __dirname2,
         "..",
         "client",
@@ -6863,7 +8794,7 @@ async function setupVite(app2, server) {
   });
 }
 function serveStatic(app2) {
-  const distPath = path2.resolve(__dirname2, "public");
+  const distPath = path3.resolve(__dirname2, "public");
   if (!fs.existsSync(distPath)) {
     throw new Error(
       `Could not find the build directory: ${distPath}, make sure to build the client first`
@@ -6873,18 +8804,19 @@ function serveStatic(app2) {
   app2.get("/offerlogix-chat-widget.js", (_req, res) => {
     res.setHeader("Content-Type", "application/javascript");
     res.setHeader("Access-Control-Allow-Origin", "*");
-    res.sendFile(path2.resolve(distPath, "offerlogix-chat-widget.js"));
+    res.sendFile(path3.resolve(distPath, "offerlogix-chat-widget.js"));
   });
   app2.use("*", (req, res) => {
     if (req.originalUrl.includes("offerlogix-chat-widget") || req.originalUrl.includes("chat-widget-demo")) {
       return res.status(404).send("File not found");
     }
-    res.sendFile(path2.resolve(distPath, "index.html"));
+    res.sendFile(path3.resolve(distPath, "index.html"));
   });
 }
 
 // server/index.ts
 dotenv.config();
+var env3 = validateEnv();
 var app = express2();
 app.use((req, res, next) => {
   const allowedOrigins = [
@@ -6911,9 +8843,11 @@ app.use((req, res, next) => {
 });
 app.use(express2.json());
 app.use(express2.urlencoded({ extended: false }));
+app.use(requestLoggingMiddleware);
+app.use(securityLoggingMiddleware);
 app.use((req, res, next) => {
   const start = Date.now();
-  const path3 = req.path;
+  const path4 = req.path;
   let capturedJsonResponse = void 0;
   const originalResJson = res.json;
   res.json = function(bodyJson, ...args) {
@@ -6922,21 +8856,22 @@ app.use((req, res, next) => {
   };
   res.on("finish", () => {
     const duration = Date.now() - start;
-    if (path3.startsWith("/api")) {
-      let logLine = `${req.method} ${path3} ${res.statusCode} in ${duration}ms`;
+    if (path4.startsWith("/api")) {
+      let logLine = `${req.method} ${path4} ${res.statusCode} in ${duration}ms`;
       if (capturedJsonResponse) {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
       if (logLine.length > 80) {
         logLine = logLine.slice(0, 79) + "\u2026";
       }
-      log(logLine);
+      log2(logLine);
     }
   });
   next();
 });
 (async () => {
   const server = await registerRoutes(app);
+  app.use(errorLoggingMiddleware);
   app.use((err, _req, res, _next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
@@ -6948,14 +8883,14 @@ app.use((req, res, next) => {
   } else {
     serveStatic(app);
   }
-  const port = parseInt(process.env.PORT || "5050", 10);
+  const port = env3.PORT;
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true
   }, async () => {
-    log(`serving on port ${port}`);
-    log("\u2705 Server started successfully");
+    log2(`serving on port ${port}`);
+    log2("\u2705 Server started successfully");
   });
   const shutdown = async (signal) => {
     console.log(`

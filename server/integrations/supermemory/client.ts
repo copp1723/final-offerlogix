@@ -1,6 +1,8 @@
 // Supermemory client with timeouts, retries, and safe fallbacks
 // Surface area preserved: supermemory.add(data), supermemory.search(params), isRAGEnabled()
 
+import { createErrorContext, categorizeError, getErrorMessage } from '../../utils/error-utils';
+
 // Tunables (env overrides supported)
 const BASE_URL = process.env.SUPERMEMORY_BASE_URL || 'https://supermemory.ai/api';
 const API_KEY = process.env.SUPERMEMORY_API_KEY || '';
@@ -37,9 +39,19 @@ function circuitOpen() {
   return stillCooling;
 }
 function recordSuccess() { consecutiveFails = 0; }
-function recordFailure() {
+function recordFailure(error?: unknown) {
   consecutiveFails += 1;
-  if (consecutiveFails === CIRCUIT_FAILS) circuitOpenedAt = Date.now();
+  if (consecutiveFails === CIRCUIT_FAILS) {
+    circuitOpenedAt = Date.now();
+    if (error) {
+      const errorContext = createErrorContext(error, { 
+        operation: 'supermemory_circuit_opened',
+        consecutiveFails,
+        category: categorizeError(error)
+      });
+      console.warn('Supermemory circuit breaker opened:', errorContext);
+    }
+  }
 }
 
 async function requestWithRetries(path: string, method: 'POST', body: any) {
@@ -64,7 +76,8 @@ async function requestWithRetries(path: string, method: 'POST', body: any) {
 
       // Retry on 408/429/5xx
       if ([408, 429].includes(res.status) || res.status >= 500) {
-        recordFailure();
+        const retryError = new Error(`HTTP ${res.status}: ${res.statusText}`);
+        recordFailure(retryError);
         if (attempt >= MAX_RETRIES) return res; // surface final response
         await sleep(backoff(attempt));
         continue;
@@ -75,7 +88,7 @@ async function requestWithRetries(path: string, method: 'POST', body: any) {
       return res;
     } catch (err) {
       clearTimeout(timer);
-      recordFailure();
+      recordFailure(err);
       if (attempt >= MAX_RETRIES) throw err;
       await sleep(backoff(attempt));
     }
@@ -97,7 +110,15 @@ const realClient = API_KEY ? {
     const res = await requestWithRetries('/add', 'POST', payload);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`Supermemory add failed: ${res.status} ${text}`);
+      const error = new Error(`Supermemory add failed: ${res.status} ${text}`);
+      const errorContext = createErrorContext(error, {
+        operation: 'supermemory_add',
+        status: res.status,
+        category: categorizeError(error),
+        contentLength: payload.content?.length || 0
+      });
+      console.error('Supermemory add error:', errorContext);
+      throw error;
     }
     return res.json();
   },
@@ -114,7 +135,15 @@ const realClient = API_KEY ? {
     const res = await requestWithRetries('/search', 'POST', body);
     if (!res.ok) {
       const text = await res.text().catch(() => '');
-      throw new Error(`Supermemory search failed: ${res.status} ${text}`);
+      const error = new Error(`Supermemory search failed: ${res.status} ${text}`);
+      const errorContext = createErrorContext(error, {
+        operation: 'supermemory_search',
+        status: res.status,
+        category: categorizeError(error),
+        query: body.query
+      });
+      console.error('Supermemory search error:', errorContext);
+      throw error;
     }
     // Defensive parse
     let json: any;
