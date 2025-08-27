@@ -4,38 +4,46 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(210, 20%, 98%);
+  --background: hsl(0, 0%, 100%);
   --foreground: hsl(210, 25%, 7.8431%);
   --card: hsl(0, 0%, 100%);
   --card-foreground: hsl(210, 25%, 7.8431%);
   --popover: hsl(0, 0%, 100%);
   --popover-foreground: hsl(210, 25%, 7.8431%);
-  --primary: hsl(217, 91%, 60%);
+  
+  /* OfferLogix Brand Colors */
+  --primary: hsl(178, 61%, 55%); /* Teal/Turquoise #4ECDC4 */
   --primary-foreground: hsl(0, 0%, 100%);
-  --secondary: hsl(210, 40%, 96%);
+  --secondary: hsl(210, 40%, 98%);
   --secondary-foreground: hsl(210, 25%, 7.8431%);
-  --muted: hsl(210, 40%, 96%);
+  --accent: hsl(30, 100%, 50%); /* Orange #FF9500 */
+  --accent-foreground: hsl(0, 0%, 100%);
+  
+  --muted: hsl(178, 30%, 97%);
   --muted-foreground: hsl(210, 10%, 46%);
-  --accent: hsl(210, 40%, 96%);
-  --accent-foreground: hsl(217, 91%, 60%);
   --destructive: hsl(0, 84%, 60%);
   --destructive-foreground: hsl(0, 0%, 100%);
-  --border: hsl(210, 20%, 90%);
-  --input: hsl(210, 20%, 97%);
-  --ring: hsl(217, 91%, 60%);
-  --chart-1: hsl(217, 91%, 60%);
-  --chart-2: hsl(160, 64%, 41%);
-  --chart-3: hsl(43, 88%, 58%);
-  --chart-4: hsl(147, 78%, 42%);
-  --chart-5: hsl(342, 75%, 51%);
+  --border: hsl(178, 20%, 90%);
+  --input: hsl(178, 20%, 97%);
+  --ring: hsl(178, 61%, 55%);
+  
+  /* Chart colors using OfferLogix palette */
+  --chart-1: hsl(178, 61%, 55%); /* Primary teal */
+  --chart-2: hsl(30, 100%, 50%); /* Orange accent */
+  --chart-3: hsl(178, 45%, 65%); /* Lighter teal */
+  --chart-4: hsl(30, 80%, 60%); /* Lighter orange */
+  --chart-5: hsl(178, 35%, 75%); /* Very light teal */
+  
+  /* Sidebar using OfferLogix colors */
   --sidebar: hsl(0, 0%, 100%);
   --sidebar-foreground: hsl(210, 25%, 7.8431%);
-  --sidebar-primary: hsl(217, 91%, 60%);
+  --sidebar-primary: hsl(178, 61%, 55%);
   --sidebar-primary-foreground: hsl(0, 0%, 100%);
-  --sidebar-accent: hsl(210, 40%, 96%);
-  --sidebar-accent-foreground: hsl(217, 91%, 60%);
-  --sidebar-border: hsl(210, 20%, 90%);
-  --sidebar-ring: hsl(217, 91%, 60%);
+  --sidebar-accent: hsl(178, 30%, 97%);
+  --sidebar-accent-foreground: hsl(178, 61%, 55%);
+  --sidebar-border: hsl(178, 20%, 90%);
+  --sidebar-ring: hsl(178, 61%, 55%);
+  
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: Menlo, monospace;
@@ -49,32 +57,39 @@
   --card-foreground: hsl(210, 20%, 91%);
   --popover: hsl(210, 11%, 11%);
   --popover-foreground: hsl(210, 20%, 91%);
-  --primary: hsl(217, 91%, 60%);
-  --primary-foreground: hsl(0, 0%, 100%);
+  
+  /* OfferLogix Brand Colors - Dark Mode */
+  --primary: hsl(178, 61%, 55%); /* Keep teal vibrant in dark */
+  --primary-foreground: hsl(210, 11%, 9%);
   --secondary: hsl(210, 11%, 15%);
   --secondary-foreground: hsl(210, 20%, 91%);
+  --accent: hsl(30, 100%, 50%); /* Keep orange vibrant */
+  --accent-foreground: hsl(210, 11%, 9%);
+  
   --muted: hsl(210, 11%, 15%);
   --muted-foreground: hsl(210, 10%, 54%);
-  --accent: hsl(210, 11%, 15%);
-  --accent-foreground: hsl(217, 91%, 60%);
   --destructive: hsl(0, 84%, 60%);
   --destructive-foreground: hsl(0, 0%, 100%);
   --border: hsl(210, 11%, 20%);
   --input: hsl(210, 11%, 15%);
-  --ring: hsl(217, 91%, 60%);
-  --chart-1: hsl(217, 91%, 60%);
-  --chart-2: hsl(160, 64%, 41%);
-  --chart-3: hsl(43, 88%, 58%);
-  --chart-4: hsl(147, 78%, 42%);
-  --chart-5: hsl(342, 75%, 51%);
+  --ring: hsl(178, 61%, 55%);
+  
+  /* Chart colors for dark mode */
+  --chart-1: hsl(178, 61%, 55%);
+  --chart-2: hsl(30, 100%, 50%);
+  --chart-3: hsl(178, 45%, 65%);
+  --chart-4: hsl(30, 80%, 60%);
+  --chart-5: hsl(178, 35%, 75%);
+  
+  /* Dark sidebar */
   --sidebar: hsl(210, 11%, 11%);
   --sidebar-foreground: hsl(210, 20%, 91%);
-  --sidebar-primary: hsl(217, 91%, 60%);
-  --sidebar-primary-foreground: hsl(0, 0%, 100%);
+  --sidebar-primary: hsl(178, 61%, 55%);
+  --sidebar-primary-foreground: hsl(210, 11%, 9%);
   --sidebar-accent: hsl(210, 11%, 15%);
-  --sidebar-accent-foreground: hsl(217, 91%, 60%);
+  --sidebar-accent-foreground: hsl(178, 61%, 55%);
   --sidebar-border: hsl(210, 11%, 20%);
-  --sidebar-ring: hsl(217, 91%, 60%);
+  --sidebar-ring: hsl(178, 61%, 55%);
 }
 
 @layer base {
@@ -87,7 +102,7 @@
   }
 }
 
-/* Phase 1/2 Glass Morphism and Gradient Styles */
+/* OfferLogix Brand Gradients and Effects */
 .glass {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(10px);
@@ -95,19 +110,23 @@
 }
 
 .gradient-primary {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, hsl(178, 61%, 55%) 0%, hsl(178, 50%, 45%) 100%);
 }
 
 .gradient-secondary {
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, hsl(30, 100%, 50%) 0%, hsl(30, 90%, 55%) 100%);
 }
 
 .gradient-success {
-  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  background: linear-gradient(135deg, hsl(178, 61%, 55%) 0%, hsl(178, 70%, 65%) 100%);
+}
+
+.gradient-offerlogix {
+  background: linear-gradient(135deg, hsl(178, 61%, 55%) 0%, hsl(30, 100%, 50%) 100%);
 }
 
 .text-gradient {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, hsl(178, 61%, 55%) 0%, hsl(30, 100%, 50%) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -115,15 +134,25 @@
 
 .shadow-glow {
   box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04),
-              0 0 15px -3px rgba(102, 126, 234, 0.1);
+              0 0 15px -3px hsla(178, 61%, 55%, 0.15);
 }
 
+.shadow-glow-orange {
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04),
+              0 0 15px -3px hsla(30, 100%, 50%, 0.15);
+}
+
+/* Improved animations */
 .animate-float {
   animation: float 3s ease-in-out infinite;
 }
 
 .animate-fadeIn {
   animation: fadeIn 0.5s ease-in-out;
+}
+
+.animate-slideUp {
+  animation: slideUp 0.6s ease-out;
 }
 
 .animate-pulse-slow {
@@ -143,6 +172,11 @@
 
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
