@@ -14,8 +14,7 @@ export async function sendThreadedReply(opts: {
   conversationId?: string; // for plus-addressing token
   campaignId?: string; // for tracking headers
 }): Promise<boolean> {
-  // Use configured From; keep threading headers.
-  const from = process.env.MAILGUN_FROM_EMAIL;
+  // Use proper OfferLogix identity for threaded replies
   const idDomain = (opts.domainOverride || process.env.MAILGUN_DOMAIN || '')
     .split('@').pop()!.trim() || 'mail.offerlogix.me';
   
@@ -23,16 +22,19 @@ export async function sendThreadedReply(opts: {
   const convToken = opts.conversationId ? `conv_${opts.conversationId}` : null;
   const replyToEmail = convToken ? `brittany+${convToken}@${idDomain}` : undefined;
 
+  // Use consistent OfferLogix sender identity
+  const fromEmail = `Brittany Simpson <brittany@${idDomain}>`;
+
   return sendCampaignEmail(
     opts.to,
     opts.subject,
     opts.html,
     { 
-      from: from || undefined,
+      from: fromEmail,
       replyTo: replyToEmail
     },
     {
-      // Treat as normal send so configured From is honored
+      // Critical: treat as personal reply, not bulk email
       isAutoResponse: false,
       domainOverride: opts.domainOverride,
       inReplyTo: opts.inReplyTo,

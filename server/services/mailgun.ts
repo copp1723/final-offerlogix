@@ -45,6 +45,16 @@ function capHtmlSize(html?: string): string {
 function formatEmailContent(content: string): string {
   if (!content) return '';
   
+  // If content already contains proper HTML paragraph tags, don't modify it
+  if (/<p[^>]*>.*<\/p>/i.test(content)) {
+    return content; // Content is already properly formatted HTML
+  }
+  
+  // If content has HTML tags already, trust it  
+  if (/<[^>]+>/i.test(content)) {
+    return content;
+  }
+  
   // Convert line breaks to HTML breaks for email
   let formatted = content
     // Convert double line breaks to proper paragraph spacing
@@ -200,7 +210,7 @@ export async function sendCampaignEmail(
 
     const fromEmail = options.isAutoResponse 
       ? `OneKeel Swarm <noreply@${domain}>`
-      : (options?.isAutoResponse === false && typeof variables?.from === 'string' ? variables.from : process.env.MAILGUN_FROM_EMAIL || `OneKeel Swarm <swarm@${domain}>`);
+      : (variables?.from ? variables.from : process.env.MAILGUN_FROM_EMAIL || `Brittany Simpson <brittany@${domain}>`);
 
     if (MAILGUN_AUTH_SUPPRESSED_UNTIL && Date.now() < MAILGUN_AUTH_SUPPRESSED_UNTIL) {
       // Only log once per minute while suppressed

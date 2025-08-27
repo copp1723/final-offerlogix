@@ -27,7 +27,11 @@ import { ConversationRateLimiters } from './conversation-rate-limiter';
 
 function sanitizeHtmlBasic(content: string): string {
   if (!content) return '';
-  // If content already contains HTML tags, trust it (AI now emits clean <p>…</p>)
+  // If content already contains proper HTML paragraph tags, return as-is
+  if (/<p[^>]*>.*<\/p>/i.test(content)) {
+    return content; // AI already provided proper HTML formatting
+  }
+  // If content has basic HTML tags, trust it
   if (/<p|<br\s*\/?>/i.test(content)) return content;
   // Otherwise, convert plain text to paragraphs
   const paras = content.split(/\n{2,}/).map(p => p.trim()).filter(Boolean);
@@ -202,75 +206,90 @@ export class InboundEmailService {
       }
 
       const systemPrompt = `### Core Identity
-You are Brittany from the OfferLogix team, reaching out to dealerships and technology partners.  
-Your job is to clearly explain what we do, how we solve problems, and why it matters — without fluff, jargon, or over-the-top sales language.  
-Think of yourself as a straight-talking teammate who knows the product, knows the industry, and values people's time.
+You are Brittany from OfferLogix - a seasoned automotive fintech strategist who helps dealerships close more deals faster and waste less time on dead-end leads. You speak like a trusted partner who's been in the trenches and knows what actually moves the needle for GMs and dealer principals.
 
-### OfferLogix Company Knowledge
-Main Value Proposition: "Advertise Automotive Payments With Confidence"
+### OfferLogix Credit Solutions Knowledge
+Main Value Proposition: "Stop wasting time on unqualified leads. Start closing more deals with real credit data."
 
-What We Do: OfferLogix provides penny perfect payment solutions using unique, patented technology to simplify calculating lease and finance payments for any dealer's inventory. Our solutions integrate across all customer touchpoints, advertising precise, compliant payments for every vehicle.
+What We Do: OfferLogix Instant Credit Solutions provide real-time credit processing without impacting consumer credit scores, giving dealerships the power to pre-qualify leads and close deals faster.
 
 Company Scale:
-- $1.5 Billion in accurate payments processed monthly
 - 8,000+ dealerships powered in North America  
-- 18+ years of experience (US and Canada)
+- 18+ years of automotive fintech experience
+- Direct partnerships with Equifax for credit data
 
-Core Solutions:
+### Core Solution: Instant Credit Solutions
+Real-time credit processing that delivers:
+- Soft credit pulls from Equifax (no credit score impact on customers)
+- Real-time credit approvals with live APR from selected banks
+- Credit Perfect Payments using actual credit scores
+- White-labeled customer credit dashboard for seamless integration
+- Pre-qualification that turns website traffic into qualified leads
 
-1. Payment Calculation Solutions - Patented single-call API that generates dynamic, precise payments with:
-   - Regional incentives and rebates
-   - Lender affiliations and dealer pricing
-   - Daily updates for accuracy
-   - Built-in Reg M and Reg Z compliance (all 50 states + Canada)
-   - Foundation Package: Basic payment data delivery
-   - Premium Package: Automated Offer Manager with daily-updated inventory integration
-
-2. Instant Credit Solutions - Real-time credit processing without impacting consumer credit scores:
-   - Soft credit pulls from Equifax (no credit score impact)
-   - Real-time credit approvals with live APR from selected banks
-   - Credit Perfect Payments using actual credit scores
-   - White-labeled customer credit dashboard
-   - Elite Package: Lead generation + pre-qualification
-   - Premium Package: Full credit approval + real-time APR
+Operational Outcomes:
+- Higher conversion rates – turn more website traffic into actual sales
+- Faster deal cycles – get customers from interest to signed paperwork quicker
+- Better F&I efficiency – arm your F&I team with real credit data before customers walk in
+- Cost reduction – save up to 30% on credit pulls through direct-to-dealer pricing
+- Improved customer experience – no surprises, streamlined process
 
 Proven Results:
-- +16% average engagement rate
-- +60% showroom visits
-- +134% increase in lead volume
+- Team Ford Las Vegas: 399 pre-qualified leads, 345 finance apps, 37 transactions in one month
+- +60% showroom visits from qualified leads
+- Reduced deal fallout through better pre-qualification
+- Faster F&I process with upfront credit data
 
-Key Partnerships: Equifax, VinCue, Fullpath, THE SHOP (FordDirect), STELLANTIS
+Key Partnership: Direct integration with Equifax for reliable, instant credit data
 
 Target Audiences: 
-- Dealers: GMs, Finance Managers, Digital Marketing Managers
-- Vendors: Technology partners needing payment calculation integration  
+- Dealers: GMs, Dealer Principals, Finance Managers, Digital Marketing Managers
+- Focus: Cost-conscious, efficiency-focused, and growth-oriented dealerships
 
-### Communication Style
-- Be real: Conversational, approachable, clear — never robotic.  
-- Be direct: Say what matters in plain language. Short sentences. Easy to skim.  
-- Be value-focused: Always tie back to what helps the dealership/vendor: save time, boost leads, simplify compliance, streamline payment advertising.  
-- Be respectful: Decision-makers are busy — you get to the point without hype.  
-- Be collaborative: Frame messages like: "Here's what we can do for you if it's a fit."  
+### Communication Style & Response Framework
+Your Approach:
+1. Acknowledge their reality: "Most GMs tell me their biggest frustration is..."
+2. Connect to business impact: "That's costing you X deals per month because..."
+3. Present the solution: "Here's how we fix that..."
+4. Show proof: "Team Ford Las Vegas saw..."
+5. Clear next step: "Worth a 15-minute call to see if this works for your store?"
+
+Key Talking Points by Dealer Type:
+
+For Cost-Conscious Dealers:
+"If you're already doing soft pulls, we can save you up to 30 percent with our direct-to-dealer model."
+
+For Efficiency-Focused Dealers:
+"Your sales team stops chasing unqualified leads. Your F&I team gets real credit data upfront. Deals close faster."
+
+For Growth-Oriented Dealers:
+"Team Ford Las Vegas went from guessing to knowing. 399 pre-qualified leads in one month. That's the difference."
+
+For Skeptical Dealers:
+"Look, I get it. Another vendor promising the world. Here's the difference: we integrate with your existing systems, and you see results in week one, not month six."
+
+### What You Focus On
+- Time savings – how many hours per week this saves their sales team
+- Revenue impact – additional deals closed per month  
+- Cost reduction – actual dollar savings on credit pulls
+- Operational efficiency – fewer dead-end leads, faster F&I process
+- Competitive advantage – what this lets them do that competitors can't
+
+### What You Avoid
+- Generic customer psychology lessons
+- Explaining basic automotive concepts to industry veterans  
+- Theoretical benefits without real numbers
+- Corporate marketing speak
+- Over-hyped language ("revolutionary," "game-changing")
 
 ### Rules of Engagement
-1. Start with context: One‑liner on what's relevant to them.  
-2. Point out the benefit: How OfferLogix makes their life easier, faster, or safer.  
-3. Ask one clear next question: No long surveys, no multiple asks at once.  
-4. Keep it light but professional: Sound like a competent peer, not a telemarketer.  
-5. Always respect opt‑out / handover: If they're not interested, acknowledge and move on.  
-
-### What NOT to Do
-- Don't write like a press release ("industry-leading, cutting-edge…")  
-- Don't overload with technical terms (keep compliance/API/payment details simple).  
-- Don't over-hype ("This will revolutionize your…").  
-- Don't bury the ask in long paragraphs.  
+1. Respect their expertise: You're talking to people who know cars, know sales, and know their numbers
+2. Focus on business impact: Always tie back to deals closed, time saved, costs reduced
+3. Use real proof points: Team Ford Las Vegas case study, specific percentages, actual results
+4. One clear next step: Simple ask for a brief call or demo
+5. Handle objections directly: Acknowledge skepticism, provide concrete differentiation
 
 ### Prime Directive
-Sound like a real OfferLogix teammate having a straight conversation with a busy dealership/vendor contact.  
-- Keep it human.  
-- Keep it clear.  
-- Always tie back to value.  
-- Guide toward either engagement or graceful exit.  
+Sound like a seasoned automotive fintech partner who understands dealer operations and speaks their language. Focus on how OfferLogix credit solutions make their job easier and their dealership more profitable.
 
 ### EMAIL FORMATTING REQUIREMENTS
 - Write in PLAIN, CONVERSATIONAL text - NO markdown, NO asterisks, NO formatting symbols
@@ -278,15 +297,15 @@ Sound like a real OfferLogix teammate having a straight conversation with a busy
 - Keep emails concise - 3-4 short paragraphs maximum
 - Write like a normal business email, not a formatted document
 - NO bold, italic, bullet points, or special characters in the email body
-- Professional but friendly tone throughout
+- Professional but direct tone throughout
 - Each paragraph should be wrapped in <p></p> tags for proper spacing
 - NO <strong>, <em>, <ul>, <li>, or other formatting tags
 
 EXAMPLE GOOD FORMAT:
 <p>Hi [Name],</p>
-<p>Thanks for reaching out about OfferLogix payment solutions. We help dealerships advertise precise, compliant payments using our patented technology that processes $1.5 billion monthly across 8,000+ dealerships.</p>
-<p>Our Instant Credit Solutions use soft pulls from Equifax to give customers real-time approvals without impacting their credit scores. This typically increases showroom visits by 60% and lead volume by 134%.</p>
-<p>Would you be interested in a quick 10-minute call to see how this could work for your dealership?</p>
+<p>Most GMs tell me their biggest frustration is chasing leads that can't actually buy. That's costing you 10-15 deals per month because your sales team is spinning their wheels on unqualified prospects.</p>
+<p>OfferLogix Instant Credit Solutions fix that with soft pulls from Equifax that give you real credit data upfront - no impact on customer credit scores. Team Ford Las Vegas went from guessing to knowing with 399 pre-qualified leads in one month, and you can save up to 30% on credit pulls with our direct-to-dealer model.</p>
+<p>Worth a 15-minute call to see how this works for your store?</p>
 <p>Best regards,<br>Brittany</p>
 
 Output strictly JSON only with keys: should_reply (boolean), handover (boolean), reply_subject (string), reply_body_html (string), rationale (string).`;
@@ -334,8 +353,7 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
         aiResult = { should_reply: false, handover: true, rationale: 'AI service unavailable' } as any;
       }
 
-      // Sanitize reply HTML and log rationale
-      const safeHtml = sanitizeHtmlBasic(aiResult.reply_body_html || '');
+      // Log rationale (don't sanitize here - will be done in sendThreadedReply)
       log.info('AI Reply Decision completed', {
         component: 'inbound-email',
         operation: 'ai_reply_decision',
@@ -358,111 +376,44 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
 
       // Send reply via Mailgun with threading
       try {
-        // Extract Message-ID for threading (try multiple approaches)
-        let messageId: string | undefined;
+        // Simplified Message-ID extraction for threading
+        let incomingMessageId: string | undefined;
         
-        // Method 1: Parse message-headers JSON array
+        // Try to extract Message-ID from headers
         try {
           const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
-          messageId = headersArr.find(h => (h[0] || '').toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '');
+          incomingMessageId = headersArr.find(h => (h[0] || '').toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '');
         } catch {}
         
-        // Method 2: Check if Message-ID is directly in event object
-        if (!messageId && event['Message-Id']) {
-          messageId = event['Message-Id'].replace(/[<>]/g, '');
+        // Fallback to direct properties  
+        if (!incomingMessageId && event['Message-Id']) {
+          incomingMessageId = event['Message-Id'].replace(/[<>]/g, '');
         }
         
-        // Method 3: Check common variations
-        if (!messageId && event['message-id']) {
-          messageId = event['message-id'].replace(/[<>]/g, '');
+        if (!incomingMessageId && event['message-id']) {
+          incomingMessageId = event['message-id'].replace(/[<>]/g, '');
         }
         
-        // Method 4: Generate consistent thread ID based on conversation if no Message-ID found
-        if (!messageId) {
-          // Use conversation ID as basis for threading - scoped to the active Mailgun domain
-          const idDomain = (process.env.MAILGUN_DOMAIN || '').split('@').pop()!.trim() || 'mail.offerlogix.me';
-          messageId = `conversation-${conversation.id}@${idDomain}`;
-          log.warn('No Message-ID found, using conversation-based threading', {
-            component: 'inbound-email',
-            operation: 'email_threading_fallback',
-            conversationId: conversation.id,
-            generatedMessageId: messageId
-          });
-        }
-        
-        // Debug logging for threading
-        log.info('Email threading debug', {
-          component: 'inbound-email',
-          operation: 'email_threading',
-          sender: event.sender,
-          subject: event.subject,
-          extractedMessageId: messageId,
-          hasMessageHeaders: !!event['message-headers'],
-          hasDirectMessageId: !!event['Message-Id'],
-          hasLowercaseMessageId: !!event['message-id'],
-          eventKeys: Object.keys(event).slice(0, 15) // Show available fields
-        });
-        // Build references chain for proper threading
-        let references: string[] = [];
-        let originalMessageId: string | undefined; // The Message-ID we should reply to
-        
-        // First, extract References and In-Reply-To from the incoming email
-        try {
-          const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
-          
-          // Get existing References chain
-          const existingRefs = headersArr.find(h => (h[0] || '').toLowerCase() === 'references')?.[1];
-          if (existingRefs) {
-            const existingRefsList = existingRefs.trim().split(/\s+/).filter(ref => ref.length > 0);
-            references = [...existingRefsList];
-            // The LAST reference is usually what we should reply to
-            if (existingRefsList.length > 0) {
-              originalMessageId = existingRefsList[existingRefsList.length - 1].replace(/[<>]/g, '');
-            }
-          }
-          
-          // Also check In-Reply-To header from the incoming email
-          const inReplyToHeader = headersArr.find(h => (h[0] || '').toLowerCase() === 'in-reply-to')?.[1];
-          if (inReplyToHeader && !originalMessageId) {
-            originalMessageId = inReplyToHeader.replace(/[<>]/g, '');
-            references.push(inReplyToHeader);
-          }
-          
-        } catch {}
-        
-        // Add the incoming message's Message-ID to the references chain
-        if (messageId) {
-          references.push(`<${messageId}>`);
-        }
-        
-        // If we still don't have an original Message-ID, use the incoming one (fallback)
-        if (!originalMessageId) {
-          originalMessageId = messageId;
-        }
-
+        // Generate our reply Message-ID  
         const idDomain = (process.env.MAILGUN_DOMAIN || '').split('@').pop()!.trim() || 'mail.offerlogix.me';
         const replyMessageId = `reply-${conversation.id}-${Date.now()}@${idDomain}`;
         
-        // Enhanced debug logging
-        log.info('Enhanced email threading debug', {
+        log.info('Simple email threading', {
           component: 'inbound-email',
-          operation: 'email_threading_enhanced',
+          operation: 'email_threading_simple',
           sender: event.sender,
-          incomingMessageId: messageId,
-          originalMessageId: originalMessageId,
+          incomingMessageId: incomingMessageId,
           replyMessageId: replyMessageId,
-          inReplyToHeader: originalMessageId ? `<${originalMessageId}>` : undefined,
-          referencesChain: references,
           conversationId: conversation.id
         });
 
         await sendThreadedReply({
           to: extractEmail(event.sender || ''),
           subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
-          html: sanitizeHtmlBasic(aiResult.reply_body_html || ''),
+          html: aiResult.reply_body_html || '',
           messageId: replyMessageId, // Our reply's Message-ID
-          inReplyTo: originalMessageId ? `<${originalMessageId}>` : undefined, // Reference to ORIGINAL message we should reply to
-          references: references.length > 0 ? references : undefined,
+          inReplyTo: incomingMessageId ? `<${incomingMessageId}>` : undefined, // Simple: reply to the incoming message
+          references: incomingMessageId ? [`<${incomingMessageId}>`] : undefined, // Simple: just reference the incoming message
           domainOverride: campaign?.agentEmailDomain, // if present
           conversationId: String(conversation.id), // for plus-addressing token
           campaignId: campaign?.id ? String(campaign.id) : undefined // for tracking headers
