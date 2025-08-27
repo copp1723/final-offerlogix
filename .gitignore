@@ -10,3 +10,4 @@ vite.config.ts.*
 dist-test/
 test-*.js
 test-*.json
+.env
