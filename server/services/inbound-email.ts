@@ -650,14 +650,27 @@ Output strictly JSON only with keys: should_reply (boolean), handover (boolean),
           conversationId: conversation.id,
           subject: event.subject
         });
+        // Preserve original subject for threading; ignore AI-provided subjects
+        const baseSubject = (event.subject || '');
+        const subjectForReply = baseSubject.startsWith('Re:') ? baseSubject : `Re: ${baseSubject || 'Your inquiry'}`;
+
+        // Build threading headers based on inbound message
+        const referencesFromHeader = (referencesHeader || '')
+          .match(/<[^>]+>/g) || [];
+        const refsSet = new Set<string>(referencesFromHeader.map(s => s.trim()).filter(Boolean));
+        if (inReplyToHeader && /<[^>]+>/.test(inReplyToHeader)) refsSet.add(inReplyToHeader.trim());
+        if (incomingMessageId) refsSet.add(incomingMessageId.trim());
+        const referencesForReply = Array.from(refsSet).slice(-20); // cap chain length
 
         await sendThreadedReply({
           to: extractEmail(event.sender || ''),
-          subject: aiResult.reply_subject || `Re: ${event.subject || 'Your inquiry'}`,
+          subject: subjectForReply,
           html: aiResult.reply_body_html || '',
           domainOverride: campaign?.agentEmailDomain,
           conversationId: String(conversation.id),
-          campaignId: campaign?.id ? String(campaign.id) : undefined
+          campaignId: campaign?.id ? String(campaign.id) : undefined,
+          inReplyTo: incomingMessageId,
+          references: referencesForReply
         });
       } catch (sendErr) {
         const errorContext = createErrorContext(sendErr, { 
