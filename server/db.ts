@@ -22,7 +22,7 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+  ssl: { rejectUnauthorized: false },
   max: Number(process.env.DATABASE_POOL_MAX) || 20,
   min: Number(process.env.DATABASE_POOL_MIN) || 5,
   idleTimeoutMillis: Number(process.env.DATABASE_IDLE_TIMEOUT) || 30000,
@@ -44,28 +44,21 @@ log.info('Database pool configured', {
   }
 });
 
-// Best-effort: ensure required extensions exist (Render Postgres supports these)
+// Best-effort: ensure database is ready
 async function ensureDatabaseReady() {
-  const client = await pool.connect();
   try {
-    // gen_random_uuid() comes from pgcrypto; uuid-ossp provides uuid_generate_v4()
-    await client.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
-    await client.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp";');
-    
-    log.info('Database extensions ensured', {
+    // SQLite doesn't need extensions like PostgreSQL
+    log.info('SQLite database ready', {
       component: 'database',
-      operation: 'extension_setup',
-      extensions: ['pgcrypto', 'uuid-ossp']
+      operation: 'ready_check'
     });
   } catch (err) {
-    log.warn('Database extension setup warning', {
+    log.warn('Database ready check warning', {
       component: 'database',
-      operation: 'extension_setup',
+      operation: 'ready_check',
       error: err as Error,
       message: (err as Error)?.message || String(err)
     });
-  } finally {
-    client.release();
   }
 }
 

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -7,10 +7,14 @@ import type { Conversation, ConversationMessage } from "@shared/schema";
 
 export default function ConversationsPage() {
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
-  
-  // Fetch conversations
-  const { data: conversations = [], isLoading } = useQuery<Conversation[]>({
+
+  // Fetch conversations with proper configuration
+  const { data: conversations = [], isLoading, error } = useQuery<Conversation[]>({
     queryKey: ["/api/conversations"],
+    staleTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnMount: true,
+    refetchOnWindowFocus: false,
+    retry: 3,
   });
 
   // Show all conversations, newest first
@@ -63,6 +67,21 @@ export default function ConversationsPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="p-6 text-center">
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Failed to load conversations</h3>
+            <p className="text-gray-500 mb-4">There was an error loading the conversation data.</p>
+            <p className="text-sm text-gray-400">Please try refreshing the page or contact support if the issue persists.</p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 h-[calc(100vh-3rem)] flex flex-col">
       <div className="flex justify-between items-center mb-6">
@@ -70,7 +89,7 @@ export default function ConversationsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Conversations (Read-Only)</h1>
           <p className="text-gray-600 mt-1">View conversation transcripts from email campaigns</p>
         </div>
-        
+
         <div className="text-sm text-gray-500 bg-blue-50 px-3 py-1 rounded-full">
           📖 Read-Only View
         </div>
