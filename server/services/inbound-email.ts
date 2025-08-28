@@ -558,7 +558,7 @@ Sound like a seasoned automotive fintech partner who understands dealer operatio
 - FORMATTING THROUGH CONVERSION (these will be automatically converted to HTML):
   - Use **double asterisks around text** for bold (converts to <strong>)
   - Use *single asterisks around text* for italic (converts to <em>)
-  - Use `backticks around text` for code styling (converts to <code>)
+  - Use \`backticks around text\` for code styling (converts to <code>)
   - Use - or * at start of lines for bullet points (converts to <ul><li>)
 - Professional but direct tone throughout
 - Each paragraph should be wrapped in <p></p> tags for proper spacing
