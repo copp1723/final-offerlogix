@@ -1,0 +1,113 @@
+/**
+ * EXACT CHANGES NEEDED IN inbound-email.ts
+ * 
+ * This shows the BEFORE and AFTER for the specific section that needs updating
+ */
+
+==============================================================
+STEP 1: ADD THIS IMPORT AT THE TOP OF THE FILE (around line 2-3)
+==============================================================
+
+import { extractMessageId, buildThreadingHeaders } from '../utils/threading-helper';
+
+
+==============================================================
+STEP 2: FIND THIS SECTION (around lines 565-590)
+==============================================================
+
+BEFORE (CURRENT CODE):
+-----------------------
+        // Simplified Message-ID extraction for threading
+        let incomingMessageId: string | undefined;
+        
+        // Try to extract Message-ID from headers
+        try {
+          const headersArr: Array<[string, string]> = JSON.parse(event['message-headers'] || '[]');
+          incomingMessageId = headersArr.find(h => (h[0] || '').toLowerCase() === 'message-id')?.[1]?.replace(/[<>]/g, '');
+        } catch {}
+        
+        // Fallback to direct properties  
+        if (!incomingMessageId && event['Message-Id']) {
+          incomingMessageId = event['Message-Id'].replace(/[<>]/g, '');
+        }
+        
+        if (!incomingMessageId && event['message-id']) {
+          incomingMessageId = event['message-id'].replace(/[<>]/g, '');
+        }
+        
+        // Generate our reply Message-ID  
+        const idDomain = (process.env.MAILGUN_DOMAIN || '').split('@').pop()!.trim() || 'mail.offerlogix.me';
+        const replyMessageId = `reply-${conversation.id}-${Date.now()}@${idDomain}`;
+
+
+AFTER (REPLACE WITH THIS):
+---------------------------
+        // Extract Message-ID with robust fallback
+        const incomingMessageId = extractMessageId(event);
+        
+        // Build proper threading headers
+        const threadingHeaders = buildThreadingHeaders(
+          incomingMessageId,
+          recentMessages // Pass conversation history if available
+        );
+        
+        // Log for debugging
+        log.info('[Email Threading] Processing reply', {
+          from: event.sender,
+          to: event.recipient,
+          incomingMessageId,
+          replyMessageId: threadingHeaders.messageId,
+          inReplyTo: threadingHeaders.inReplyTo,
+          referenceCount: threadingHeaders.references.length
+        });
+
+
+==============================================================
+STEP 3: FIND THE sendThreadedReply CALL (around lines 595-610)
+==============================================================
+
+BEFORE (CURRENT CODE):
+-----------------------
+        await sendThreadedReply({
+          to: extractEmail(event.sender || ''),
+          subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
+          html: aiResult.reply_body_html || '',
+          messageId: replyMessageId, // Our reply's Message-ID
+          inReplyTo: incomingMessageId ? `<${incomingMessageId}>` : undefined, // Simple: reply to the incoming message
+          references: incomingMessageId ? [`<${incomingMessageId}>`] : undefined, // Simple: just reference the incoming message
+          domainOverride: campaign?.agentEmailDomain, // if present
+          conversationId: String(conversation.id), // for plus-addressing token
+          campaignId: campaign?.id ? String(campaign.id) : undefined // for tracking headers
+        });
+
+
+AFTER (REPLACE WITH THIS):
+---------------------------
+        await sendThreadedReply({
+          to: extractEmail(event.sender || ''),
+          subject: aiResult.reply_subject || `Re: ${event.subject || 'Your email'}`,
+          html: aiResult.reply_body_html || '',
+          messageId: threadingHeaders.messageId,
+          inReplyTo: threadingHeaders.inReplyTo,
+          references: threadingHeaders.references,
+          domainOverride: campaign?.agentEmailDomain,
+          conversationId: String(conversation.id), // Internal tracking only, not in address
+          campaignId: campaign?.id ? String(campaign.id) : undefined
+        });
+
+
+==============================================================
+SUMMARY OF CHANGES:
+==============================================================
+
+1. Import the threading helper functions
+2. Replace the fragile Message-ID extraction with robust helper
+3. Use buildThreadingHeaders to create proper threading chain
+4. Pass the proper headers to sendThreadedReply
+
+This ensures:
+✓ Message-IDs are always extracted or generated properly
+✓ Threading headers are correctly formatted
+✓ References chain is maintained across conversation
+✓ No plus-addressing shown to customers
+✓ Clean sender: Brittany <brittany@mail.offerlogix.me>

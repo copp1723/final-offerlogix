@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferLogix Chat Widget Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            padding: 40px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        
+        h1 {
+            color: #333;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        
+        .demo-section {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .demo-section h2 {
+            color: #0066cc;
+            margin-top: 0;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.2s;
+        }
+        
+        button:hover {
+            background: #0052a3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        code {
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+        }
+        
+        .code-block {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+        
+        .code-block pre {
+            margin: 0;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
+            color: #333;
+        }
+        
+        .status {
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+            font-weight: 500;
+        }
+        
+        .status.success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            color: #155724;
+        }
+        
+        .status.error {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+        
+        .status.info {
+            background: #d1ecf1;
+            border: 1px solid #bee5eb;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>OfferLogix Chat Widget Demo</h1>
+        
+        <div class="demo-section">
+            <h2>🚀 Widget Status</h2>
+            <div id="widget-status" class="status info">Loading widget...</div>
+            <div class="button-group">
+                <button onclick="checkWidgetStatus()">Check Status</button>
+                <button onclick="reinitializeWidget()" id="reinit-btn" disabled>Reinitialize</button>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>🎮 Widget Controls</h2>
+            <p>Test the chat widget functionality with these controls:</p>
+            <div class="button-group">
+                <button onclick="openChat()">Open Chat</button>
+                <button onclick="closeChat()">Close Chat</button>
+                <button onclick="minimizeChat()">Minimize Chat</button>
+                <button onclick="sendTestMessage()">Send Test Message</button>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>📋 Implementation</h2>
+            <p>To add this chat widget to any website, simply include this script tag:</p>
+            <div class="code-block">
+                <pre>&lt;script 
+    src="https://your-domain.com/offerlogix-chat-widget.js" 
+    data-offerlogix-campaign-id="your-campaign-id"
+    data-offerlogix-api-url="https://your-api-domain.com"
+    data-offerlogix-position="bottom-right"
+    data-offerlogix-theme="default"
+    data-offerlogix-auto-open="false"
+    data-offerlogix-debug="true"&gt;
+&lt;/script&gt;</pre>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h2>⚙️ Configuration Options</h2>
+            <ul>
+                <li><code>data-offerlogix-campaign-id</code> - Required: Your campaign ID</li>
+                <li><code>data-offerlogix-api-url</code> - Optional: API endpoint (defaults to current domain)</li>
+                <li><code>data-offerlogix-position</code> - Optional: bottom-right, bottom-left, top-right, top-left</li>
+                <li><code>data-offerlogix-theme</code> - Optional: default, dark</li>
+                <li><code>data-offerlogix-auto-open</code> - Optional: true/false</li>
+                <li><code>data-offerlogix-auto-open-delay</code> - Optional: delay in ms (default: 5000)</li>
+                <li><code>data-offerlogix-debug</code> - Optional: true/false for debug logging</li>
+            </ul>
+        </div>
+        
+        <div class="demo-section">
+            <h2>🔌 JavaScript API</h2>
+            <p>You can also control the widget programmatically:</p>
+            <div class="code-block">
+                <pre>// Check if widget is ready
+if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+    // Open chat
+    window.OfferLogixChat.open();
+    
+    // Close chat
+    window.OfferLogixChat.close();
+    
+    // Minimize chat
+    window.OfferLogixChat.minimize();
+    
+    // Send a message programmatically
+    window.OfferLogixChat.sendUserMessage("Hello, I need help!");
+}
+
+// Listen for widget ready event
+window.addEventListener('offerLogixChatReady', function(event) {
+    console.log('Chat widget is ready!', event.detail.widget);
+});</pre>
+            </div>
+            <div class="button-group">
+                <button onclick="testJSAPI()">Test JS API</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Load the OfferLogix Chat Widget -->
+    <script 
+        src="/offerlogix-chat-widget.js" 
+        data-offerlogix-campaign-id="demo-campaign-123"
+        data-offerlogix-api-url=""
+        data-offerlogix-position="bottom-right"
+        data-offerlogix-theme="default"
+        data-offerlogix-auto-open="false"
+        data-offerlogix-debug="true">
+    </script>
+
+    <script>
+        // Demo functionality
+        let widgetReady = false;
+
+        // Listen for widget ready event
+        window.addEventListener('offerLogixChatReady', function(event) {
+            widgetReady = true;
+            updateStatus('success', 'Widget loaded and ready!');
+            document.getElementById('reinit-btn').disabled = false;
+        });
+
+        function updateStatus(type, message) {
+            const statusEl = document.getElementById('widget-status');
+            statusEl.className = `status ${type}`;
+            statusEl.textContent = message;
+        }
+
+        function checkWidgetStatus() {
+            if (window.OfferLogixChat) {
+                if (window.OfferLogixChat.isReady()) {
+                    updateStatus('success', 'Widget is ready and functional');
+                } else {
+                    updateStatus('info', 'Widget is loading...');
+                }
+            } else {
+                updateStatus('error', 'Widget not found. Check console for errors.');
+            }
+        }
+
+        function reinitializeWidget() {
+            // Remove existing widget
+            const existing = document.getElementById('offerlogix-chat-widget');
+            if (existing) {
+                existing.remove();
+            }
+            
+            // Create new widget instance
+            if (window.OfferLogixChatWidget) {
+                window.OfferLogixChat = new window.OfferLogixChatWidget();
+                updateStatus('info', 'Widget reinitialized');
+            }
+        }
+
+        function openChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.open();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function closeChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.close();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function minimizeChat() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.minimize();
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function sendTestMessage() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                window.OfferLogixChat.sendUserMessage("Hello! This is a test message from the demo page.");
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        function testJSAPI() {
+            if (window.OfferLogixChat && window.OfferLogixChat.isReady()) {
+                // Open chat and send a message
+                window.OfferLogixChat.open();
+                setTimeout(() => {
+                    window.OfferLogixChat.sendUserMessage("Testing the JavaScript API!");
+                }, 1000);
+            } else {
+                alert('Widget not ready yet');
+            }
+        }
+
+        // Initial status check after a short delay
+        setTimeout(checkWidgetStatus, 2000);
+
+        // Error handling
+        window.addEventListener('error', function(event) {
+            if (event.message.includes('OfferLogix') || event.filename.includes('chat')) {
+                updateStatus('error', `Widget error: ${event.message}`);
+            }
+        });
+    </script>
+</body>
+</html>

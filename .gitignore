@@ -1,0 +1,47 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Amazon Q
+.amazonq/
+
+# Build artifacts and test output
+dist-test/
+test-*.js
+test-*.json
+
+# Environment files - NEVER commit these
+.env*
+!.env.example
+!.env.template
+
+# Development and debug files
+debug-*.js
+send-*.js
+apply-migration*.js
+check-*.js
+wait-*.js
+fix-*.js
+*-test*.js
+simple-verify.ts
+
+# Backup files
+*.backup.*
+
+# Temporary files
+temp/
+tmp/
+*.tmp
+
+# Logs
+*.log
+logs/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
