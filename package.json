@@ -5,8 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
-    "build": "vite build",
-    "build:render": "vite build --config vite.config.render.ts",
+    "build": "npx vite build",
+    "build:render": "npx vite build --config vite.config.render.ts",
     "start": "NODE_ENV=production tsx server/index.ts",
     "check": "echo 'TypeScript checking disabled for now'",
     "typecheck": "echo 'TypeScript checking disabled for now'",
