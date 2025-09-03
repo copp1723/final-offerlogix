@@ -8,15 +8,17 @@ const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   
   // Authentication
-  JWT_SECRET: z.string().min(32),
-  API_KEY: z.string().min(16),
+  JWT_SECRET: z.string().min(32).optional().default('default-jwt-secret-change-in-production'),
+  SESSION_SECRET: z.string().optional(),
+  API_KEY: z.string().min(16).optional().default('default-api-key-change-in-production'),
   SKIP_AUTH: z.string().optional().transform(val => val === 'true'),
   
   // Mailgun
   MAILGUN_API_KEY: z.string().min(1),
-  MAILGUN_DOMAIN: z.string().optional(), // legacy optional for backward compatibility
-  MAILGUN_DOMAIN_DEFAULT: z.string().min(1),
-  MAILGUN_ALLOWED_DOMAINS: z.string().min(1), // comma-separated list of authorized domains
+  MAILGUN_DOMAIN: z.string().min(1), // Using MAILGUN_DOMAIN instead of MAILGUN_DOMAIN_DEFAULT
+  MAILGUN_DOMAIN_DEFAULT: z.string().optional(), // Making this optional since we use MAILGUN_DOMAIN
+  MAILGUN_ALLOWED_DOMAINS: z.string().optional().default('mail.offerlogix.me'), // Making this optional with default
+  MAILGUN_FROM_EMAIL: z.string().optional(),
   MAILGUN_WEBHOOK_SIGNING_KEY: z.string().optional(),
   
   // Twilio
@@ -42,6 +44,18 @@ const envSchema = z.object({
   
   // Logging
   LOG_LEVEL: z.enum(['error', 'warn', 'info', 'debug']).default('info'),
+  
+  // URLs
+  APP_URL: z.string().url().optional(),
+  CLIENT_URL: z.string().url().optional(),
+  FRONTEND_URL: z.string().url().optional(),
+  SITE_URL: z.string().url().optional(),
+  CORS_ORIGIN: z.string().optional(),
+  
+  // Additional Mailgun settings
+  MAILGUN_TRACKING_DOMAIN: z.string().optional(),
+  INBOUND_ACCEPT_DOMAIN_SUFFIX: z.string().optional(),
+  INBOUND_REQUIRE_CAMPAIGN_REPLY: z.string().optional().transform(val => val === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;
