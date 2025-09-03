@@ -1,0 +1,11 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`MailgunThreading Static Methods buildReferences adds inReplyTo to existing chain 1`] = `
+[
+  "<msg1@domain.com>",
+  "<msg2@domain.com>",
+  "<msg3@domain.com>",
+]
+`;
+
+exports[`MailgunThreading Static Methods formatAgentIdentity creates proper email format 1`] = `"Riley Donovan <riley@kunesmacomb.kunesauto.vip>"`;

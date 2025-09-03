@@ -1,0 +1,131 @@
+{
+  "description": "Edge cases - Missing in-reply-to, mixed case headers, malformed data",
+  "scenario": "edge-cases",
+  "timestamp": "1704240000",
+  "cases": [
+    {
+      "name": "missing-in-reply-to",
+      "description": "Thread continuation without In-Reply-To header",
+      "mailgun_payload": {
+        "message-id": "<edge-msg-001@customer.example.com>",
+        "from": "Jane Smith <JANE.SMITH@EXAMPLE.COM>",
+        "to": "RILEY DONOVAN <RILEY@KUNESMACOMB.KUNESAUTO.VIP>",
+        "subject": "Re: Vehicle Inquiry",
+        "references": "<initial-msg@customer.example.com> <agent-response@kunesmacomb.kunesauto.vip>",
+        "sender": "jane.smith@example.com",
+        "recipient": "riley@kunesmacomb.kunesauto.vip",
+        "body-plain": "I'm still interested in the vehicle. Can we schedule a call?",
+        "body-html": "<p>I'm still interested in the vehicle. Can we schedule a call?</p>",
+        "message-headers": [
+          ["Message-ID", "<edge-msg-001@customer.example.com>"],
+          ["from", "Jane Smith <JANE.SMITH@EXAMPLE.COM>"],
+          ["TO", "RILEY DONOVAN <RILEY@KUNESMACOMB.KUNESAUTO.VIP>"],
+          ["Subject", "Re: Vehicle Inquiry"],
+          ["References", "<initial-msg@customer.example.com> <agent-response@kunesmacomb.kunesauto.vip>"],
+          ["Date", "Wed, 03 Jan 2024 12:00:00 +0000"]
+        ]
+      },
+      "expected_normalized": {
+        "agentLocalPart": "riley",
+        "agentDomain": "kunesmacomb.kunesauto.vip",
+        "fromEmail": "jane.smith@example.com",
+        "subject": "Re: Vehicle Inquiry",
+        "messageId": "<edge-msg-001@customer.example.com>",
+        "inReplyTo": null,
+        "references": [
+          "<initial-msg@customer.example.com>",
+          "<agent-response@kunesmacomb.kunesauto.vip>"
+        ]
+      }
+    },
+    {
+      "name": "mixed-case-headers",
+      "description": "Headers with inconsistent casing",
+      "mailgun_payload": {
+        "MESSAGE-ID": "<mixed-case-msg@customer.example.com>",
+        "From": "Mixed Case <mixed@example.com>",
+        "TO": "Agent <agent@test.com>",
+        "SUBJECT": "Mixed Case Test",
+        "message-headers": [
+          ["message-id", "<mixed-case-msg@customer.example.com>"],
+          ["FROM", "Mixed Case <mixed@example.com>"],
+          ["to", "Agent <agent@test.com>"],
+          ["SUBJECT", "Mixed Case Test"]
+        ]
+      },
+      "expected_normalized": {
+        "agentLocalPart": "agent",
+        "agentDomain": "test.com",
+        "fromEmail": "mixed@example.com",
+        "subject": "Mixed Case Test",
+        "messageId": "<mixed-case-msg@customer.example.com>"
+      }
+    },
+    {
+      "name": "long-references-chain",
+      "description": "References chain with 15+ entries (should be capped)",
+      "mailgun_payload": {
+        "message-id": "<long-chain-msg@customer.example.com>",
+        "from": "Long Chain <chain@example.com>",
+        "to": "Agent <agent@test.com>",
+        "subject": "Long References Chain",
+        "references": "<msg1@test.com> <msg2@test.com> <msg3@test.com> <msg4@test.com> <msg5@test.com> <msg6@test.com> <msg7@test.com> <msg8@test.com> <msg9@test.com> <msg10@test.com> <msg11@test.com> <msg12@test.com> <msg13@test.com> <msg14@test.com> <msg15@test.com>",
+        "body-plain": "This is a very long conversation thread."
+      },
+      "expected_normalized": {
+        "agentLocalPart": "agent",
+        "agentDomain": "test.com",
+        "fromEmail": "chain@example.com",
+        "subject": "Long References Chain",
+        "messageId": "<long-chain-msg@customer.example.com>",
+        "references": [
+          "<msg1@test.com>", "<msg2@test.com>", "<msg3@test.com>", "<msg4@test.com>", "<msg5@test.com>",
+          "<msg6@test.com>", "<msg7@test.com>", "<msg8@test.com>", "<msg9@test.com>", "<msg10@test.com>",
+          "<msg11@test.com>", "<msg12@test.com>", "<msg13@test.com>", "<msg14@test.com>", "<msg15@test.com>"
+        ]
+      }
+    },
+    {
+      "name": "comma-separated-references",
+      "description": "References separated by commas instead of spaces",
+      "mailgun_payload": {
+        "message-id": "<comma-refs-msg@customer.example.com>",
+        "from": "Comma User <comma@example.com>",
+        "to": "Agent <agent@test.com>",
+        "subject": "Comma References Test",
+        "references": "<msg1@test.com>,<msg2@test.com>, <msg3@test.com>",
+        "body-plain": "Testing comma-separated references."
+      },
+      "expected_normalized": {
+        "agentLocalPart": "agent",
+        "agentDomain": "test.com",
+        "fromEmail": "comma@example.com",
+        "subject": "Comma References Test",
+        "messageId": "<comma-refs-msg@customer.example.com>",
+        "references": [
+          "<msg1@test.com>",
+          "<msg2@test.com>",
+          "<msg3@test.com>"
+        ]
+      }
+    },
+    {
+      "name": "plain-email-addresses",
+      "description": "Email addresses without angle brackets",
+      "mailgun_payload": {
+        "message-id": "<plain-email-msg@customer.example.com>",
+        "from": "plain@example.com",
+        "to": "agent@test.com",
+        "subject": "Plain Email Test",
+        "body-plain": "Testing plain email addresses."
+      },
+      "expected_normalized": {
+        "agentLocalPart": "agent",
+        "agentDomain": "test.com",
+        "fromEmail": "plain@example.com",
+        "subject": "Plain Email Test",
+        "messageId": "<plain-email-msg@customer.example.com>"
+      }
+    }
+  ]
+}

@@ -1,0 +1,35 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 90
+    },
+    "auditLog": "/Users/joshcopp/Desktop/MailMind/logs/.b0eeb447fe63af90699d38fdf39dc864724cf2fe-audit.json",
+    "files": [
+        {
+            "date": 1755664128989,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/error-2025-08-19.log",
+            "hash": "503b89fa87088e2bf83806ba47a3b72da5443f2629179f4146d5e381fd64df6b"
+        },
+        {
+            "date": 1755783628747,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/error-2025-08-21.log",
+            "hash": "3fbe6397a0782d6a117965edcf8d18a376e31446c59cc829998e325b3f39166f"
+        },
+        {
+            "date": 1755874578911,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/error-2025-08-22.log",
+            "hash": "236e116fd93177979b71e06f1cda2aa676f511190d5febe22aa5f696dc2e4734"
+        },
+        {
+            "date": 1755973557474,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/error-2025-08-23.log",
+            "hash": "766822e1d56429e55b693a3af5f7d70a690be376e1913eafe7e929fe8bd4384b"
+        },
+        {
+            "date": 1756053478055,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/error-2025-08-24.log",
+            "hash": "a504539280d70ec7ae38d2c46fe6bbb636117640645e3e2dea39b4a86a1692fa"
+        }
+    ],
+    "hashType": "sha256"
+}

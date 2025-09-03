@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "types": ["jest", "node"],
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "paths": {
+      "@shared/*": ["./shared/*"]
+    }
+  },
+  "include": ["tests/**/*.ts", "server/**/*.ts", "shared/**/*.ts", "types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "coverage", "client/**/*"]
+}

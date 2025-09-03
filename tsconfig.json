@@ -1,0 +1,27 @@
+{
+  "include": ["client/src/**/*", "shared/**/*", "client/src/vite-env.d.ts"],
+  "exclude": ["node_modules", "build", "dist", "server", "**/*.test.ts", "tests"],
+  "compilerOptions": {
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/typescript/tsbuildinfo",
+    "noEmit": true,
+    "target": "ES2020",
+    "module": "ESNext",
+    "strict": true,
+    "lib": ["ES2020", "dom", "dom.iterable"],
+    "jsx": "preserve",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "moduleResolution": "bundler",
+    "downlevelIteration": true,
+    "baseUrl": ".",
+    "types": ["node"],
+    "typeRoots": ["./types", "./node_modules/@types"],
+    "useUnknownInCatchVariables": false,
+    "paths": {
+      "@/*": ["./client/src/*"],
+      "@shared/*": ["./shared/*"]
+    }
+  }
+}

@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Automotive AI Campaign Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        'sans': ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'Noto Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        primary: {
+                            50: '#eff6ff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a'
+                        }
+                    }
+                }
+            }
+        };
+    </script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="bg-gray-50 font-sans">
+    <!-- @COMPONENT: Header -->
+    <header class="bg-white border-b border-gray-200 shadow-sm">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-primary-600 rounded-lg flex items-center justify-center">
+                        <i data-lucide="car" class="w-5 h-5 text-white"></i>
+                    </div>
+                    <h1 class="text-xl font-semibold text-gray-900">AutoCampaigns AI</h1>
+                </div>
+                <nav class="hidden md:flex items-center space-x-8">
+                    <a href="#" class="text-gray-700 hover:text-primary-600 font-medium">Dashboard</a>
+                    <a href="#" class="text-gray-500 hover:text-gray-700">Campaigns</a>
+                    <a href="#" class="text-gray-500 hover:text-gray-700">Analytics</a>
+                    <a href="#" class="text-gray-500 hover:text-gray-700">Settings</a>
+                </nav>
+                <div class="flex items-center space-x-3">
+                    <button class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                        <i data-lucide="bell" class="w-5 h-5"></i>
+                    </button>
+                    <div class="w-8 h-8 bg-gray-300 rounded-full"></div>
+                </div>
+            </div>
+        </div>
+    </header>
+    <!-- @END_COMPONENT: Header -->
+
+    <!-- @COMPONENT: MainDashboard -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <!-- Welcome Section -->
+        <div class="mb-8">
+            <h2 class="text-2xl font-bold text-gray-900 mb-2">Welcome back, Alex</h2>
+            <p class="text-gray-600">Manage your automotive email campaigns with AI-powered tools</p>
+        </div>
+
+        <!-- Quick Actions Section -->
+        <div class="mb-8">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- AI Campaign Agent Card -->
+                <div class="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl p-6 text-white cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl" onclick="openCampaignModal()">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <i data-lucide="bot" class="w-6 h-6"></i>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-5 h-5 opacity-75"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold mb-2">🤖 AI Campaign Agent</h4>
+                    <p class="text-purple-100 text-sm">Create automotive email campaigns with AI assistance</p>
+                </div>
+
+                <!-- Create AI Agent Card -->
+                <div class="bg-gradient-to-br from-pink-500 to-pink-700 rounded-xl p-6 text-white cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <i data-lucide="user-plus" class="w-6 h-6"></i>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-5 h-5 opacity-75"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold mb-2">Create AI Agent</h4>
+                    <p class="text-pink-100 text-sm">Configure specialized AI agents for automotive workflows</p>
+                </div>
+
+                <!-- Analytics Hub Card -->
+                <div class="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl p-6 text-white cursor-pointer transform hover:scale-105 transition-all duration-200 shadow-lg hover:shadow-xl">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                            <i data-lucide="bar-chart-3" class="w-6 h-6"></i>
+                        </div>
+                        <i data-lucide="arrow-right" class="w-5 h-5 opacity-75"></i>
+                    </div>
+                    <h4 class="text-xl font-semibold mb-2">Analytics Hub</h4>
+                    <p class="text-blue-100 text-sm">Track campaign performance and automotive metrics</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Campaigns Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Recent Campaigns</h3>
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+                    <div class="p-6">
+                        <div class="space-y-4">
+                            <!-- @MAP: campaigns.map(campaign => ( -->
+                            <div class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="car" class="w-5 h-5 text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900" data-bind="campaign.name">2024 SUV Winter Sale</h4>
+                                        <p class="text-sm text-gray-500" data-bind="campaign.date">Created 2 days ago</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full" data-bind="campaign.status">Active</span>
+                                    <span class="text-sm text-gray-600" data-bind="campaign.openRate">23.5% open rate</span>
+                                </div>
+                            </div>
+                            <!-- @END_MAP )) -->
+
+                            <div class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="wrench" class="w-5 h-5 text-orange-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Service Reminder Campaign</h4>
+                                        <p class="text-sm text-gray-500">Created 5 days ago</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">Scheduled</span>
+                                    <span class="text-sm text-gray-600">18.2% open rate</span>
+                                </div>
+                            </div>
+
+                            <div class="flex items-center justify-between p-4 border border-gray-100 rounded-lg hover:bg-gray-50">
+                                <div class="flex items-center space-x-4">
+                                    <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                        <i data-lucide="calendar" class="w-5 h-5 text-green-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-medium text-gray-900">Test Drive Event Promo</h4>
+                                        <p class="text-sm text-gray-500">Created 1 week ago</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="px-2 py-1 text-xs font-medium bg-gray-100 text-gray-800 rounded-full">Completed</span>
+                                    <span class="text-sm text-gray-600">31.8% open rate</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats Sidebar -->
+            <div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h3>
+                <div class="space-y-4">
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Active Campaigns</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="stats.activeCampaigns">12</p>
+                            </div>
+                            <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                <i data-lucide="activity" class="w-6 h-6 text-blue-600"></i>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Test Drives Booked</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="stats.testDrives">847</p>
+                            </div>
+                            <div class="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                <i data-lucide="car" class="w-6 h-6 text-green-600"></i>
+                            </div>
+                        </div>
+                        <p class="text-sm text-green-600 mt-2">+12% this month</p>
+                    </div>
+
+                    <div class="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <p class="text-sm text-gray-600">Service Appointments</p>
+                                <p class="text-2xl font-bold text-gray-900" data-bind="stats.serviceAppts">341</p>
+                            </div>
+                            <div class="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
+                                <i data-lucide="wrench" class="w-6 h-6 text-orange-600"></i>
+                            </div>
+                        </div>
+                        <p class="text-sm text-orange-600 mt-2">+8% this month</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <!-- @END_COMPONENT: MainDashboard -->
+
+    <!-- @COMPONENT: CampaignModal -->
+    <!-- AI Campaign Agent Modal -->
+    <div id="campaignModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <!-- Modal Header -->
+                <div class="flex items-center justify-between p-6 border-b border-gray-200">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                            <i data-lucide="bot" class="w-5 h-5 text-purple-600"></i>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">AI Campaign Agent</h2>
+                    </div>
+                    <button onclick="closeCampaignModal()" class="p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100">
+                        <i data-lucide="x" class="w-5 h-5"></i>
+                    </button>
+                </div>
+
+                <!-- Step Indicators -->
+                <div class="px-6 py-4 bg-gray-50">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-medium">1</div>
+                            <span class="text-sm font-medium text-purple-600">Campaign Setup</span>
+                        </div>
+                        <div class="flex-1 h-px bg-gray-300 mx-4"></div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center text-sm">2</div>
+                            <span class="text-sm text-gray-500">AI Enhancement</span>
+                        </div>
+                        <div class="flex-1 h-px bg-gray-300 mx-4"></div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-gray-300 text-gray-500 rounded-full flex items-center justify-center text-sm">3</div>
+                            <span class="text-sm text-gray-500">Review & Launch</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-6 space-y-6">
+                    <!-- AI Tip -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <i data-lucide="lightbulb" class="w-3 h-3 text-white"></i>
+                            </div>
+                            <div>
+                                <h4 class="font-medium text-blue-900 mb-1">AI Tip</h4>
+                                <p class="text-sm text-blue-800">Provide detailed campaign context to help our AI generate more effective automotive email templates tailored to your dealership's goals.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campaign Name Field -->
+                    <div>
+                        <label for="campaignName" class="block text-sm font-medium text-gray-700 mb-2">Campaign Name</label>
+                        <input type="text" id="campaignName" data-mock="true" placeholder="e.g., 2024 Holiday Sales Event" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                    </div>
+
+                    <!-- Campaign Context Field -->
+                    <div>
+                        <label for="campaignContext" class="block text-sm font-medium text-gray-700 mb-2">Campaign Context</label>
+                        <textarea id="campaignContext" rows="4" data-mock="true" placeholder="Describe your campaign goals, target audience, and key messaging..." class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"></textarea>
+                        
+                        <!-- Context Suggestions -->
+                        <div class="mt-3">
+                            <p class="text-sm text-gray-600 mb-2">Quick suggestions for automotive campaigns:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button onclick="fillContextSuggestion('Promote the latest SUV models with special financing offers')" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors">
+                                    Promote latest car models
+                                </button>
+                                <button onclick="fillContextSuggestion('Highlight seasonal service offers and maintenance packages')" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors">
+                                    Seasonal service offers
+                                </button>
+                                <button onclick="fillContextSuggestion('Announce upcoming dealership events and test drive opportunities')" class="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded-full hover:bg-gray-200 transition-colors">
+                                    Dealership events
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Handover Goals Field -->
+                    <div>
+                        <label for="handoverGoals" class="block text-sm font-medium text-gray-700 mb-2">Handover Goals</label>
+                        <div class="flex space-x-3">
+                            <input type="text" id="handoverGoals" data-mock="true" placeholder="Define your campaign objectives..." class="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                            <button onclick="suggestGoals()" data-event="click:suggestGoals" data-implementation="Should generate automotive-specific goal suggestions" class="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+                                <i data-lucide="sparkles" class="w-4 h-4"></i>
+                                <span>AI Suggest</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Goal Suggestions -->
+                        <div id="goalSuggestions" class="mt-3 hidden">
+                            <p class="text-sm text-gray-600 mb-2">AI suggested goals for automotive campaigns:</p>
+                            <div class="space-y-2">
+                                <button onclick="selectGoal('Increase test drive bookings by 25%')" class="w-full text-left px-3 py-2 text-sm bg-blue-50 text-blue-800 rounded-lg hover:bg-blue-100 transition-colors">
+                                    📈 Increase test drive bookings by 25%
+                                </button>
+                                <button onclick="selectGoal('Boost service appointment scheduling by 30%')" class="w-full text-left px-3 py-2 text-sm bg-green-50 text-green-800 rounded-lg hover:bg-green-100 transition-colors">
+                                    🔧 Boost service appointment scheduling by 30%
+                                </button>
+                                <button onclick="selectGoal('Promote end-of-year clearance sales')" class="w-full text-left px-3 py-2 text-sm bg-purple-50 text-purple-800 rounded-lg hover:bg-purple-100 transition-colors">
+                                    🚗 Promote end-of-year clearance sales
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- AI Enhancement Section -->
+                    <div class="border-t border-gray-200 pt-6">
+                        <h3 class="text-lg font-semibold text-gray-900 mb-4">AI Enhancement Options</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button onclick="enhanceWithAI()" data-event="click:enhanceWithAI" data-implementation="Should generate automotive email templates based on context" class="p-4 border-2 border-purple-200 rounded-lg hover:border-purple-400 hover:bg-purple-50 transition-all text-left">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <i data-lucide="mail" class="w-5 h-5 text-purple-600"></i>
+                                    <span class="font-medium text-gray-900">AI Enhance Templates</span>
+                                </div>
+                                <p class="text-sm text-gray-600">Generate automotive email templates with vehicle showcases, service reminders, and personalized follow-ups</p>
+                            </button>
+
+                            <button onclick="generateSubjects()" data-event="click:generateSubjects" data-implementation="Should generate automotive-focused subject lines" class="p-4 border-2 border-blue-200 rounded-lg hover:border-blue-400 hover:bg-blue-50 transition-all text-left">
+                                <div class="flex items-center space-x-3 mb-2">
+                                    <i data-lucide="type" class="w-5 h-5 text-blue-600"></i>
+                                    <span class="font-medium text-gray-900">Generate Subject Lines</span>
+                                </div>
+                                <p class="text-sm text-gray-600">Create compelling subject lines optimized for automotive campaigns and customer engagement</p>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex items-center justify-between p-6 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+                    <button onclick="closeCampaignModal()" class="px-6 py-2 text-gray-600 hover:text-gray-800 transition-colors">
+                        Cancel
+                    </button>
+                    <div class="flex space-x-3">
+                        <button class="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                            Save Draft
+                        </button>
+                        <button onclick="nextStep()" data-event="click:nextStep" data-implementation="Should proceed to AI enhancement step" class="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors">
+                            Continue to AI Enhancement
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: CampaignModal -->
+
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+
+        // Modal functionality
+        function openCampaignModal() {
+            document.getElementById('campaignModal').classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeCampaignModal() {
+            document.getElementById('campaignModal').classList.add('hidden');
+            document.body.style.overflow = 'auto';
+        }
+
+        // Context suggestion functionality
+        function fillContextSuggestion(text) {
+            document.getElementById('campaignContext').value = text;
+        }
+
+        // Goals suggestion functionality  
+        function suggestGoals() {
+            const suggestions = document.getElementById('goalSuggestions');
+            suggestions.classList.toggle('hidden');
+            // TODO: Implement AI API call to generate automotive-specific goals
+        }
+
+        function selectGoal(goalText) {
+            document.getElementById('handoverGoals').value = goalText;
+            document.getElementById('goalSuggestions').classList.add('hidden');
+        }
+
+        // AI Enhancement functions
+        function enhanceWithAI() {
+            // TODO: Implement AI template generation for automotive campaigns
+            console.log('Enhancing with AI templates...');
+        }
+
+        function generateSubjects() {
+            // TODO: Implement AI subject line generation for automotive campaigns  
+            console.log('Generating subject lines...');
+        }
+
+        function nextStep() {
+            // TODO: Implement wizard step progression
+            console.log('Moving to next step...');
+        }
+
+        // Close modal on escape key
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape') {
+                closeCampaignModal();
+            }
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('campaignModal').addEventListener('click', function(event) {
+            if (event.target === this) {
+                closeCampaignModal();
+            }
+        });
+    </script>
+</body>
+</html>

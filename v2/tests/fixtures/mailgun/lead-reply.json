@@ -1,0 +1,57 @@
+{
+  "description": "New thread - Lead's first reply to agent",
+  "scenario": "new-thread",
+  "timestamp": "1704067200",
+  "event-data": {
+    "event": "delivered",
+    "message": {
+      "headers": {
+        "message-id": "<lead-msg-001@customer.example.com>",
+        "from": "John Customer <john.customer@example.com>",
+        "to": "Riley Donovan <riley@kunesmacomb.kunesauto.vip>",
+        "subject": "Interested in 2024 Honda Accord",
+        "date": "Mon, 01 Jan 2024 12:00:00 +0000",
+        "content-type": "text/html; charset=UTF-8"
+      }
+    },
+    "recipient": "riley@kunesmacomb.kunesauto.vip",
+    "sender": "john.customer@example.com"
+  },
+  "signature": {
+    "timestamp": "1704067200",
+    "token": "deterministic-token-001",
+    "signature": "placeholder-will-be-generated"
+  },
+  "mailgun_payload": {
+    "message-id": "<lead-msg-001@customer.example.com>",
+    "from": "John Customer <john.customer@example.com>",
+    "to": "Riley Donovan <riley@kunesmacomb.kunesauto.vip>",
+    "subject": "Interested in 2024 Honda Accord",
+    "sender": "john.customer@example.com",
+    "recipient": "riley@kunesmacomb.kunesauto.vip",
+    "body-plain": "Hi Riley,\n\nI saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?\n\nThanks,\nJohn Customer\n(555) 123-4567",
+    "body-html": "<p>Hi Riley,</p><p>I saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?</p><p>Thanks,<br>John Customer<br>(555) 123-4567</p>",
+    "stripped-text": "Hi Riley,\n\nI saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?\n\nThanks,\nJohn Customer\n(555) 123-4567",
+    "stripped-html": "<p>Hi Riley,</p><p>I saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?</p><p>Thanks,<br>John Customer<br>(555) 123-4567</p>",
+    "message-headers": [
+      ["Message-ID", "<lead-msg-001@customer.example.com>"],
+      ["From", "John Customer <john.customer@example.com>"],
+      ["To", "Riley Donovan <riley@kunesmacomb.kunesauto.vip>"],
+      ["Subject", "Interested in 2024 Honda Accord"],
+      ["Date", "Mon, 01 Jan 2024 12:00:00 +0000"],
+      ["Content-Type", "text/html; charset=UTF-8"],
+      ["MIME-Version", "1.0"]
+    ]
+  },
+  "expected_normalized": {
+    "agentLocalPart": "riley",
+    "agentDomain": "kunesmacomb.kunesauto.vip",
+    "fromEmail": "john.customer@example.com",
+    "subject": "Interested in 2024 Honda Accord",
+    "text": "Hi Riley,\n\nI saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?\n\nThanks,\nJohn Customer\n(555) 123-4567",
+    "html": "<p>Hi Riley,</p><p>I saw your listing for the 2024 Honda Accord and I'm very interested. Could you tell me more about the available colors and financing options?</p><p>Thanks,<br>John Customer<br>(555) 123-4567</p>",
+    "messageId": "<lead-msg-001@customer.example.com>",
+    "inReplyTo": null,
+    "references": undefined
+  }
+}

@@ -1,0 +1,308 @@
+import { storage } from '../../storage';
+import { webSocketService } from '../websocket';
+import { userNotificationService } from '../user-notification';
+
+export interface CampaignExecutionOptions {
+  campaignId: string;
+  testMode?: boolean;
+  scheduleAt?: Date;
+  selectedLeadIds?: string[];
+  maxLeadsPerBatch?: number;
+}
+
+export interface CampaignExecutionResult {
+  success: boolean;
+  message: string;
+  emailsSent?: number;
+  emailsFailed?: number;
+  totalLeads?: number;
+  errors?: string[];
+  executionId?: string;
+  testMode?: boolean;
+  error?: string;
+}
+
+export interface ScheduledExecution {
+  id: string;
+  campaignId: string;
+  options: CampaignExecutionOptions;
+  scheduledAt: Date;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+}
+
+export class CampaignOrchestrator {
+  private activeExecutions = new Map<string, any>();
+
+  constructor() {
+    // Services will be imported dynamically to avoid circular dependencies
+  }
+
+  async executeCampaign(options: CampaignExecutionOptions): Promise<CampaignExecutionResult> {
+    const { campaignId, testMode = false, selectedLeadIds, maxLeadsPerBatch = 50 } = options;
+    
+    try {
+      // Import services dynamically
+      const { ExecutionProcessor } = await import('./ExecutionProcessor.js');
+      const { LeadAssignmentService } = await import('./LeadAssignmentService.js');
+      
+      const executionProcessor = new ExecutionProcessor();
+      const leadAssignmentService = new LeadAssignmentService();
+
+      // Get campaign
+      const campaign = await storage.getCampaign(campaignId);
+      if (!campaign) {
+        return {
+          success: false,
+          message: "Campaign not found",
+          error: "Campaign not found"
+        };
+      }
+
+      // Get leads
+      let targetLeads: any[];
+      if (selectedLeadIds && selectedLeadIds.length > 0) {
+        targetLeads = await Promise.all(
+          selectedLeadIds.map(id => storage.getLead(id))
+        );
+        targetLeads = targetLeads.filter(Boolean);
+      } else {
+        const allLeads = await storage.getLeads();
+        
+        // First try to find leads assigned to this campaign
+        targetLeads = allLeads.filter(lead => lead.campaignId === campaignId);
+        
+        // If no assigned leads found, look for unassigned leads that match campaign context
+        if (targetLeads.length === 0) {
+          const unassignedLeads = allLeads.filter(lead => !lead.campaignId);
+          
+          // For Toyota Prius campaign, look for leads with Prius interest or josh@atsglobal.ai
+          if (campaign.name.toLowerCase().includes('prius') || campaign.name.toLowerCase().includes('toyota')) {
+            targetLeads = unassignedLeads.filter(lead => 
+              lead.email === 'josh@atsglobal.ai' ||
+              (lead.vehicleInterest && lead.vehicleInterest.toLowerCase().includes('prius')) ||
+              (lead.vehicleInterest && lead.vehicleInterest.toLowerCase().includes('toyota'))
+            );
+          } else {
+            // For other campaigns, just use all unassigned leads
+            targetLeads = unassignedLeads;
+          }
+          
+          // Auto-assign these leads to the campaign
+          if (targetLeads.length > 0) {
+            console.log(`Auto-assigning ${targetLeads.length} leads to campaign ${campaignId}`);
+            for (const lead of targetLeads) {
+              try {
+                await storage.updateLead(lead.id, { campaignId: campaignId });
+              } catch (error) {
+                console.error(`Failed to assign lead ${lead.id} to campaign:`, error);
+              }
+            }
+          }
+        }
+      }
+
+      if (targetLeads.length === 0) {
+        return {
+          success: false,
+          message: "No leads found for this campaign",
+          error: "No leads available"
+        };
+      }
+
+      // Assign unassigned leads to this campaign (skip bulk assignment in test mode to minimize side-effects)
+      if (!testMode) {
+        const unassignedLeads = targetLeads.filter(lead => !lead.campaignId);
+        if (unassignedLeads.length > 0) {
+          const assignmentResult = await leadAssignmentService.assignLeadsToCampaigns(
+            unassignedLeads,
+            [campaign]
+          );
+          console.log(`Assigned ${assignmentResult.assignedLeads} leads to campaign`);
+        }
+      }
+
+      // Update campaign status
+      await storage.updateCampaign(campaignId, { 
+        status: options.scheduleAt ? 'scheduled' : 'active'
+      });
+
+      // If test mode, limit to first lead
+      if (testMode) {
+        targetLeads = targetLeads.slice(0, 1);
+      }
+
+      // Process email sequence
+      const processingResult = await executionProcessor.processEmailSequence(
+        campaign,
+        targetLeads,
+        0, // Start with first template
+        {
+          batchSize: maxLeadsPerBatch,
+          testMode,
+          delayBetweenEmails: testMode ? 0 : 1000
+        }
+      );
+
+      // Record send event removed - using simplified analytics now
+
+      // Create conversations for successful sends with proper lead linking and duplicate checking
+      if (!testMode && processingResult.emailsSent > 0) {
+        for (const lead of targetLeads.slice(0, processingResult.emailsSent)) {
+          try {
+            // Check if conversation already exists for this lead and campaign
+            const existingConversations = await storage.getConversationsByLead(lead.id);
+            const existingCampaignConversation = existingConversations.find(
+              conv => conv.campaignId === campaignId && conv.status === 'active'
+            );
+            
+            if (!existingCampaignConversation) {
+              await storage.createConversation({
+                subject: `Campaign: ${campaign.name}`,
+                status: 'active',
+                priority: 'normal',
+                campaignId: campaignId,
+                leadId: lead.id, // Fix: properly link conversation to lead
+              });
+            } else {
+              console.log(`Conversation already exists for lead ${lead.id} and campaign ${campaignId}`);
+            }
+          } catch (convError) {
+            console.error(`Failed to create conversation for lead ${lead.id}:`, convError);
+          }
+        }
+      }
+
+      // Send user notification (for non-test executions)
+      if (!testMode && processingResult.emailsSent > 0) {
+        try {
+          // Get the first template for the notification
+          const templates = campaign.templates as any[] || [];
+          const firstTemplate = templates[0];
+          
+          // Skip user notification for now (campaign doesn't have userId)
+          // TODO: Implement user notification based on clientId
+          console.log('Campaign executed:', campaign.name, 'Emails sent:', processingResult.emailsSent);
+        } catch (notificationError) {
+          console.error('Failed to send campaign notification:', notificationError);
+        }
+      }
+
+      // Broadcast execution update
+      try {
+        if (webSocketService.broadcast) {
+          webSocketService.broadcast('campaignExecuted', {
+            campaignId,
+            emailsSent: processingResult.emailsSent,
+            emailsFailed: processingResult.emailsFailed,
+            testMode,
+            timestamp: new Date()
+          });
+        }
+      } catch (wsError) {
+        console.error('WebSocket broadcast error:', wsError);
+      }
+
+      const success = processingResult.success;
+      const emailsSent = processingResult.emailsSent;
+      const baseMsg = testMode
+        ? (emailsSent > 0
+            ? `Test email sent to ${emailsSent} lead(s)`
+            : `Test execution failed: 0 emails sent`)
+        : (emailsSent > 0
+            ? `Campaign executed: ${emailsSent} email(s) sent`
+            : `Campaign execution failed: 0 emails sent`);
+
+      return {
+        success,
+        message: baseMsg,
+        emailsSent,
+        emailsFailed: processingResult.emailsFailed,
+        totalLeads: targetLeads.length,
+        errors: processingResult.errors,
+        executionId: processingResult.executionId,
+        testMode
+      };
+
+    } catch (error) {
+      console.error('Campaign execution error:', error);
+      return {
+        success: false,
+        message: "Failed to execute campaign",
+        error: error instanceof Error ? error.message : 'Unknown error',
+        emailsSent: 0,
+        emailsFailed: 0,
+        totalLeads: 0
+      };
+    }
+  }
+
+  /**
+   * Schedule campaign execution for later
+   */
+  async scheduleCampaign(options: CampaignExecutionOptions): Promise<{ success: boolean; scheduledId?: string; message: string }> {
+    try {
+      if (!options.scheduleAt) {
+        return { success: false, message: 'Schedule date is required' };
+      }
+
+      const scheduledId = `scheduled_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // In a production system, you would store this in a job queue like Bull/Redis
+      // For now, we'll just validate and return success
+      
+      await storage.updateCampaign(options.campaignId, {
+        status: 'scheduled'
+      });
+
+      return {
+        success: true,
+        scheduledId,
+        message: `Campaign scheduled for ${options.scheduleAt.toISOString()}`
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        message: error instanceof Error ? error.message : 'Failed to schedule campaign'
+      };
+    }
+  }
+
+  /**
+   * Get active executions
+   */
+  getActiveExecutions(): any[] {
+    return Array.from(this.activeExecutions.values());
+  }
+
+  /**
+   * Cancel active execution
+   */
+  cancelExecution(executionId: string): boolean {
+    if (this.activeExecutions.has(executionId)) {
+      this.activeExecutions.delete(executionId);
+      console.log(`Cancelled execution: ${executionId}`);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Get default user for campaign notifications
+   */
+  private async getDefaultUser(): Promise<string> {
+    try {
+      const users = await storage.getUsers(1);
+      if (users.length > 0) {
+        return users[0].id;
+      }
+      // Fallback to system user ID if no users exist
+      return "system";
+    } catch (error) {
+      console.error('Failed to get default user:', error);
+      return "system";
+    }
+  }
+}
+
+export const campaignOrchestrator = new CampaignOrchestrator();

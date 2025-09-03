@@ -1,0 +1,27 @@
+# Add these to your .env file for Kunes Auto Group setup
+
+# Main Mailgun Configuration (fallback domain)
+MAILGUN_API_KEY=your-mailgun-api-key
+MAILGUN_DOMAIN=kunesauto.vip
+MAILGUN_REGION=us
+
+# Multi-tenant mode enabled
+MULTI_TENANT_MODE=true
+
+# Security for multi-tenant
+JWT_SECRET=your-super-secure-jwt-secret-for-kunes-auto-group
+API_KEY_ENCRYPTION_KEY=your-32-character-encryption-key-here
+
+# Email reliability settings
+EMAIL_RELIABILITY_ENABLED=true
+MAILGUN_TIMEOUT_MS=15000
+MAILGUN_MAX_RETRIES=3
+
+# Rate limiting for multiple dealerships
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=200
+RATE_LIMIT_AI_MAX=50
+
+# Logging for monitoring multiple dealerships
+LOG_LEVEL=info
+SECURITY_LOG_ENABLED=true

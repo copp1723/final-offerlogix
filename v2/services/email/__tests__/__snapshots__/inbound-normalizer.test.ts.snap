@@ -1,0 +1,47 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`normalizeMailgun Basic Normalization normalizes basic Mailgun payload 1`] = `
+{
+  "agentDomain": "kunesmacomb.kunesauto.vip",
+  "agentLocalPart": "riley",
+  "fromEmail": "customer@example.com",
+  "html": "<p>This is the HTML content.</p>",
+  "inReplyTo": null,
+  "messageId": "<test-message-123@example.com>",
+  "rawHeaders": {
+    "from": "Customer Name <customer@example.com>",
+    "message-id": "<test-message-123@example.com>",
+    "subject": "Test Email Subject",
+    "to": "Riley Donovan <riley@kunesmacomb.kunesauto.vip>",
+  },
+  "references": [],
+  "subject": "Test Email Subject",
+  "text": "This is the plain text content.",
+}
+`;
+
+exports[`normalizeMailgun Basic Normalization normalizes payload with message-headers array 1`] = `
+{
+  "agentDomain": "testdomain.com",
+  "agentLocalPart": "agent",
+  "fromEmail": "header@example.com",
+  "html": "<p>Header array HTML.</p>",
+  "inReplyTo": "<previous-msg@example.com>",
+  "messageId": "<header-msg-456@example.com>",
+  "rawHeaders": {
+    "date": "Mon, 01 Jan 2024 12:00:00 +0000",
+    "from": "Header Customer <header@example.com>",
+    "in-reply-to": "<previous-msg@example.com>",
+    "message-id": "<header-msg-456@example.com>",
+    "references": "<msg1@example.com> <msg2@example.com>",
+    "subject": "Header Subject",
+    "to": "Agent Smith <agent@testdomain.com>",
+  },
+  "references": [
+    "<msg1@example.com>",
+    "<msg2@example.com>",
+  ],
+  "subject": "Header Subject",
+  "text": "Header array content.",
+}
+`;

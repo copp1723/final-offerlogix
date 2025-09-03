@@ -1,0 +1,35 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 7
+    },
+    "auditLog": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/.022f2be740bd84d9d63ca6a64e20571484fe8508-audit.json",
+    "files": [
+        {
+            "date": 1756091568792,
+            "name": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/debug-2025-08-24.log",
+            "hash": "d123f54fef34a41323c103550f688f873d6ff8206dde9c22812bc9ca47f3d4a4"
+        },
+        {
+            "date": 1756214526300,
+            "name": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/debug-2025-08-26.log",
+            "hash": "4edddbc871354a6c4aab9735892c1a50c8becdf2176cf9c311a4c6cf41c5a75b"
+        },
+        {
+            "date": 1756312919514,
+            "name": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/debug-2025-08-27.log",
+            "hash": "caa48bff1adf1ed0d4298068c773b67b54c849efdac2d99a9b5ae3923e99d601"
+        },
+        {
+            "date": 1756499514270,
+            "name": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/debug-2025-08-29.log",
+            "hash": "4fc515d3b3b9f53bae9b713f873504ea8e4e9c29a86d7cc7241056cb9145ec7b"
+        },
+        {
+            "date": 1756658960671,
+            "name": "/Users/joshcopp/Desktop/Swarm/MailMind/logs/debug-2025-08-31.log",
+            "hash": "52fcb54ca10e6a71981fc22f499787c2a1cafe1ec1bd6573930839b3a4ef1b09"
+        }
+    ],
+    "hashType": "sha256"
+}

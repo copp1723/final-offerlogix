@@ -1,0 +1,30 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 7
+    },
+    "auditLog": "/Users/joshcopp/Desktop/MailMind/logs/.048fa15bb09c0b2b2c28391e1d33363fcd1f9be9-audit.json",
+    "files": [
+        {
+            "date": 1755833644372,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/debug-2025-08-21.log",
+            "hash": "0a4af2681d0e3cbed572f1964fece444d1505b9722d5a6ec327016e4b76adb34"
+        },
+        {
+            "date": 1755874578912,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/debug-2025-08-22.log",
+            "hash": "885586d066d1a4f48764a7c67b9fdc2338014fd187a20a8c8c4e2b8ba20248c7"
+        },
+        {
+            "date": 1756002330115,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/debug-2025-08-23.log",
+            "hash": "12cb6bf914286f875e8d7907784ca840ff63fa6cebb02254d38df53e1c8bc6eb"
+        },
+        {
+            "date": 1756053478057,
+            "name": "/Users/joshcopp/Desktop/MailMind/logs/debug-2025-08-24.log",
+            "hash": "0eeb01236a2569cb46a15ddaec6a4259590c629ce89b93167c2a76294a2bb20f"
+        }
+    ],
+    "hashType": "sha256"
+}

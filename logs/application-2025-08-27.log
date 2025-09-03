@@ -1,0 +1,7 @@
+{"timestamp":"2025-08-27 09:41:19.721","level":"warn","message":"Invalid leadId provided to hashToBucket","correlationId":"no-correlation","service":"mailmind-api","environment":"test","leadId":""}
+{"timestamp":"2025-08-27 09:41:19.727","level":"warn","message":"Invalid leadId provided to hashToBucket","correlationId":"no-correlation","service":"mailmind-api","environment":"test","leadId":null}
+{"timestamp":"2025-08-27 09:41:19.743","level":"warn","message":"Invalid template provided","correlationId":"no-correlation","service":"mailmind-api","environment":"test","template":null,"leadId":"lead-test"}
+{"timestamp":"2025-08-27 12:14:27.567","level":"info","message":"🛑 Received SIGTERM, shutting down gracefully","correlationId":"no-correlation","service":"mailmind-api","environment":"development","component":"server","operation":"shutdown","signal":"SIGTERM"}
+{"timestamp":"2025-08-27 23:35:35.736","level":"warn","message":"Invalid leadId provided to hashToBucket","correlationId":"no-correlation","service":"mailmind-api","environment":"test","leadId":""}
+{"timestamp":"2025-08-27 23:35:35.738","level":"warn","message":"Invalid leadId provided to hashToBucket","correlationId":"no-correlation","service":"mailmind-api","environment":"test","leadId":null}
+{"timestamp":"2025-08-27 23:35:35.753","level":"warn","message":"Invalid template provided","correlationId":"no-correlation","service":"mailmind-api","environment":"test","template":null,"leadId":"lead-test"}

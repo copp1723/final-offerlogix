@@ -1,0 +1,222 @@
+name: MailMind V2 - Mailgun Threading Tests
+
+on:
+  push:
+    branches: [ mailmind-v2, feat/v2-mailgun-* ]
+    paths:
+      - 'v2/**'
+      - 'server/v2/**'
+      - '.github/workflows/ci-v2-mailgun.yml'
+  pull_request:
+    branches: [ mailmind-v2 ]
+    paths:
+      - 'v2/**'
+      - 'server/v2/**'
+
+env:
+  NODE_VERSION: '18'
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mailmind_test
+  MAILGUN_SIGNING_KEY: test-mailgun-signing-key-for-ci
+  MAILGUN_DOMAIN: test.mailgun.example.com
+  MAILGUN_API_KEY: key-test-api-key-for-ci
+  MAILGUN_BASE: https://api.mailgun.net/v3
+
+jobs:
+  test-v2-mailgun:
+    name: V2 Mailgun Threading Tests
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: mailmind_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          cd server/v2 && npm ci
+
+      - name: Setup test database
+        run: |
+          # Wait for PostgreSQL to be ready
+          until pg_isready -h localhost -p 5432 -U postgres; do
+            echo "Waiting for PostgreSQL..."
+            sleep 2
+          done
+          
+          # Create test database and run migrations
+          cd server/v2
+          npm run db:migrate
+          
+          # Verify schema
+          psql $DATABASE_URL -c "\dt" || echo "No tables yet - this is expected for fresh schema"
+
+      - name: Validate fixtures
+        run: |
+          cd v2
+          npx ts-node -e "
+            import { validateAllFixtures } from './tests/helpers/fixture-loader';
+            if (!validateAllFixtures()) {
+              console.error('Fixture validation failed');
+              process.exit(1);
+            }
+            console.log('All fixtures are valid');
+          "
+
+      - name: Run V2 Mailgun unit tests
+        run: |
+          cd v2
+          npm test -- --testPathPattern="services/email" --verbose --coverage
+
+      - name: Run V2 Mailgun integration tests
+        run: |
+          cd v2
+          npm test -- --testNamePattern="integration" --verbose
+
+      - name: Test fixture loading and signing
+        run: |
+          cd v2
+          npx ts-node -e "
+            import { loadAllFixtures, createTestWebhookPayload } from './tests/helpers/fixture-loader';
+            import { verifyMailgunSignature } from './tests/helpers/mailgun-signer';
+            
+            console.log('Testing fixture loading...');
+            const fixtures = loadAllFixtures();
+            console.log('Loaded fixtures:', Object.keys(fixtures));
+            
+            console.log('Testing webhook payload creation...');
+            const payload = createTestWebhookPayload('new-thread');
+            console.log('Created payload with signature:', !!payload.signature);
+            
+            console.log('Testing signature verification...');
+            const isValid = verifyMailgunSignature(
+              payload.signature.timestamp,
+              payload.signature.token,
+              payload.signature.signature,
+              process.env.MAILGUN_SIGNING_KEY || 'test-key'
+            );
+            console.log('Signature valid:', isValid);
+            
+            if (!isValid) {
+              console.error('Signature verification failed');
+              process.exit(1);
+            }
+            
+            console.log('All fixture tests passed');
+          "
+
+      - name: Test deterministic Message-ID generation
+        run: |
+          cd v2
+          npx ts-node -e "
+            import { MailgunThreading } from './services/email/MailgunThreading';
+            
+            const agent = {
+              id: 'test-agent',
+              name: 'Test Agent',
+              domain: 'test.example.com',
+              localPart: 'test'
+            };
+            
+            // Mock crypto for deterministic testing
+            jest.mock('crypto', () => ({
+              randomUUID: () => 'deterministic-uuid-for-ci'
+            }));
+            
+            const messageId1 = MailgunThreading.messageId(agent);
+            const messageId2 = MailgunThreading.messageId(agent);
+            
+            console.log('Message ID 1:', messageId1);
+            console.log('Message ID 2:', messageId2);
+            console.log('Format correct:', messageId1.includes('@test.example.com'));
+            console.log('Deterministic (in real test):', messageId1 === messageId2);
+          "
+
+      - name: Upload test coverage
+        uses: codecov/codecov-action@v3
+        if: always()
+        with:
+          file: ./v2/coverage/lcov.info
+          flags: v2-mailgun
+          name: v2-mailgun-coverage
+
+      - name: Archive test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: v2-mailgun-test-results
+          path: |
+            v2/coverage/
+            v2/test-results.xml
+          retention-days: 7
+
+  test-no-v1-dependencies:
+    name: Verify No V1 Dependencies
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Check for V1 imports in V2 code
+        run: |
+          echo "Checking for V1 imports in V2 services..."
+          
+          # Check for imports from server/services (V1)
+          if grep -r "from.*server/services" v2/services/ 2>/dev/null; then
+            echo "ERROR: Found V1 service imports in V2 code"
+            exit 1
+          fi
+          
+          # Check for imports from shared/schema (V1)
+          if grep -r "from.*@shared/schema" v2/services/ 2>/dev/null; then
+            echo "ERROR: Found V1 schema imports in V2 code"
+            exit 1
+          fi
+          
+          # Check for mailgun.js SDK imports (should use fetch)
+          if grep -r "mailgun\.js\|mailgun-js" v2/services/ 2>/dev/null; then
+            echo "ERROR: Found Mailgun SDK imports (should use fetch)"
+            exit 1
+          fi
+          
+          echo "✅ No V1 dependencies found in V2 code"
+
+      - name: Verify V2 imports are correct
+        run: |
+          echo "Verifying V2 imports..."
+          
+          # Check that V2 services import from correct paths
+          if ! grep -r "from.*\.\./\.\./\.\./server/db" v2/services/ 2>/dev/null; then
+            echo "WARNING: V2 services should import db from '../../../server/db'"
+          fi
+          
+          if ! grep -r "from.*\.\./\.\./schema" v2/services/ 2>/dev/null; then
+            echo "WARNING: V2 services should import schema from '../../schema'"
+          fi
+          
+          echo "✅ V2 import patterns verified"

@@ -1,0 +1,51 @@
+{
+  "name": "mailmind-v2",
+  "version": "2.0.0-alpha",
+  "description": "MailMind V2 - Lean Conversation Engine with Email Threading",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:v2:mailgun": "jest --runInBand --testPathPattern=services/email",
+    "test:fixtures": "ts-node -e \"import { validateAllFixtures } from './tests/helpers/fixture-loader'; validateAllFixtures();\"",
+    "dev:mailgun:webhook": "ts-node dev/send-signed-webhook.ts",
+    "dev:fixtures:generate": "ts-node dev/generate-fixtures.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "dependencies": {
+    "drizzle-orm": "latest",
+    "postgres": "latest"
+  },
+  "devDependencies": {
+    "@types/jest": "latest",
+    "@types/node": "latest",
+    "jest": "latest",
+    "ts-jest": "latest",
+    "ts-node": "latest",
+    "typescript": "latest",
+    "eslint": "latest",
+    "@typescript-eslint/eslint-plugin": "latest",
+    "@typescript-eslint/parser": "latest"
+  },
+  "jest": {
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/__tests__/**/*.test.ts",
+      "**/*.test.ts"
+    ],
+    "collectCoverageFrom": [
+      "services/**/*.ts",
+      "!services/**/__tests__/**",
+      "!services/**/index.ts",
+      "!**/*.d.ts"
+    ],
+    "coverageDirectory": "coverage",
+    "coverageReporters": ["text", "lcov", "html"],
+    "setupFilesAfterEnv": ["<rootDir>/tests/setup.ts"]
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,87 @@
+{
+  "description": "Deep thread - 3rd hop in conversation chain",
+  "scenario": "deep-thread",
+  "timestamp": "1704153600",
+  "event-data": {
+    "event": "delivered",
+    "message": {
+      "headers": {
+        "message-id": "<lead-msg-003@customer.example.com>",
+        "from": "John Customer <john.customer@example.com>",
+        "to": "Riley Donovan <riley@kunesmacomb.kunesauto.vip>",
+        "subject": "Re: Interested in 2024 Honda Accord",
+        "in-reply-to": "<agent-msg-002@kunesmacomb.kunesauto.vip>",
+        "references": "<lead-msg-001@customer.example.com> <agent-msg-002@kunesmacomb.kunesauto.vip>",
+        "date": "Tue, 02 Jan 2024 12:00:00 +0000",
+        "content-type": "text/html; charset=UTF-8"
+      }
+    },
+    "recipient": "riley@kunesmacomb.kunesauto.vip",
+    "sender": "john.customer@example.com"
+  },
+  "signature": {
+    "timestamp": "1704153600",
+    "token": "deterministic-token-003",
+    "signature": "placeholder-will-be-generated"
+  },
+  "mailgun_payload": {
+    "message-id": "<lead-msg-003@customer.example.com>",
+    "from": "John Customer <john.customer@example.com>",
+    "to": "Riley Donovan <riley@kunesmacomb.kunesauto.vip>",
+    "subject": "Re: Interested in 2024 Honda Accord",
+    "in-reply-to": "<agent-msg-002@kunesmacomb.kunesauto.vip>",
+    "references": "<lead-msg-001@customer.example.com> <agent-msg-002@kunesmacomb.kunesauto.vip>",
+    "sender": "john.customer@example.com",
+    "recipient": "riley@kunesmacomb.kunesauto.vip",
+    "body-plain": "Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?\n\nAlso, do you have any current promotions or incentives available?\n\nThanks again,\nJohn",
+    "body-html": "<p>Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?</p><p>Also, do you have any current promotions or incentives available?</p><p>Thanks again,<br>John</p>",
+    "stripped-text": "Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?\n\nAlso, do you have any current promotions or incentives available?\n\nThanks again,\nJohn",
+    "stripped-html": "<p>Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?</p><p>Also, do you have any current promotions or incentives available?</p><p>Thanks again,<br>John</p>",
+    "message-headers": [
+      ["Message-ID", "<lead-msg-003@customer.example.com>"],
+      ["From", "John Customer <john.customer@example.com>"],
+      ["To", "Riley Donovan <riley@kunesmacomb.kunesauto.vip>"],
+      ["Subject", "Re: Interested in 2024 Honda Accord"],
+      ["In-Reply-To", "<agent-msg-002@kunesmacomb.kunesauto.vip>"],
+      ["References", "<lead-msg-001@customer.example.com> <agent-msg-002@kunesmacomb.kunesauto.vip>"],
+      ["Date", "Tue, 02 Jan 2024 12:00:00 +0000"],
+      ["Content-Type", "text/html; charset=UTF-8"],
+      ["MIME-Version", "1.0"]
+    ]
+  },
+  "expected_normalized": {
+    "agentLocalPart": "riley",
+    "agentDomain": "kunesmacomb.kunesauto.vip",
+    "fromEmail": "john.customer@example.com",
+    "subject": "Re: Interested in 2024 Honda Accord",
+    "text": "Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?\n\nAlso, do you have any current promotions or incentives available?\n\nThanks again,\nJohn",
+    "html": "<p>Perfect! The blue color sounds great and the financing terms work for me. When can I schedule a test drive?</p><p>Also, do you have any current promotions or incentives available?</p><p>Thanks again,<br>John</p>",
+    "messageId": "<lead-msg-003@customer.example.com>",
+    "inReplyTo": "<agent-msg-002@kunesmacomb.kunesauto.vip>",
+    "references": [
+      "<lead-msg-001@customer.example.com>",
+      "<agent-msg-002@kunesmacomb.kunesauto.vip>"
+    ]
+  },
+  "conversation_context": {
+    "thread_history": [
+      {
+        "messageId": "<lead-msg-001@customer.example.com>",
+        "sender": "lead",
+        "subject": "Interested in 2024 Honda Accord"
+      },
+      {
+        "messageId": "<agent-msg-002@kunesmacomb.kunesauto.vip>",
+        "sender": "agent",
+        "subject": "Re: Interested in 2024 Honda Accord",
+        "inReplyTo": "<lead-msg-001@customer.example.com>"
+      },
+      {
+        "messageId": "<lead-msg-003@customer.example.com>",
+        "sender": "lead",
+        "subject": "Re: Interested in 2024 Honda Accord",
+        "inReplyTo": "<agent-msg-002@kunesmacomb.kunesauto.vip>"
+      }
+    ]
+  }
+}

@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Email Campaign Platform</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: {
+                    'inter': ['Inter', 'sans-serif'],
+                },
+                colors: {
+                    'purple-primary': '#8B5CF6',
+                    'pink-primary': '#EC4899',
+                    'blue-primary': '#3B82F6',
+                    'gray-50': '#F8FAFC',
+                    'gray-600': '#64748B',
+                    'gray-900': '#1E293B',
+                }
+            }
+        }
+    };
+    </script>
+</head>
+<body class="bg-gray-50 font-inter">
+    <!-- @COMPONENT: Layout [Main application layout with sidebar and content area] -->
+    <div class="min-h-screen flex bg-gray-50">
+        <!-- @COMPONENT: Sidebar [Navigation sidebar with menu items] -->
+        <div class="w-64 bg-white shadow-sm border-r border-gray-200 flex flex-col">
+            <!-- Logo Section -->
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center space-x-3">
+                    <div class="w-8 h-8 bg-gradient-to-r from-purple-primary to-pink-primary rounded-lg flex items-center justify-center">
+                        <i class="fas fa-envelope text-white text-sm"></i>
+                    </div>
+                    <span class="text-lg font-semibold text-gray-900">EmailAI Pro</span>
+                </div>
+            </div>
+            
+            <!-- Navigation Menu -->
+            <nav class="flex-1 p-4">
+                <ul class="space-y-2">
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-900 bg-gray-100 rounded-lg">
+                            <i class="fas fa-chart-line w-5 h-5 mr-3"></i>
+                            Dashboard
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-paper-plane w-5 h-5 mr-3"></i>
+                            Campaigns
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-robot w-5 h-5 mr-3"></i>
+                            AI Agents
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-address-book w-5 h-5 mr-3"></i>
+                            Contacts
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-chart-bar w-5 h-5 mr-3"></i>
+                            Analytics
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#" class="flex items-center px-4 py-2 text-sm font-medium text-gray-600 rounded-lg hover:bg-gray-100 transition-colors">
+                            <i class="fas fa-cog w-5 h-5 mr-3"></i>
+                            Settings
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+            
+            <!-- User Profile -->
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex items-center space-x-3">
+                    <!-- Modern geometric avatar placeholder -->
+                    <div class="w-8 h-8 bg-gradient-to-br from-blue-primary to-purple-primary rounded-full flex items-center justify-center">
+                        <span class="text-white text-sm font-medium" data-bind="user.initials">JD</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-gray-900 truncate" data-bind="user.name">John Doe</p>
+                        <p class="text-xs text-gray-600 truncate" data-bind="user.email">john@company.com</p>
+                    </div>
+                    <i class="fas fa-chevron-up text-gray-400 text-xs"></i>
+                </div>
+            </div>
+        </div>
+        <!-- @END_COMPONENT: Sidebar -->
+
+        <!-- @COMPONENT: MainContent [Primary dashboard content area] -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Top Bar -->
+            <header class="bg-white border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h1 class="text-2xl font-bold text-gray-900">Dashboard</h1>
+                        <p class="text-gray-600 text-sm">Manage your email campaigns with AI assistance</p>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <button class="relative p-2 text-gray-600 hover:text-gray-900 transition-colors">
+                            <i class="fas fa-bell text-lg"></i>
+                            <span class="absolute top-0 right-0 block h-2 w-2 rounded-full bg-red-500"></span>
+                        </button>
+                        <button class="bg-gradient-to-r from-purple-primary to-pink-primary text-white px-4 py-2 rounded-lg text-sm font-medium hover:shadow-lg transition-all duration-200" data-event="click:openCampaignWizard">
+                            <i class="fas fa-plus mr-2"></i>New Campaign
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Main Dashboard Content -->
+            <main class="flex-1 overflow-y-auto p-6">
+                <!-- @COMPONENT: QuickActionsSection [Dashboard quick action cards] -->
+                <!-- Quick Actions Grid -->
+                <section class="mb-8">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        <!-- AI Campaign Agent Card -->
+                        <div class="relative group cursor-pointer" data-event="click:openAICampaignAgent">
+                            <div class="bg-gradient-to-br from-purple-primary to-purple-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-robot text-2xl"></i>
+                                    </div>
+                                    <i class="fas fa-arrow-right text-lg opacity-70 group-hover:opacity-100 transition-opacity"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold mb-2">AI Campaign Agent</h3>
+                                <p class="text-purple-100 text-sm">Create intelligent email campaigns with AI assistance and minimal input required.</p>
+                                <div class="mt-4 flex items-center text-sm">
+                                    <i class="fas fa-magic mr-2"></i>
+                                    <span>AI-Powered Creation</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Create AI Agent Card -->
+                        <div class="relative group cursor-pointer" data-event="click:openCreateAIAgent">
+                            <div class="bg-gradient-to-br from-pink-primary to-pink-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-brain text-2xl"></i>
+                                    </div>
+                                    <i class="fas fa-arrow-right text-lg opacity-70 group-hover:opacity-100 transition-opacity"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold mb-2">Create AI Agent</h3>
+                                <p class="text-pink-100 text-sm">Build custom AI agents for specialized email marketing workflows and automation.</p>
+                                <div class="mt-4 flex items-center text-sm">
+                                    <i class="fas fa-cogs mr-2"></i>
+                                    <span>Custom Automation</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Analytics Hub Card -->
+                        <div class="relative group cursor-pointer" data-event="click:openAnalyticsHub">
+                            <div class="bg-gradient-to-br from-blue-primary to-blue-600 rounded-xl p-6 text-white shadow-lg hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+                                <div class="flex items-center justify-between mb-4">
+                                    <div class="w-12 h-12 bg-white/20 rounded-lg flex items-center justify-center">
+                                        <i class="fas fa-chart-line text-2xl"></i>
+                                    </div>
+                                    <i class="fas fa-arrow-right text-lg opacity-70 group-hover:opacity-100 transition-opacity"></i>
+                                </div>
+                                <h3 class="text-xl font-semibold mb-2">Analytics Hub</h3>
+                                <p class="text-blue-100 text-sm">Deep insights into campaign performance, engagement metrics, and optimization opportunities.</p>
+                                <div class="mt-4 flex items-center text-sm">
+                                    <i class="fas fa-chart-bar mr-2"></i>
+                                    <span>Performance Insights</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: QuickActionsSection -->
+
+                <!-- @COMPONENT: DashboardMetrics [Key performance metrics display] -->
+                <!-- Metrics Overview -->
+                <section class="mb-8">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Campaign Overview</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <!-- Total Campaigns -->
+                        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-paper-plane text-blue-primary"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Total Campaigns</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-bind="metrics.totalCampaigns">24</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Open Rate -->
+                        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-eye text-green-600"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Avg. Open Rate</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-bind="metrics.openRate">32.4%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Click Rate -->
+                        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-mouse-pointer text-purple-primary"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">Click Rate</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-bind="metrics.clickRate">8.7%</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AI Suggestions -->
+                        <div class="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
+                            <div class="flex items-center">
+                                <div class="w-10 h-10 bg-pink-100 rounded-lg flex items-center justify-center">
+                                    <i class="fas fa-magic text-pink-primary"></i>
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-gray-600">AI Suggestions</p>
+                                    <p class="text-2xl font-bold text-gray-900" data-bind="metrics.aiSuggestions">156</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: DashboardMetrics -->
+
+                <!-- @COMPONENT: RecentCampaigns [Recent campaign activity list] -->
+                <!-- Recent Campaigns -->
+                <section class="mb-8">
+                    <div class="flex items-center justify-between mb-4">
+                        <h2 class="text-lg font-semibold text-gray-900">Recent Campaigns</h2>
+                        <button class="text-blue-primary text-sm font-medium hover:text-blue-700 transition-colors">View All</button>
+                    </div>
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                        <!-- @MAP: recentCampaigns.map(campaign => ( -->
+                        <div class="border-b border-gray-200 last:border-b-0">
+                            <div class="p-6 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-10 h-10 bg-gradient-to-r from-blue-400 to-purple-500 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-envelope text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-gray-900" data-bind="campaign.name">Summer Product Launch</h3>
+                                            <p class="text-xs text-gray-600" data-bind="campaign.description">Introducing our new product line for summer 2024</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-6">
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-gray-900" data-bind="campaign.sent">2,450</p>
+                                            <p class="text-xs text-gray-600">Sent</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-green-600" data-bind="campaign.openRate">34.2%</p>
+                                            <p class="text-xs text-gray-600">Opened</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-blue-primary" data-bind="campaign.clickRate">9.1%</p>
+                                            <p class="text-xs text-gray-600">Clicked</p>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" data-bind="campaign.status">Completed</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-b border-gray-200 last:border-b-0">
+                            <div class="p-6 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-10 h-10 bg-gradient-to-r from-pink-400 to-red-500 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-envelope text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-gray-900" data-bind="campaign.name">Weekly Newsletter #42</h3>
+                                            <p class="text-xs text-gray-600" data-bind="campaign.description">Latest updates and industry insights</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-6">
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-gray-900" data-bind="campaign.sent">1,832</p>
+                                            <p class="text-xs text-gray-600">Sent</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-green-600" data-bind="campaign.openRate">28.7%</p>
+                                            <p class="text-xs text-gray-600">Opened</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-blue-primary" data-bind="campaign.clickRate">6.3%</p>
+                                            <p class="text-xs text-gray-600">Clicked</p>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800" data-bind="campaign.status">Active</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="border-b border-gray-200 last:border-b-0">
+                            <div class="p-6 hover:bg-gray-50 transition-colors">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center space-x-4">
+                                        <div class="w-10 h-10 bg-gradient-to-r from-indigo-400 to-purple-500 rounded-lg flex items-center justify-center">
+                                            <i class="fas fa-envelope text-white text-sm"></i>
+                                        </div>
+                                        <div>
+                                            <h3 class="text-sm font-semibold text-gray-900" data-bind="campaign.name">Black Friday Preview</h3>
+                                            <p class="text-xs text-gray-600" data-bind="campaign.description">Early access to our biggest sale of the year</p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-6">
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-gray-900" data-bind="campaign.sent">3,127</p>
+                                            <p class="text-xs text-gray-600">Sent</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-green-600" data-bind="campaign.openRate">45.1%</p>
+                                            <p class="text-xs text-gray-600">Opened</p>
+                                        </div>
+                                        <div class="text-center">
+                                            <p class="text-sm font-medium text-blue-primary" data-bind="campaign.clickRate">12.8%</p>
+                                            <p class="text-xs text-gray-600">Clicked</p>
+                                        </div>
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800" data-bind="campaign.status">Completed</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </section>
+                <!-- @END_COMPONENT: RecentCampaigns -->
+            </main>
+        </div>
+        <!-- @END_COMPONENT: MainContent -->
+    </div>
+    <!-- @END_COMPONENT: Layout -->
+
+    <!-- @COMPONENT: AICampaignAgentModal [Campaign wizard modal with AI assistance] -->
+    <!-- AI Campaign Agent Modal -->
+    <div id="aiCampaignModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" data-modal="aiCampaignAgent">
+        <div class="bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="sticky top-0 bg-white rounded-t-xl border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-r from-purple-primary to-pink-primary rounded-lg flex items-center justify-center">
+                            <i class="fas fa-robot text-white text-sm"></i>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">AI Campaign Agent</h2>
+                    </div>
+                    <button class="text-gray-400 hover:text-gray-600 transition-colors" data-event="click:closeModal">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+
+                <!-- Step Indicators -->
+                <!-- @STATE: currentStep:number = 1 -->
+                <div class="mt-4">
+                    <div class="flex items-center space-x-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-purple-primary text-white rounded-full flex items-center justify-center text-sm font-medium">1</div>
+                            <span class="text-sm font-medium text-purple-primary">Campaign Details</span>
+                        </div>
+                        <div class="flex-1 h-0.5 bg-gray-200"></div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-medium">2</div>
+                            <span class="text-sm text-gray-500">AI Generation</span>
+                        </div>
+                        <div class="flex-1 h-0.5 bg-gray-200"></div>
+                        <div class="flex items-center space-x-2">
+                            <div class="w-8 h-8 bg-gray-200 text-gray-500 rounded-full flex items-center justify-center text-sm font-medium">3</div>
+                            <span class="text-sm text-gray-500">Review & Send</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="p-6">
+                <!-- Step 1: Campaign Details -->
+                <div id="step1" class="space-y-6">
+                    <!-- AI Tip -->
+                    <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                        <div class="flex items-start space-x-3">
+                            <i class="fas fa-lightbulb text-blue-primary mt-0.5"></i>
+                            <div>
+                                <h4 class="text-sm font-medium text-blue-900">AI Tip</h4>
+                                <p class="text-sm text-blue-700 mt-1">Provide context about your campaign to help our AI generate more relevant email templates, subject lines, and optimization suggestions.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Campaign Name Field -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Campaign Name</label>
+                        <input type="text" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent" placeholder="Enter campaign name" data-bind="campaign.name">
+                    </div>
+
+                    <!-- Campaign Context Field -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Campaign Context</label>
+                        <div class="relative">
+                            <textarea class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none" placeholder="Describe your campaign goals, target audience, and key message..." data-bind="campaign.context"></textarea>
+                            <button class="absolute top-3 right-3 text-purple-primary hover:text-purple-700 transition-colors" data-event="click:generateContext" data-implementation="Should use AI to suggest campaign context">
+                                <i class="fas fa-magic"></i>
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500 mt-1">AI will use this context to generate relevant email templates and suggestions</p>
+                    </div>
+
+                    <!-- Handover Goals Field -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Handover Goals</label>
+                        <div class="relative">
+                            <textarea class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-20 resize-none" placeholder="What action do you want recipients to take?" data-bind="campaign.goals"></textarea>
+                            <button class="absolute top-3 right-3 text-purple-primary hover:text-purple-700 transition-colors" data-event="click:generateGoals" data-implementation="Should use AI to suggest campaign goals">
+                                <i class="fas fa-magic"></i>
+                            </button>
+                        </div>
+
+                        <!-- AI Goal Suggestions -->
+                        <div class="mt-3 space-y-2">
+                            <p class="text-xs font-medium text-gray-600">AI Suggestions:</p>
+                            <div class="flex flex-wrap gap-2">
+                                <button class="px-3 py-1 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-xs transition-colors" data-event="click:selectGoalSuggestion">Drive website traffic</button>
+                                <button class="px-3 py-1 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-xs transition-colors" data-event="click:selectGoalSuggestion">Increase product sales</button>
+                                <button class="px-3 py-1 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-xs transition-colors" data-event="click:selectGoalSuggestion">Generate leads</button>
+                                <button class="px-3 py-1 bg-gray-100 hover:bg-purple-100 text-gray-700 hover:text-purple-700 rounded-full text-xs transition-colors" data-event="click:selectGoalSuggestion">Build brand awareness</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step Navigation -->
+                <div class="flex items-center justify-between pt-6 border-t border-gray-200 mt-6">
+                    <button class="px-4 py-2 text-gray-600 hover:text-gray-900 transition-colors" disabled>Previous</button>
+                    <button class="bg-gradient-to-r from-purple-primary to-pink-primary text-white px-6 py-2 rounded-lg font-medium hover:shadow-lg transition-all duration-200" data-event="click:nextStep" data-implementation="Should validate form and proceed to AI generation step">
+                        Generate with AI
+                        <i class="fas fa-arrow-right ml-2"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: AICampaignAgentModal -->
+
+    <!-- @COMPONENT: AnalyticsHubModal [Analytics and insights modal] -->
+    <!-- Analytics Hub Modal -->
+    <div id="analyticsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50" data-modal="analyticsHub">
+        <div class="bg-white rounded-xl shadow-2xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <!-- Modal Header -->
+            <div class="sticky top-0 bg-white rounded-t-xl border-b border-gray-200 px-6 py-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gradient-to-r from-blue-primary to-blue-600 rounded-lg flex items-center justify-center">
+                            <i class="fas fa-chart-line text-white text-sm"></i>
+                        </div>
+                        <h2 class="text-xl font-semibold text-gray-900">Analytics Hub</h2>
+                    </div>
+                    <button class="text-gray-400 hover:text-gray-600 transition-colors" data-event="click:closeAnalyticsModal">
+                        <i class="fas fa-times text-lg"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analytics Content -->
+            <div class="p-6">
+                <!-- Performance Overview -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div class="bg-gradient-to-r from-green-50 to-green-100 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-trending-up text-green-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm text-green-800 font-medium">Total Opens</p>
+                                <p class="text-2xl font-bold text-green-900" data-bind="analytics.totalOpens">18,432</p>
+                                <p class="text-xs text-green-700">+12% from last month</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-blue-50 to-blue-100 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-mouse-pointer text-blue-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm text-blue-800 font-medium">Total Clicks</p>
+                                <p class="text-2xl font-bold text-blue-900" data-bind="analytics.totalClicks">4,127</p>
+                                <p class="text-xs text-blue-700">+8% from last month</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gradient-to-r from-purple-50 to-purple-100 rounded-lg p-4">
+                        <div class="flex items-center">
+                            <i class="fas fa-users text-purple-600 text-xl mr-3"></i>
+                            <div>
+                                <p class="text-sm text-purple-800 font-medium">New Subscribers</p>
+                                <p class="text-2xl font-bold text-purple-900" data-bind="analytics.newSubscribers">892</p>
+                                <p class="text-xs text-purple-700">+23% from last month</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Campaign Performance Chart Placeholder -->
+                <div class="bg-gray-50 rounded-lg p-6 mb-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Campaign Performance Trend</h3>
+                    <div class="h-64 bg-white rounded border-2 border-dashed border-gray-300 flex items-center justify-center">
+                        <div class="text-center">
+                            <i class="fas fa-chart-line text-4xl text-gray-400 mb-2"></i>
+                            <p class="text-gray-500">Performance chart visualization</p>
+                            <p class="text-sm text-gray-400">Integration with charting library required</p>
+                        </div>
+                    </div>
+                    <!-- @FUNCTIONALITY: This should display a line chart showing campaign performance over time using Chart.js or similar library -->
+                </div>
+
+                <!-- Top Performing Campaigns -->
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Top Performing Campaigns</h3>
+                    <div class="space-y-3">
+                        <!-- @MAP: topCampaigns.map(campaign => ( -->
+                        <div class="bg-white rounded-lg border border-gray-200 p-4">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h4 class="font-medium text-gray-900" data-bind="campaign.name">Black Friday Preview</h4>
+                                    <p class="text-sm text-gray-600" data-bind="campaign.date">Nov 15, 2024</p>
+                                </div>
+                                <div class="flex items-center space-x-4">
+                                    <div class="text-center">
+                                        <p class="text-sm font-medium text-gray-900" data-bind="campaign.openRate">45.1%</p>
+                                        <p class="text-xs text-gray-500">Open Rate</p>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-sm font-medium text-gray-900" data-bind="campaign.clickRate">12.8%</p>
+                                        <p class="text-xs text-gray-500">Click Rate</p>
+                                    </div>
+                                    <div class="text-center">
+                                        <p class="text-sm font-medium text-gray-900" data-bind="campaign.revenue">$2,847</p>
+                                        <p class="text-xs text-gray-500">Revenue</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <!-- @END_MAP )) -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- @END_COMPONENT: AnalyticsHubModal -->
+
+    <script>
+    (function() {
+        // Modal management
+        const modals = {
+            aiCampaign: document.getElementById('aiCampaignModal'),
+            analytics: document.getElementById('analyticsModal')
+        };
+
+        // Show modal
+        function showModal(modalName) {
+            const modal = modals[modalName];
+            if (modal) {
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                document.body.style.overflow = 'hidden';
+            }
+        }
+
+        // Hide modal
+        function hideModal(modalName) {
+            const modal = modals[modalName];
+            if (modal) {
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Hide all modals
+        function hideAllModals() {
+            Object.keys(modals).forEach(hideModal);
+        }
+
+        // Event listeners for quick action cards
+        document.querySelector('[data-event="click:openAICampaignAgent"]').addEventListener('click', () => {
+            showModal('aiCampaign');
+        });
+
+        document.querySelector('[data-event="click:openAnalyticsHub"]').addEventListener('click', () => {
+            showModal('analytics');
+        });
+
+        // Event listeners for modal close buttons
+        document.querySelector('[data-event="click:closeModal"]').addEventListener('click', () => {
+            hideModal('aiCampaign');
+        });
+
+        document.querySelector('[data-event="click:closeAnalyticsModal"]').addEventListener('click', () => {
+            hideModal('analytics');
+        });
+
+        // Close modals when clicking outside
+        Object.values(modals).forEach(modal => {
+            modal.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    hideAllModals();
+                }
+            });
+        });
+
+        // AI suggestion buttons
+        document.querySelectorAll('[data-event="click:selectGoalSuggestion"]').forEach(button => {
+            button.addEventListener('click', function() {
+                const textarea = document.querySelector('[data-bind="campaign.goals"]');
+                const currentValue = textarea.value;
+                const suggestion = this.textContent;
+                
+                if (currentValue) {
+                    textarea.value = currentValue + ', ' + suggestion;
+                } else {
+                    textarea.value = suggestion;
+                }
+                
+                // Visual feedback
+                this.classList.add('bg-purple-100', 'text-purple-700');
+                this.classList.remove('bg-gray-100', 'text-gray-700');
+            });
+        });
+
+        // AI magic buttons for content generation
+        document.querySelectorAll('[data-event*="generate"]').forEach(button => {
+            button.addEventListener('click', function() {
+                // Add loading state
+                const icon = this.querySelector('i');
+                icon.className = 'fas fa-spinner fa-spin';
+                
+                // TODO: Implement AI content generation API call
+                setTimeout(() => {
+                    icon.className = 'fas fa-magic';
+                    // Add generated content to respective fields
+                }, 2000);
+            });
+        });
+
+        // Create AI Agent placeholder
+        document.querySelector('[data-event="click:openCreateAIAgent"]').addEventListener('click', () => {
+            // TODO: Implement Create AI Agent modal
+            console.log('Create AI Agent clicked - Modal implementation needed');
+        });
+
+        // New Campaign button
+        document.querySelector('[data-event="click:openCampaignWizard"]').addEventListener('click', () => {
+            showModal('aiCampaign');
+        });
+
+        // Step navigation
+        document.querySelector('[data-event="click:nextStep"]').addEventListener('click', () => {
+            // TODO: Implement step validation and progression
+            console.log('Next step - Form validation and AI generation needed');
+        });
+
+        // Escape key to close modals
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') {
+                hideAllModals();
+            }
+        });
+    })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+
+# Environment variables - NEVER commit these!
+.env
+.env.local
+
+# Test files with exposed keys - delete when complete
+test-mailgun-inbound.sh
+check-v2-messages.sql
+setup-v2-riley.sql
+.env.development
+.env.test
+.env.production
+
+# Amazon Q
+.amazonq/
+# Build artifacts and test output
+dist-test/
+test-*.js
+test-*.json

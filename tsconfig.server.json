@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "strict": true,
+    "types": ["node"],
+    "typeRoots": ["./types", "./node_modules/@types"]
+  },
+  "include": ["server/**/*.ts", "shared/**/*.ts", "types/**/*.d.ts"],
+  "exclude": ["node_modules", "dist", "coverage", "drizzle/**/*.ts", "**/*.test.ts", "client/**/*", "server/vite.ts", "vite.config.ts", "vite.config.render.ts"]
+}
