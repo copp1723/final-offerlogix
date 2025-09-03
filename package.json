@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "NODE_ENV=development tsx server/index.ts",
     "build": "npx vite build",
-    "build:render": "npx vite build --config vite.config.render.ts && node build-server.js",
-    "start": "NODE_ENV=production node dist/server.js",
+    "build:render": "npx vite build --config vite.config.render.ts",
+    "start": "NODE_ENV=production npx tsx server/index.ts",
     "check": "echo 'TypeScript checking disabled for now'",
     "typecheck": "echo 'TypeScript checking disabled for now'",
     "lint": "eslint .",
@@ -157,7 +157,8 @@
     "ws": "^8.18.0",
     "zod": "^3.24.2",
     "zod-validation-error": "^3.4.0",
-    "esbuild": "^0.25.9"
+    "esbuild": "^0.25.9",
+    "tsx": "^4.19.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",
@@ -189,7 +190,6 @@
     "prettier": "^3.6.2",
     "supertest": "^6.3.4",
     "ts-jest": "^29.4.1",
-    "tsx": "^4.19.1",
     "typescript": "5.6.3"
   },
   "optionalDependencies": {

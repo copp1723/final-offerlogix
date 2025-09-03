@@ -1,18 +1,24 @@
-import { build } from 'esbuild';
-import { nodeExternalsPlugin } from 'esbuild-node-externals';
+const esbuild = require('esbuild');
 
 async function buildServer() {
   try {
-    await build({
+    await esbuild.build({
       entryPoints: ['server/index.ts'],
       bundle: true,
       platform: 'node',
       target: 'node20',
       outfile: 'dist/server.js',
-      format: 'esm',
+      format: 'cjs',
       sourcemap: true,
       minify: false,
-      plugins: [nodeExternalsPlugin()],
+      external: [
+        // Node built-ins
+        'fs', 'path', 'crypto', 'os', 'stream', 'util', 'http', 'https', 'net', 'tls', 'dns', 'events', 'child_process', 'worker_threads', 'perf_hooks',
+        // Dependencies that should not be bundled
+        'express', 'pg', 'postgres', 'drizzle-orm', 'bcrypt', 'jsonwebtoken', 'winston', 'mailgun.js', 'bull', 'ioredis',
+        'dotenv', 'helmet', 'morgan', 'multer', 'passport', 'express-session', 'express-rate-limit', 'connect-pg-simple',
+        '@neondatabase/serverless', 'ws', 'jsdom', 'mailparser', 'imap-simple', 'node-cron', 'openai', 'tiktoken', 'supermemory'
+      ],
       loader: {
         '.ts': 'ts',
         '.tsx': 'tsx'
