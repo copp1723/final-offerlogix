@@ -69,8 +69,8 @@ export default function Dashboard() {
   }
 
   const tabs = [
-    { value: 'agent' as const, label: 'AI Campaign Agent', icon: Sparkles, count: null, color: 'from-purple-500 to-pink-500' },
-    { value: 'leads' as const, label: 'Smart Leads', icon: Users, count: data.leads.length, color: 'from-blue-500 to-cyan-500' },
+    { value: 'agent' as const, label: 'AI Sales Agent', icon: Sparkles, count: null, color: 'from-purple-500 to-pink-500' },
+    { value: 'leads' as const, label: 'Dealership Prospects', icon: Users, count: data.leads.length, color: 'from-blue-500 to-cyan-500' },
     { value: 'insights' as const, label: 'Insights', icon: TrendingUp, count: null, color: 'from-green-500 to-emerald-500' },
   ];
 
@@ -90,7 +90,7 @@ export default function Dashboard() {
                   <h1 className="text-3xl font-bold">
                     <span className="text-gradient">{branding.companyName}</span>
                   </h1>
-                  <p className="text-sm text-gray-600">Intelligent Email Campaign Platform</p>
+                  <p className="text-sm text-gray-600">Intelligent Financing Solutions Platform</p>
                 </div>
               </div>
               
@@ -104,7 +104,7 @@ export default function Dashboard() {
                         <Zap className="relative w-5 h-5 text-red-500" />
                       </div>
                       <div>
-                        <p className="text-xs text-gray-600">Hot Leads</p>
+                        <p className="text-xs text-gray-600">Priority Dealerships</p>
                         <p className="text-lg font-bold text-red-600">{data.summary.hotLeadsNeedingAttention}</p>
                       </div>
                     </div>
@@ -169,7 +169,7 @@ export default function Dashboard() {
               <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Total Leads</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wider">Total Dealerships</p>
                     <p className="text-2xl font-bold text-gradient">{data.leads.length}</p>
                   </div>
                   <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-lg flex items-center justify-center">
@@ -181,7 +181,7 @@ export default function Dashboard() {
               <div className="glass rounded-xl p-4 hover:shadow-glow transition-all duration-300 transform hover:scale-105">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-xs text-gray-600 uppercase tracking-wider">Hot Leads</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wider">Priority Prospects</p>
                     <p className="text-2xl font-bold text-gradient">
                       {data.leads.filter(l => l.status === 'hot').length}
                     </p>

@@ -51,7 +51,7 @@ export function LeadImportDialog({
     { value: 'email', label: 'Email (Required)' },
     { value: 'phone', label: 'Phone' },
     { value: 'source', label: 'Source' },
-    { value: 'vehicleInterest', label: 'Vehicle Interest' },
+    { value: 'vehicleInterest', label: 'Product Interest' },
     { value: 'employer', label: 'Employer/Company' },
     { value: 'jobTitle', label: 'Job Title' },
     { value: 'income', label: 'Income' },

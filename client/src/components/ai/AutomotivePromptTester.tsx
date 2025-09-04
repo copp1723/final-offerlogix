@@ -23,16 +23,16 @@ import {
 
 interface ConversationContext {
   leadName?: string;
-  vehicleInterest?: string;
+  productInterest?: string;
   urgencyLevel?: 'low' | 'medium' | 'high';
   detectedIntents?: string[];
-  customerMood?: 'interested' | 'frustrated' | 'urgent' | 'hesitant';
+  dealershipMood?: 'interested' | 'frustrated' | 'urgent' | 'hesitant';
 }
 
 export default function AutomotivePromptTester() {
   const [testMessage, setTestMessage] = useState("");
-  const [leadName, setLeadName] = useState("John");
-  const [vehicleInterest, setVehicleInterest] = useState("2025 Toyota Prius");
+  const [leadName, setLeadName] = useState("Smith Auto Group");
+  const [productInterest, setProductInterest] = useState("Instant Credit Platform");
   const [analysisResult, setAnalysisResult] = useState<{
     context: ConversationContext;
     guidelines: string;
@@ -62,7 +62,7 @@ export default function AutomotivePromptTester() {
       analyzeMutation.mutate({
         messageContent: testMessage,
         leadName,
-        vehicleInterest,
+        productInterest,
         previousMessages: []
       });
     }
@@ -96,10 +96,10 @@ export default function AutomotivePromptTester() {
   };
 
   const sampleMessages = [
-    "Hi, I'm interested in scheduling a test drive for the Toyota Prius. What financing options do you have?",
-    "I'm frustrated with my current car breaking down again. I need something reliable urgently!",
-    "I'm thinking about maybe getting a new car, but not sure if now is the right time.",
-    "What's the trade-in value for my 2018 Honda Civic? And can I get 0% APR financing?"
+    "Hi, we're interested in learning more about your instant credit platform. How does integration work?",
+    "Our current financing solution is too slow. We need something that can approve customers instantly!",
+    "We're exploring financing solutions for next quarter, not ready to commit yet.",
+    "What's the pricing structure and what kind of support do you provide for implementation?"
   ];
 
   return (
@@ -136,16 +136,16 @@ export default function AutomotivePromptTester() {
                       id="lead-name"
                       value={leadName}
                       onChange={(e) => setLeadName(e.target.value)}
-                      placeholder="John"
+                      placeholder="Dealership Name"
                     />
                   </div>
                   <div>
-                    <Label htmlFor="vehicle-interest">Vehicle Interest</Label>
+                    <Label htmlFor="product-interest">Product Interest</Label>
                     <Input
-                      id="vehicle-interest"
-                      value={vehicleInterest}
-                      onChange={(e) => setVehicleInterest(e.target.value)}
-                      placeholder="2025 Toyota Prius"
+                      id="product-interest"
+                      value={productInterest}
+                      onChange={(e) => setProductInterest(e.target.value)}
+                      placeholder="e.g., Instant Credit Platform"
                     />
                   </div>
                 </div>

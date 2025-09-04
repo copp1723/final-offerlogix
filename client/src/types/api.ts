@@ -26,7 +26,7 @@ export interface Lead {
   }>;
   
   conversation?: Array<{
-    role: 'customer' | 'agent';
+    role: 'dealership' | 'agent';
     message: string;
     timestamp: string;
   }>;

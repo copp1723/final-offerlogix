@@ -11,9 +11,9 @@ import { Clock, User, Car, AlertTriangle, Target, TrendingUp, CheckCircle } from
 interface HandoverBrief {
   leadName?: string;
   leadEmail: string;
-  vehicleInfo?: string;
+  productInfo?: string;
   campaignSource: string;
-  purchaseWindow?: string;
+  implementationWindow?: string;
   conversationSummary: string;
   keyIntents: string[];
   communicationStyle: string;
@@ -96,10 +96,8 @@ export default function HandoversPage() {
       {/* Header */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">Handover Briefs</h1>
-          <p className="text-sm text-gray-600">
-            AI-generated sales briefs for conversations handed over to humans
-          </p>
+          <h1 className="text-2xl md:text-3xl font-bold">Sales Qualified Dealerships</h1>
+          <p className="text-sm text-gray-600">Dealerships ready for direct sales engagement</p>
         </div>
         <Badge variant="outline" className="text-sm">
           {handovers?.length || 0} pending

@@ -42,8 +42,8 @@ export default function HomePage() {
       {/* Page heading with top-right metrics */}
       <div className="flex justify-between items-start">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold">AI Campaign Management</h1>
-          <p className="text-sm text-gray-600">Monitor and manage your Kunes dealership AI campaigns</p>
+          <h1 className="text-2xl md:text-3xl font-bold">AI Sales Platform</h1>
+          <p className="text-sm text-gray-600">Monitor and manage your dealership outreach campaigns</p>
         </div>
         
         {/* Top-right metrics */}
@@ -57,7 +57,7 @@ export default function HomePage() {
 
           <Card className="min-w-[140px] bg-green-50 border-green-200">
             <CardContent className="p-4 text-center">
-              <div className="text-xs text-gray-500 mb-1">Emails Sent</div>
+              <div className="text-xs text-gray-500 mb-1">Outreach Sent</div>
               <div className="text-2xl text-gray-900">{totalEmailsSent}</div>
             </CardContent>
           </Card>
@@ -81,7 +81,7 @@ export default function HomePage() {
       {/* Active Campaigns */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-gray-900">Active Kunes Campaigns</h2>
+          <h2 className="text-xl font-semibold text-gray-900">Active Dealership Campaigns</h2>
           <button
             onClick={() => setShowCampaignForm(true)}
             className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"

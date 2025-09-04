@@ -230,8 +230,8 @@ export default function Leads() {
       {/* Header Section - V2 Style */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Lead Management</h1>
-          <p className="text-gray-600 mt-1">Track and manage your sales leads with intelligent insights</p>
+          <h1 className="text-2xl font-bold text-gray-900">Dealership Management</h1>
+          <p className="text-gray-600 mt-1">Track and manage your dealership relationships with intelligent insights</p>
         </div>
         <div className="flex gap-3">
           <LeadCampaignAssignment
@@ -247,13 +247,13 @@ export default function Leads() {
             <DialogTrigger asChild>
               <Button className="shadow-sm">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Lead
+                Add Dealership
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Create New Lead</DialogTitle>
-                <DialogDescription>Add a new lead to your system with their contact information</DialogDescription>
+                <DialogTitle>Add New Dealership</DialogTitle>
+                <DialogDescription>Add a new dealership prospect to your system</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateLead} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -275,21 +275,21 @@ export default function Leads() {
                   <Input id="phone" name="phone" type="tel" />
                 </div>
                 <div>
-                  <Label htmlFor="vehicleInterest">Vehicle Interest</Label>
-                  <Input id="vehicleInterest" name="vehicleInterest" placeholder="e.g., 2024 Toyota Camry" />
+                  <Label htmlFor="vehicleInterest">Product Interest</Label>
+                  <Input id="vehicleInterest" name="vehicleInterest" placeholder="e.g., Instant Credit Platform, AI Agents" />
                 </div>
                 <div>
-                  <Label htmlFor="leadSource">Lead Source</Label>
+                  <Label htmlFor="leadSource">Source</Label>
                   <Select name="leadSource">
                     <SelectTrigger>
                       <SelectValue placeholder="Select source" />
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="website">Website</SelectItem>
-                      <SelectItem value="showroom">Showroom</SelectItem>
+                      <SelectItem value="conference">Conference</SelectItem>
                       <SelectItem value="referral">Referral</SelectItem>
                       <SelectItem value="social_media">Social Media</SelectItem>
-                      <SelectItem value="advertising">Advertising</SelectItem>
+                      <SelectItem value="cold_outreach">Cold Outreach</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -314,7 +314,7 @@ export default function Leads() {
                   <Textarea id="notes" name="notes" placeholder="Additional notes..." />
                 </div>
                 <Button type="submit" className="w-full" disabled={createLeadMutation.isPending}>
-                  {createLeadMutation.isPending ? "Creating..." : "Create Lead"}
+                  {createLeadMutation.isPending ? "Creating..." : "Add Dealership"}
                 </Button>
               </form>
             </DialogContent>
@@ -322,14 +322,14 @@ export default function Leads() {
         </div>
       </div>
 
-      {/* Lead Statistics - V2 Style */}
+      {/* Dealership Statistics - V2 Style */}
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card className="border border-gray-200 shadow-sm">
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold text-gray-900">{leadStats.total}</div>
-                <div className="text-sm text-gray-600">Total Leads</div>
+                <div className="text-sm text-gray-600">Total Dealerships</div>
               </div>
               <Users className="h-8 w-8 text-gray-400" />
             </div>
@@ -391,7 +391,7 @@ export default function Leads() {
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground">
           When conversation data is available, this section will list concrete next actions
-          like “Call Sarah (asked for April follow‑up)” or “Email Bob (opened last 5 emails, no reply)”.
+          like "Schedule demo with Smith Auto Group" or "Follow up with Johnson Motors (interested in credit solutions)".
         </CardContent>
       </Card>
 
@@ -404,8 +404,8 @@ export default function Leads() {
             <div className="flex items-center gap-3">
               <Upload className="h-5 w-5 text-gray-400" />
               <div>
-                <div className="font-medium text-gray-900">Import Leads</div>
-                <div className="text-sm text-gray-600">Upload CSV with lead data</div>
+                <div className="font-medium text-gray-900">Import Dealerships</div>
+                <div className="text-sm text-gray-600">Upload CSV with dealership data</div>
               </div>
             </div>
             <div className="flex items-center gap-3">
@@ -448,13 +448,13 @@ export default function Leads() {
           <div className="flex items-center justify-between">
             <CardTitle className="flex items-center gap-2 text-lg font-semibold text-gray-900">
               <FileText className="h-5 w-5" />
-              Leads
+              Dealerships
             </CardTitle>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search leads..."
+                  placeholder="Search dealerships..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-64"
@@ -478,10 +478,10 @@ export default function Leads() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8">Loading leads...</div>
+            <div className="text-center py-8">Loading dealerships...</div>
           ) : filteredLeads.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
-              No leads found. Add leads manually or upload a CSV file.
+              No dealerships found. Add dealerships manually or upload a CSV file.
             </div>
           ) : (
             <Table>
@@ -502,7 +502,7 @@ export default function Leads() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Vehicle Interest</TableHead>
+                  <TableHead>Product Interest</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -552,9 +552,9 @@ export default function Leads() {
                         <SelectContent>
                           <SelectItem value="new">New</SelectItem>
                           <SelectItem value="contacted">Contacted</SelectItem>
-                          <SelectItem value="qualified">Qualified</SelectItem>
-                          <SelectItem value="converted">Converted</SelectItem>
-                          <SelectItem value="lost">Lost</SelectItem>
+                          <SelectItem value="qualified">Demo Scheduled</SelectItem>
+                          <SelectItem value="converted">Customer</SelectItem>
+                          <SelectItem value="lost">Not Interested</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
@@ -628,9 +628,9 @@ export default function Leads() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Delete Lead</AlertDialogTitle>
+                            <AlertDialogTitle>Delete Dealership</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to delete this lead? This action cannot be undone.
+                              Are you sure you want to delete this dealership? This action cannot be undone.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>

@@ -419,7 +419,7 @@ function EmailRuleForm({
                 ...prev, 
                 conditions: { ...prev.conditions, subject: e.target.value }
               }))}
-              placeholder="e.g., car|auto|vehicle|financing"
+              placeholder="e.g., credit|financing|platform|integration"
             />
           </div>
 
@@ -432,7 +432,7 @@ function EmailRuleForm({
                 ...prev, 
                 conditions: { ...prev.conditions, from: e.target.value }
               }))}
-              placeholder="e.g., gmail.com, customer@example.com"
+              placeholder="e.g., dealership.com, contact@dealer.com"
             />
           </div>
 

@@ -140,7 +140,7 @@ export function SMSIntegration({
             </Select>
             <div className="text-sm text-muted-foreground">
               {communicationType === 'email' && "Campaign will use email communication only."}
-              {communicationType === 'email_sms' && "Start with email, offer SMS option if customer shows interest."}
+              {communicationType === 'email_sms' && "Start with email, offer SMS option if dealership shows interest."}
               {communicationType === 'sms' && "Campaign will use SMS communication only."}
             </div>
           </div>
@@ -150,7 +150,7 @@ export function SMSIntegration({
               <div className="space-y-3">
                 <div className="text-sm font-medium">Email → SMS Handover</div>
                 <div className="text-sm text-muted-foreground">
-                  When a customer responds positively to your emails or shows interest, 
+                  When a dealership responds positively to your emails or shows interest, 
                   the system will automatically offer SMS communication for faster responses.
                 </div>
                 <div className="text-xs text-muted-foreground">
@@ -176,9 +176,9 @@ export function SMSIntegration({
                     <div>
                       <span className="font-medium">SMS Status:</span>
                       <div className="text-muted-foreground">
-                        {smsStatus.optInStatus === 'opted-in' && "Customer opted in for SMS"}
-                        {smsStatus.optInStatus === 'opted-out' && "Customer declined SMS"}
-                        {smsStatus.optInStatus === 'pending' && "Waiting for customer response"}
+                        {smsStatus.optInStatus === 'opted-in' && "Dealership opted in for SMS"}
+                        {smsStatus.optInStatus === 'opted-out' && "Dealership declined SMS"}
+                        {smsStatus.optInStatus === 'pending' && "Waiting for dealership response"}
                         {smsStatus.optInStatus === 'unknown' && "SMS not requested yet"}
                       </div>
                     </div>
@@ -213,7 +213,7 @@ export function SMSIntegration({
                 <div className="p-3 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
                   <div className="text-sm text-blue-700 dark:text-blue-300">
                     <Clock className="h-4 w-4 inline mr-1" />
-                    SMS opt-in request sent. Waiting for customer response.
+                    SMS opt-in request sent. Waiting for dealership response.
                   </div>
                 </div>
               )}

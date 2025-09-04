@@ -10,7 +10,7 @@ function deriveFacts(lead: Lead | null, messages: ConversationMessage[]): string
   const facts: string[] = [];
   if (lead?.vehicleInterest) facts.push(`Interested in ${lead.vehicleInterest}`);
   const lastMsg = messages?.[0];
-  if (lastMsg?.content && lastMsg.content.trim()) facts.push(`Last inbound: "${lastMsg.content.slice(0, 80)}${lastMsg.content.length > 80 ? "…" : ""}"`);
+  if (lastMsg?.content && lastMsg.content.trim()) facts.push(`Last message: "${lastMsg.content.slice(0, 80)}${lastMsg.content.length > 80 ? "…" : ""}"`);
   if (lead?.notes && facts.length < 2) facts.push(`Notes: ${String(lead.notes).slice(0, 80)}${String(lead.notes).length > 80 ? "…" : ""}`);
   while (facts.length < 2) facts.push("Expressed interest; awaiting follow-up");
   return facts.slice(0, 4);
@@ -46,7 +46,7 @@ function deriveNextSteps(lead: Lead | null, messages: ConversationMessage[]): { 
     });
   }
 
-  // Vehicle intro when we have interest
+  // Product intro when we have interest
   if (lead?.vehicleInterest) {
     steps.push({
       label: `Introduce ${lead.vehicleInterest}`,

@@ -29,7 +29,7 @@ const navigation: NavItem[] = [
     icon: MessageSquare,
   },
   {
-    name: "Leads",
+    name: "Dealerships",
     href: "/leads",
     icon: Users,
   },

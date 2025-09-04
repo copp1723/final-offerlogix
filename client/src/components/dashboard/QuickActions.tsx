@@ -25,7 +25,7 @@ export default function QuickActions() {
     },
     {
       title: "Email Monitor",
-      description: "Monitor incoming customer emails",
+      description: "Monitor incoming dealership inquiries",
       icon: Mail,
       href: "/email-monitor",
       color: "bg-purple-500 hover:bg-purple-600",
