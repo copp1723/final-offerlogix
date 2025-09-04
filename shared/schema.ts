@@ -146,18 +146,26 @@ export const aiAgentConfig = pgTable("ai_agent_config", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 
-// Leads table for automotive campaign management
+// Leads table for B2B dealership relationship management
 export const leads = pgTable("leads", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   email: varchar("email").notNull(),
   firstName: varchar("first_name"),
   lastName: varchar("last_name"),
   phone: varchar("phone"),
-  vehicleInterest: varchar("vehicle_interest"), // Vehicle model/type they're interested in
-  leadSource: varchar("lead_source"), // Website, showroom, referral, etc.
-  status: varchar("status").default("new"), // new, contacted, qualified, converted, lost
+  productInterest: varchar("product_interest"), // OfferLogix products/solutions they're interested in
+  leadSource: varchar("lead_source"), // conference, cold_outreach, partner_referral, demo_request, etc.
+  status: varchar("status").default("new"), // new, contacted, demo_scheduled, negotiating, customer, not_interested
   tags: varchar("tags").array(), // For categorization
   notes: text("notes"),
+  
+  // B2B specific fields
+  companyName: varchar("company_name"), // Dealership or automotive group name
+  dealershipType: varchar("dealership_type"), // franchise, independent, buy-here-pay-here
+  decisionMakerRole: varchar("decision_maker_role"), // owner, finance_manager, general_manager, sales_director
+  annualVolume: integer("annual_volume"), // Annual vehicle sales volume
+  currentFinanceProvider: varchar("current_finance_provider"), // Current finance solution provider
+  
   campaignId: varchar("campaign_id").references(() => campaigns.id),
   clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow(),
