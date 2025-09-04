@@ -76,6 +76,12 @@ export default function AiSettingsPage() {
   const queryClient = useQueryClient();
   const [, setLocation] = useLocation();
 
+  // Handler for campaign navigation
+  const handleCampaignNavigation = () => {
+    console.log('Navigating to campaigns page...');
+    setLocation('/campaigns');
+  };
+
   const { data: configs, isLoading } = useQuery({
     queryKey: ["/api/ai-agent-configs"],
   });
@@ -283,7 +289,12 @@ export default function AiSettingsPage() {
           <p className="text-gray-600 mt-1">Configure AI agents, test prompts, and manage intelligent campaigns</p>
         </div>
         <div className="flex gap-3">
-          <Button onClick={() => handleEdit()} className="shadow-sm">
+          <Button 
+            onClick={() => handleEdit()} 
+            className="shadow-sm relative z-10"
+            type="button"
+            style={{ pointerEvents: 'auto' }}
+          >
             <Plus className="h-4 w-4 mr-2" />
             New AI Agent
           </Button>
@@ -707,7 +718,12 @@ export default function AiSettingsPage() {
                   </CardTitle>
                   <CardDescription>Intelligent campaigns powered by your AI agents</CardDescription>
                 </div>
-                <Button className="shadow-sm">
+                <Button 
+                  className="shadow-sm relative z-10"
+                  onClick={handleCampaignNavigation}
+                  type="button"
+                  style={{ pointerEvents: 'auto' }}
+                >
                   <Plus className="h-4 w-4 mr-2" />
                   New AI Campaign
                 </Button>
@@ -823,7 +839,12 @@ export default function AiSettingsPage() {
                     </div>
                     <h3 className="text-lg font-semibold text-gray-900 mb-2">Create Your First AI Campaign</h3>
                     <p className="text-gray-600 mb-4">Set up intelligent campaigns that automatically respond to leads using your configured AI agents.</p>
-                    <Button className="shadow-sm">
+                    <Button 
+                      className="shadow-sm relative z-10"
+                      onClick={handleCampaignNavigation}
+                      type="button"
+                      style={{ pointerEvents: 'auto' }}
+                    >
                       <Zap className="h-4 w-4 mr-2" />
                       Create AI Campaign
                     </Button>
