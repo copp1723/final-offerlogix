@@ -230,8 +230,8 @@ export default function Leads() {
       {/* Header Section - V2 Style */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dealership Management</h1>
-          <p className="text-gray-600 mt-1">Track and manage your dealership relationships with intelligent insights</p>
+          <h1 className="text-2xl font-bold text-gray-900">Lead Management</h1>
+          <p className="text-gray-600 mt-1">Track and manage your dealership leads and outreach campaigns</p>
         </div>
         <div className="flex gap-3">
           <LeadCampaignAssignment
@@ -247,13 +247,13 @@ export default function Leads() {
             <DialogTrigger asChild>
               <Button className="shadow-sm">
                 <Plus className="h-4 w-4 mr-2" />
-                Add Dealership
+                Add Lead
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Add New Dealership</DialogTitle>
-                <DialogDescription>Add a new dealership prospect to your system</DialogDescription>
+                <DialogTitle>Add New Lead</DialogTitle>
+                <DialogDescription>Add a new dealership lead for outreach</DialogDescription>
               </DialogHeader>
               <form onSubmit={handleCreateLead} className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -275,8 +275,23 @@ export default function Leads() {
                   <Input id="phone" name="phone" type="tel" />
                 </div>
                 <div>
-                  <Label htmlFor="vehicleInterest">Product Interest</Label>
-                  <Input id="vehicleInterest" name="vehicleInterest" placeholder="e.g., Instant Credit Platform, AI Agents" />
+                  <Label htmlFor="companyName">Dealership *</Label>
+                  <Input id="companyName" name="companyName" placeholder="e.g., Premier Auto Group" required />
+                </div>
+                <div>
+                  <Label htmlFor="vehicleInterest">Product to Pitch</Label>
+                  <Select name="vehicleInterest">
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select product" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="instant_credit">Instant Credit Platform</SelectItem>
+                      <SelectItem value="ai_agents">AI Financing Agents</SelectItem>
+                      <SelectItem value="credit_api">Credit Decision API</SelectItem>
+                      <SelectItem value="full_suite">Full Platform Suite</SelectItem>
+                      <SelectItem value="subprime_module">Subprime Financing Module</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label htmlFor="leadSource">Source</Label>
@@ -314,7 +329,7 @@ export default function Leads() {
                   <Textarea id="notes" name="notes" placeholder="Additional notes..." />
                 </div>
                 <Button type="submit" className="w-full" disabled={createLeadMutation.isPending}>
-                  {createLeadMutation.isPending ? "Creating..." : "Add Dealership"}
+                  {createLeadMutation.isPending ? "Creating..." : "Add Lead"}
                 </Button>
               </form>
             </DialogContent>
@@ -329,7 +344,7 @@ export default function Leads() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-2xl font-bold text-gray-900">{leadStats.total}</div>
-                <div className="text-sm text-gray-600">Total Dealerships</div>
+                <div className="text-sm text-gray-600">Total Leads</div>
               </div>
               <Users className="h-8 w-8 text-gray-400" />
             </div>
@@ -454,7 +469,7 @@ export default function Leads() {
               <div className="flex items-center gap-2">
                 <Search className="h-4 w-4 text-gray-400" />
                 <Input
-                  placeholder="Search dealerships..."
+                  placeholder="Search leads..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-64"
@@ -502,7 +517,8 @@ export default function Leads() {
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
                   <TableHead>Phone</TableHead>
-                  <TableHead>Product Interest</TableHead>
+                  <TableHead>Dealership</TableHead>
+                  <TableHead>Product</TableHead>
                   <TableHead>Source</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Created</TableHead>
@@ -535,6 +551,7 @@ export default function Leads() {
                     </TableCell>
                     <TableCell>{lead.email}</TableCell>
                     <TableCell>{lead.phone || "—"}</TableCell>
+                    <TableCell>{lead.companyName || "—"}</TableCell>
                     <TableCell>{lead.vehicleInterest || "—"}</TableCell>
                     <TableCell>{lead.leadSource || "—"}</TableCell>
                     <TableCell>

@@ -47,7 +47,7 @@ export default function LeadSelectionStep({ campaignId, onNext, onBack }: LeadSe
       queryClient.invalidateQueries({ queryKey: ["/api/leads"] });
       toast({
         title: "Success",
-        description: `Uploaded ${data.uploaded} dealerships successfully`,
+        description: `Uploaded ${data.uploaded} leads successfully`,
       });
       setSelectedFile(null);
       setUploadProgress(0);
