@@ -1,6 +1,6 @@
-# MailMind Testing Documentation
+# OfferLogix Testing Documentation
 
-This directory contains comprehensive test suite for the MailMind application, providing confidence in code reliability and system functionality.
+This directory contains comprehensive test suite for the OfferLogix application, providing confidence in code reliability and system functionality.
 
 ## 🎯 Overview
 
@@ -69,7 +69,7 @@ Create a `.env.test` file (automatically created by setup script):
 
 ```env
 NODE_ENV=test
-TEST_DATABASE_URL=postgresql://test:test@localhost:5432/mailmind_test
+TEST_DATABASE_URL=postgresql://test:test@localhost:5432/offerlogix_test
 MOCK_EXTERNAL_APIS=true
 MOCK_EMAIL_SERVICE=true
 DISABLE_RATE_LIMITING=true

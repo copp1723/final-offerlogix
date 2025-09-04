@@ -1,0 +1,54 @@
+// SIMPLE INBOUND EMAIL PATCH
+// Replace the complex threading section with this simple approach:
+
+// Simple: Every reply creates a new conversation (reliable tracking)
+// Email clients will thread by subject line naturally
+let conversation: any = null;
+
+// Try to find existing conversation by lead
+const existingConversations = await storage.getConversationsByLead(leadInfo.leadId);
+if (existingConversations.length > 0) {
+  // Use most recent conversation for context, but create new one for reply
+  const recentConv = existingConversations[0];
+  console.log('[Simple Email] Found recent conversation, creating new one for reply');
+}
+
+// Always create new conversation for each reply (simple and reliable)
+conversation = await storage.createConversation({
+  leadId: leadInfo.leadId,
+  campaignId: campaign?.id,
+  subject: event.subject || 'Email Reply',
+  status: 'active'
+} as any);
+
+console.log('[Simple Email] Created new conversation for reply:', conversation.id);
+
+// Save the inbound message
+await storage.createConversationMessage({
+  conversationId: conversation.id,
+  senderId: null,
+  messageType: 'email',
+  content: event['stripped-text'] || event['body-plain'],
+  isFromAI: 0
+});
+
+// ... (AI processing remains the same) ...
+
+// Send simple reply (no complex threading)
+await sendThreadedReply({
+  to: extractEmail(event.sender || ''),
+  subject: aiResult.reply_subject || `Re: ${event.subject || 'Your inquiry'}`,
+  html: aiResult.reply_body_html || '',
+  domainOverride: campaign?.agentEmailDomain,
+  conversationId: String(conversation.id),
+  campaignId: campaign?.id ? String(campaign.id) : undefined
+});
+
+// Save the AI reply
+await storage.createConversationMessage({
+  conversationId: conversation.id,
+  senderId: null,
+  messageType: 'email', 
+  content: aiResult.reply_body_html || '',
+  isFromAI: 1
+});

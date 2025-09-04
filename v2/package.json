@@ -1,7 +1,7 @@
 {
-  "name": "mailmind-v2",
+  "name": "offerlogix-v2",
   "version": "2.0.0-alpha",
-  "description": "MailMind V2 - Lean Conversation Engine with Email Threading",
+  "description": "OfferLogix V2 - Lean Conversation Engine with Email Threading",
   "scripts": {
     "test": "jest",
     "test:watch": "jest --watch",

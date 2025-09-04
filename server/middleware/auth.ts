@@ -90,7 +90,7 @@ export const authenticateToken = async (req: AuthenticatedRequest, res: Response
         id: '1',
         username: username,
         role: 'admin',
-        email: `${username}@mailmind.com`,
+        email: `${username}@offerlogix.com`,
         clientId: 'default'
       };
       

@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 
 /**
- * Script to update default client branding from "OneKeel Swarm" to "MailMind"
+ * Script to update default client branding from "OneKeel Swarm" to "OfferLogix"
  * Run this to update existing installations with the new branding
  */
 
@@ -33,14 +33,15 @@ async function updateDefaultBranding() {
       
       // Check if branding needs updating
       if (currentBranding?.companyName === 'OneKeel Swarm' || 
-          currentBranding?.companyName === 'AutoCampaigns AI') {
+          currentBranding?.companyName === 'AutoCampaigns AI' ||
+          currentBranding?.companyName === 'MailMind') {
         
         const updatedBranding = {
           ...currentBranding,
           primaryColor: '#2563eb',
           secondaryColor: '#1e40af',
           logoUrl: '/logo.svg',
-          companyName: 'MailMind',
+          companyName: 'OfferLogix',
           favicon: '',
           customCss: ''
         };

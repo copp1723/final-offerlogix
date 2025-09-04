@@ -2,7 +2,7 @@
 
 ## Overview
 
-MailMind supports advanced template versioning and A/B testing capabilities that allow you to:
+OfferLogix supports advanced template versioning and A/B testing capabilities that allow you to:
 - Create multiple versions of email templates
 - Automatically distribute leads across different template variants
 - Track performance metrics for each variant

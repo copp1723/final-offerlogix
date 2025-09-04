@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferLogix - New Color Scheme Preview</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* OfferLogix Brand Colors - Professional Financial Technology Theme */
+            --background: hsl(220, 14%, 96%);  /* Clean light gray-blue background */
+            --foreground: hsl(220, 13%, 13%);  /* Deep charcoal text */
+            --card: hsl(0, 0%, 100%);          /* Pure white cards */
+            --card-foreground: hsl(220, 13%, 13%);
+            --popover: hsl(0, 0%, 100%);
+            --popover-foreground: hsl(220, 13%, 13%);
+            --primary: hsl(217, 78%, 51%);     /* Professional deep blue - trust/reliability */
+            --primary-foreground: hsl(0, 0%, 100%);
+            --secondary: hsl(220, 14%, 93%);   /* Soft neutral gray */
+            --secondary-foreground: hsl(220, 13%, 13%);
+            --muted: hsl(220, 14%, 93%);
+            --muted-foreground: hsl(220, 9%, 46%);
+            --accent: hsl(197, 71%, 52%);      /* Modern cyan accent - technology/innovation */
+            --accent-foreground: hsl(0, 0%, 100%);
+            --destructive: hsl(0, 84%, 60%);
+            --destructive-foreground: hsl(0, 0%, 100%);
+            --border: hsl(220, 13%, 87%);
+            --input: hsl(220, 14%, 95%);
+            --ring: hsl(217, 78%, 51%);
+        }
+
+        .dark {
+            /* OfferLogix Dark Theme - Professional and Modern */
+            --background: hsl(220, 13%, 9%);   /* Deep charcoal background */
+            --foreground: hsl(220, 14%, 93%);  /* Light gray text */
+            --card: hsl(220, 13%, 11%);        /* Dark card background */
+            --card-foreground: hsl(220, 14%, 93%);
+            --popover: hsl(220, 13%, 11%);
+            --popover-foreground: hsl(220, 14%, 93%);
+            --primary: hsl(217, 78%, 51%);     /* Same primary blue for consistency */
+            --primary-foreground: hsl(0, 0%, 100%);
+            --secondary: hsl(220, 13%, 15%);   /* Darker gray */
+            --secondary-foreground: hsl(220, 14%, 93%);
+            --muted: hsl(220, 13%, 15%);
+            --muted-foreground: hsl(220, 9%, 60%);
+            --accent: hsl(197, 71%, 52%);      /* Same cyan accent */
+            --accent-foreground: hsl(220, 13%, 9%);
+            --destructive: hsl(0, 84%, 60%);
+            --destructive-foreground: hsl(0, 0%, 100%);
+            --border: hsl(220, 13%, 18%);
+            --input: hsl(220, 13%, 15%);
+            --ring: hsl(217, 78%, 51%);
+        }
+
+        body {
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        }
+
+        .card {
+            background-color: hsl(var(--card));
+            color: hsl(var(--card-foreground));
+            border: 1px solid hsl(var(--border));
+        }
+
+        .btn-primary {
+            background-color: hsl(var(--primary));
+            color: hsl(var(--primary-foreground));
+            border: none;
+        }
+
+        .btn-primary:hover {
+            background-color: hsl(217, 78%, 45%);
+        }
+
+        .btn-secondary {
+            background-color: hsl(var(--secondary));
+            color: hsl(var(--secondary-foreground));
+            border: 1px solid hsl(var(--border));
+        }
+
+        .btn-accent {
+            background-color: hsl(var(--accent));
+            color: hsl(var(--accent-foreground));
+            border: none;
+        }
+
+        .btn-accent:hover {
+            background-color: hsl(197, 71%, 45%);
+        }
+
+        .sidebar {
+            background-color: hsl(var(--card));
+            border-right: 1px solid hsl(var(--border));
+        }
+
+        .gradient-primary {
+            background: linear-gradient(135deg, hsl(217, 78%, 51%) 0%, hsl(220, 13%, 13%) 100%);
+        }
+
+        .gradient-secondary {
+            background: linear-gradient(135deg, hsl(197, 71%, 52%) 0%, hsl(217, 78%, 51%) 100%);
+        }
+
+        .gradient-success {
+            background: linear-gradient(135deg, hsl(142, 71%, 45%) 0%, hsl(197, 71%, 52%) 100%);
+        }
+
+        .text-gradient {
+            background: linear-gradient(135deg, hsl(217, 78%, 51%) 0%, hsl(197, 71%, 52%) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .shadow-glow {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.04),
+                        0 0 20px -3px hsla(217, 78%, 51%, 0.15);
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 p-6 space-y-4">
+            <div class="mb-8">
+                <h1 class="text-gradient text-2xl font-bold">OfferLogix</h1>
+                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Penny Perfect Payments</p>
+            </div>
+            
+            <nav class="space-y-2">
+                <a href="#" class="btn-primary block px-4 py-2 rounded-lg">Dashboard</a>
+                <a href="#" class="btn-secondary block px-4 py-2 rounded-lg">Campaigns</a>
+                <a href="#" class="btn-secondary block px-4 py-2 rounded-lg">Leads</a>
+                <a href="#" class="btn-secondary block px-4 py-2 rounded-lg">Conversations</a>
+                <a href="#" class="btn-secondary block px-4 py-2 rounded-lg">Reports</a>
+                <a href="#" class="btn-secondary block px-4 py-2 rounded-lg">Settings</a>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 p-8">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold">Dashboard</h2>
+                    <p style="color: hsl(var(--muted-foreground))">Welcome to your OfferLogix dashboard</p>
+                </div>
+                <div class="flex space-x-3">
+                    <button class="btn-accent px-4 py-2 rounded-lg font-medium">New Campaign</button>
+                    <button class="btn-secondary px-4 py-2 rounded-lg font-medium">Settings</button>
+                    <button class="bg-gray-200 w-10 h-10 rounded-full" style="background-color: hsl(var(--muted))">👤</button>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm" style="color: hsl(var(--muted-foreground))">Active Campaigns</p>
+                            <p class="text-2xl font-bold">24</p>
+                        </div>
+                        <div class="w-12 h-12 gradient-primary rounded-lg flex items-center justify-center text-white text-xl">📊</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm" style="color: hsl(var(--muted-foreground))">Total Leads</p>
+                            <p class="text-2xl font-bold">1,247</p>
+                        </div>
+                        <div class="w-12 h-12 gradient-secondary rounded-lg flex items-center justify-center text-white text-xl">👥</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm" style="color: hsl(var(--muted-foreground))">Response Rate</p>
+                            <p class="text-2xl font-bold">87.3%</p>
+                        </div>
+                        <div class="w-12 h-12 gradient-success rounded-lg flex items-center justify-center text-white text-xl">📈</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm" style="color: hsl(var(--muted-foreground))">Monthly Revenue</p>
+                            <p class="text-2xl font-bold">$42.8K</p>
+                        </div>
+                        <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center text-white text-xl">💰</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Area -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Campaign Performance -->
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <h3 class="text-xl font-semibold mb-4">Campaign Performance</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: hsl(var(--secondary))">
+                            <div>
+                                <p class="font-medium">Ford Dealership Q4</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Active • 342 leads</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-green-600">92.3%</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Response</p>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: hsl(var(--secondary))">
+                            <div>
+                                <p class="font-medium">Honda Spring Promotion</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Active • 189 leads</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-blue-600">85.7%</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Response</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center justify-between p-3 rounded-lg" style="background-color: hsl(var(--secondary))">
+                            <div>
+                                <p class="font-medium">Toyota Year End</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Completed • 567 leads</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-purple-600">94.1%</p>
+                                <p class="text-sm" style="color: hsl(var(--muted-foreground))">Response</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Recent Activity -->
+                <div class="card p-6 rounded-xl shadow-glow">
+                    <h3 class="text-xl font-semibold mb-4">Recent Activity</h3>
+                    <div class="space-y-4">
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background-color: hsl(var(--primary))">📧</div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium">New lead response from John Smith</p>
+                                <p class="text-xs" style="color: hsl(var(--muted-foreground))">Ford F-150 Campaign • 5 minutes ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background-color: hsl(var(--accent))">🚀</div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium">Campaign "Honda Spring Sale" launched</p>
+                                <p class="text-xs" style="color: hsl(var(--muted-foreground))">Marketing Team • 2 hours ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background-color: hsl(var(--accent))">👤</div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium">New user added: Sarah Johnson</p>
+                                <p class="text-xs" style="color: hsl(var(--muted-foreground))">Admin • 4 hours ago</p>
+                            </div>
+                        </div>
+
+                        <div class="flex items-start space-x-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm" style="background-color: hsl(var(--primary))">📊</div>
+                            <div class="flex-1">
+                                <p class="text-sm font-medium">Monthly report generated</p>
+                                <p class="text-xs" style="color: hsl(var(--muted-foreground))">System • 1 day ago</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Color Theme Toggle -->
+            <div class="fixed bottom-6 right-6">
+                <button id="themeToggle" class="btn-accent px-4 py-2 rounded-lg shadow-lg font-medium">
+                    🌙 Dark Mode
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark');
+            themeToggle.textContent = body.classList.contains('dark') ? '☀️ Light Mode' : '🌙 Dark Mode';
+        });
+    </script>
+</body>
+</html>

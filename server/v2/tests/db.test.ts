@@ -18,9 +18,9 @@ import {
 import { eq, and } from 'drizzle-orm';
 
 // Test database connection
-const testDb = drizzle(postgres(process.env.DATABASE_URL || 'postgresql://localhost:5432/mailmind_test'));
+const testDb = drizzle(postgres(process.env.DATABASE_URL || 'postgresql://localhost:5432/offerlogix_test'));
 
-describe('MailMind V2 Database Schema', () => {
+describe('OfferLogix V2 Database Schema', () => {
   
   describe('Schema Structure', () => {
     

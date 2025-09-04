@@ -258,7 +258,7 @@ router.get('/debug', async (req, res) => {
     <meta charset="utf-8" />
     <meta http-equiv="refresh" content="5" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>MailMind V2 • Conversations Debug</title>
+    <title>OfferLogix V2 • Conversations Debug</title>
     <style>
       body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 16px; background: #f7fafc; }
       h1 { margin: 0 0 12px; font-size: 18px; }

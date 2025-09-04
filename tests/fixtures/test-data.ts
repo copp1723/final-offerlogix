@@ -176,7 +176,7 @@ export const SAMPLE_USERS = [
     username: 'admin',
     password: '$2b$10$hashedpassword1',
     role: 'admin',
-    email: 'admin@mailmind.com',
+    email: 'admin@offerlogix.com',
     notificationPreferences: {
       emailNotifications: true,
       campaignAlerts: true,
@@ -194,7 +194,7 @@ export const SAMPLE_USERS = [
     username: 'manager',
     password: '$2b$10$hashedpassword2',
     role: 'manager',
-    email: 'manager@mailmind.com',
+    email: 'manager@offerlogix.com',
     notificationPreferences: {
       emailNotifications: true,
       campaignAlerts: true,
@@ -212,7 +212,7 @@ export const SAMPLE_USERS = [
     username: 'salesrep',
     password: '$2b$10$hashedpassword3',
     role: 'user',
-    email: 'sales@mailmind.com',
+    email: 'sales@offerlogix.com',
     notificationPreferences: {
       emailNotifications: true,
       campaignAlerts: false,
@@ -398,13 +398,13 @@ export const SAMPLE_API_RESPONSES = {
 // Test environment configurations
 export const TEST_CONFIG = {
   database: {
-    testConnectionString: 'postgresql://test:test@localhost:5432/mailmind_test',
+    testConnectionString: 'postgresql://test:test@localhost:5432/offerlogix_test',
     setupScript: 'tests/scripts/setup-test-db.sql',
     cleanupScript: 'tests/scripts/cleanup-test-db.sql'
   },
   email: {
     mockProvider: true,
-    testAccount: 'test@mailmind-test.com',
+    testAccount: 'test@offerlogix-test.com',
     maxEmailsPerTest: 10
   },
   api: {

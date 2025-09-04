@@ -1,5 +1,5 @@
 /**
- * AgentCore Service for MailMind V2
+ * AgentCore Service for OfferLogix V2
  * 
  * Handles LLM generation with prompt building and response parsing.
  * Returns structured {reply, handover, reason} responses.
@@ -47,7 +47,7 @@ export class AgentCore {
           'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
           'Content-Type': 'application/json',
           'HTTP-Referer': 'https://ccl-3-final.onrender.com',
-          'X-Title': 'MailMind V2'
+          'X-Title': 'OfferLogix V2'
         },
         body: JSON.stringify({
           model: process.env.AI_MODEL || 'openai/gpt-4o',

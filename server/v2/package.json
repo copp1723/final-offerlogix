@@ -1,7 +1,7 @@
 {
-  "name": "mailmind-v2",
+  "name": "offerlogix-v2",
   "version": "2.0.0-alpha",
-  "description": "MailMind V2 - Lean Conversation Engine",
+  "description": "OfferLogix V2 - Lean Conversation Engine",
   "scripts": {
     "db:migrate": "psql $DATABASE_URL -f migrations/0001_v2_schema.sql",
     "db:seed": "psql $DATABASE_URL -f migrations/0002_seed_data.sql",

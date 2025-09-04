@@ -51,7 +51,7 @@ const testAgent: AgentIdentity = {
   localPart: 'testagent'
 };
 
-describe('MailMind V2 Email Threading', () => {
+describe('OfferLogix V2 Email Threading', () => {
   let sendRaw: jest.MockedFunction<EmailTransport['sendRaw']>;
   let transport: EmailTransport;
   let threading: MailgunThreading;

@@ -35,7 +35,7 @@ export default function LoginPage() {
       <div className="max-w-md w-full space-y-8">
         <Card>
           <CardHeader className="space-y-1">
-            <CardTitle className="text-2xl text-center">Sign in to MailMind</CardTitle>
+            <CardTitle className="text-2xl text-center">Sign in to OfferLogix</CardTitle>
             <CardDescription className="text-center">
               Enter your credentials to access your dashboard
             </CardDescription>
@@ -81,7 +81,7 @@ export default function LoginPage() {
               <h4 className="text-sm font-medium text-blue-800 mb-2">Default Credentials:</h4>
               <p className="text-sm text-blue-600">
                 Username: <code className="font-mono">admin</code><br />
-                Password: <code className="font-mono">MailMind2024!</code>
+                Password: <code className="font-mono">OfferLogix2024!</code>
               </p>
             </div>
           </CardContent>

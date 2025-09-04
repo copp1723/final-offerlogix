@@ -27,7 +27,7 @@ router.post('/login', async (req, res) => {
       const fakeUser = {
         id: '1',
         username: username,
-        email: `${username}@mailmind.com`,
+        email: `${username}@offerlogix.com`,
         role: 'admin',
         clientId: 'default',
         createdAt: new Date(),

@@ -53,7 +53,7 @@ export const tenantMiddleware = async (req: TenantRequest, res: Response, next: 
               primaryColor: '#2563eb',
               secondaryColor: '#1e40af',
               logoUrl: '/logo.svg',
-              companyName: 'MailMind',
+              companyName: 'OfferLogix',
               favicon: '',
               customCss: ''
             },

@@ -403,7 +403,7 @@ export class TestDataSeeder {
 // Export singleton instance creator
 export function createTestDatabaseHelper(config?: TestDatabaseConfig): DatabaseTestHelper {
   const defaultConfig: TestDatabaseConfig = {
-    connectionString: process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/mailmind_test',
+    connectionString: process.env.TEST_DATABASE_URL || 'postgresql://test:test@localhost:5432/offerlogix_test',
     testSchemaName: 'test_schema',
     cleanupOnExit: true
   };

@@ -37,7 +37,7 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().transform(val => parseInt(val, 10)).pipe(z.number().positive()).default('900000'), // 15 minutes
   
   // Email Templates
-  FROM_EMAIL: z.string().email().default('noreply@mailmind.ai'),
+  FROM_EMAIL: z.string().email().default('noreply@offerlogix.ai'),
   
   // Auto Response Control
   DISABLE_AUTO_RESPONSES: z.string().optional().transform(val => val === 'true'),

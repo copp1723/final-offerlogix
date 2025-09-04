@@ -1,5 +1,5 @@
 /**
- * Email Threading Types for MailMind V2
+ * Email Threading Types for OfferLogix V2
  * 
  * Core contracts for deterministic email threading with agent identity.
  */

@@ -1,5 +1,5 @@
 /**
- * MailMind V2 Database Schema
+ * OfferLogix V2 Database Schema
  * 
  * Minimal, indexed schema for email conversations with agents.
  * No IMAP, no memory systems - Mailgun webhooks only.

@@ -26,8 +26,8 @@ router.get('/email', async (_req, res) => {
         
         // Use a safe test email that won't actually deliver but tests API
         const testEmail = `health-check-${Date.now()}@mailgun-verification.com`;
-        const testSubject = `MailMind Health Check - ${new Date().toISOString()}`;
-        const testContent = `<p>Health check test from MailMind V2 system</p><p>Timestamp: ${new Date().toISOString()}</p>`;
+        const testSubject = `OfferLogix Health Check - ${new Date().toISOString()}`;
+        const testContent = `<p>Health check test from OfferLogix V2 system</p><p>Timestamp: ${new Date().toISOString()}</p>`;
         
         // Test with exact ConversationEngine parameters
         const result = await sendCampaignEmail(
@@ -367,7 +367,7 @@ router.get('/openrouter', async (_req, res) => {
         'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
         'Content-Type': 'application/json',
         'HTTP-Referer': process.env.OPENROUTER_SITE_URL || process.env.RENDER_EXTERNAL_URL || 'http://localhost:5000',
-        'X-Title': 'MailMind V2 Health Check'
+        'X-Title': 'OfferLogix V2 Health Check'
       },
       body: JSON.stringify(body)
     });
@@ -515,9 +515,9 @@ router.get('/mailgun', async (_req, res) => {
     const testBody = new URLSearchParams({
       from: process.env.MAILGUN_FROM_EMAIL || `Health Check <noreply@${domain}>`,
       to: `health-check-${Date.now()}@${domain}`, // Send to same domain to avoid external delivery
-      subject: `MailMind V2 Health Check - ${new Date().toISOString()}`,
-      html: '<p>Health check test from MailMind V2 system</p>',
-      text: 'Health check test from MailMind V2 system',
+      subject: `OfferLogix V2 Health Check - ${new Date().toISOString()}`,
+      html: '<p>Health check test from OfferLogix V2 system</p>',
+      text: 'Health check test from OfferLogix V2 system',
       'o:testmode': 'true', // Test mode - won't actually deliver
       'h:X-Health-Check': 'true',
       'v:health_check': 'true',

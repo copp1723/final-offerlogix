@@ -1,6 +1,6 @@
 /**
  * Create Initial Admin User Script
- * Run this to create the first admin user for the MailMind system
+ * Run this to create the first admin user for the OfferLogix system
  */
 
 import dotenv from 'dotenv';
@@ -42,7 +42,7 @@ async function createAdminUser() {
           primaryColor: '#2563eb',
           secondaryColor: '#1e40af',
           logoUrl: '',
-          companyName: 'MailMind',
+          companyName: 'OfferLogix',
           favicon: '',
           customCss: ''
         },
@@ -58,8 +58,8 @@ async function createAdminUser() {
 
     // Create admin user
     const adminUsername = process.env.ADMIN_USERNAME || 'admin';
-    const adminPassword = process.env.ADMIN_PASSWORD || 'MailMind2024!';
-    const adminEmail = process.env.ADMIN_EMAIL || 'admin@mailmind.com';
+    const adminPassword = process.env.ADMIN_PASSWORD || 'OfferLogix2024!';
+    const adminEmail = process.env.ADMIN_EMAIL || 'admin@offerlogix.com';
 
     console.log(`👤 Creating admin user: ${adminUsername}`);
     

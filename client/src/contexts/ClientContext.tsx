@@ -91,7 +91,7 @@ export const ClientProvider = ({ children }: ClientProviderProps) => {
       // Update page title with dynamic branding
       const title = branding.companyName
         ? `${branding.companyName} - Email Campaign Intelligence`
-        : 'MailMind - Email Campaign Intelligence';
+        : 'OfferLogix - Email Campaign Intelligence';
       document.title = title;
 
       // Set meta description for SEO
@@ -101,12 +101,12 @@ export const ClientProvider = ({ children }: ClientProviderProps) => {
         metaDescription.name = 'description';
         document.head.appendChild(metaDescription);
       }
-      metaDescription.content = `${branding.companyName || 'MailMind'} - AI-powered automotive email campaign management and lead intelligence platform.`;
+      metaDescription.content = `${branding.companyName || 'OfferLogix'} - AI-powered automotive email campaign management and lead intelligence platform.`;
 
     } catch (error) {
       console.error('Error applying client branding:', error);
       // Fallback to default branding on error
-      document.title = 'MailMind - Email Campaign Intelligence';
+      document.title = 'OfferLogix - Email Campaign Intelligence';
     }
   }, [activeClient]);
 

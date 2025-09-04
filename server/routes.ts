@@ -203,7 +203,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         user: {
           id: '1',
           username: username,
-          email: `${username}@mailmind.com`,
+          email: `${username}@offerlogix.com`,
           role: 'admin',
           clientId: 'default'
         },
