@@ -33,6 +33,7 @@ import emailReliabilityRoutes from "./routes/email-reliability.js";
 import conversationStateRoutes from "./routes/conversation-state.js";
 import handoverRoutes from "./routes/handover.js";
 import emailSettingsRoutes from "./routes/email-settings.js";
+import offerlogixRoutes from "./routes/offerlogix.js";
 import { securityMiddleware } from "./middleware/index.ts";
 import { authenticateToken, type AuthenticatedRequest, aiAuth } from "./middleware/auth.ts";
 import { leadScoringService } from "./services/lead-scoring.js";
@@ -256,6 +257,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   // User management routes (already protected by above middleware)
   app.use('/api/users', userRoutes);
+  
+  // OfferLogix routes (instant credit, financing conversations)
+  app.use('/api/offerlogix', offerlogixRoutes);
 
   // Client management routes (protected - admin only)
   app.get("/api/clients", securityMiddleware.admin, async (req: TenantRequest, res: express.Response) => {

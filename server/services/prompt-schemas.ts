@@ -191,6 +191,93 @@ export const EmailTemplatesSchema = z.object({
 export type EmailTemplates = z.infer<typeof EmailTemplatesSchema>;
 
 // ========================================
+// OFFERLOGIX SCHEMAS
+// ========================================
+
+/**
+ * Schema for OfferLogix instant credit decision responses
+ * Used in: server/services/offerlogix-credit.ts
+ */
+export const OfferLogixCreditDecisionSchema = z.object({
+  decision: z.enum(['approved', 'conditional', 'declined', 'pending']),
+  approvalAmount: z.number().optional(),
+  estimatedRate: z.number().optional(),
+  monthlyPayment: z.number().optional(),
+  lenderName: z.string().optional(),
+  requiredDocs: z.array(z.string()),
+  conditions: z.array(z.string()),
+  alternativeOptions: z.array(z.object({
+    type: z.string(),
+    description: z.string()
+  })),
+  nextSteps: z.array(z.string()),
+  expirationDate: z.string().optional(),
+  complianceNotes: z.array(z.string())
+});
+
+export type OfferLogixCreditDecision = z.infer<typeof OfferLogixCreditDecisionSchema>;
+
+/**
+ * Schema for OfferLogix financing conversation responses
+ * Used in: server/services/offerlogix-conversation.ts
+ */
+export const OfferLogixConversationSchema = z.object({
+  message: z.string(),
+  stage: z.enum([
+    'greeting', 'qualification', 'needs_assessment', 'credit_evaluation',
+    'vehicle_selection', 'financing_options', 'negotiation', 'documentation',
+    'closing', 'follow_up'
+  ]),
+  intent: z.enum([
+    'information_seeking', 'price_inquiry', 'test_drive_request',
+    'financing_inquiry', 'trade_in_inquiry', 'credit_concern',
+    'ready_to_purchase', 'comparison_shopping'
+  ]).optional(),
+  sentiment: z.enum(['positive', 'neutral', 'negative', 'frustrated']).optional(),
+  suggestedActions: z.array(z.string()),
+  escalationNeeded: z.boolean(),
+  complianceFlags: z.array(z.string())
+});
+
+export type OfferLogixConversation = z.infer<typeof OfferLogixConversationSchema>;
+
+/**
+ * Generate JSON schema prompt for OfferLogix credit decisions
+ */
+export function getOfferLogixCreditSchemaPrompt(): string {
+  return `Return JSON for instant credit decision:
+{
+  "decision": "approved|conditional|declined|pending",
+  "approvalAmount": 25000,
+  "estimatedRate": 5.9,
+  "monthlyPayment": 450,
+  "lenderName": "Premier Auto Finance",
+  "requiredDocs": ["proof of income", "proof of residence"],
+  "conditions": ["verify employment"],
+  "alternativeOptions": [{"type": "co-signer", "description": "Add co-signer for better terms"}],
+  "nextSteps": ["Complete application", "Submit documents"],
+  "expirationDate": "2024-02-01",
+  "complianceNotes": ["ECOA compliant", "FCRA disclosure provided"]
+}`;
+}
+
+/**
+ * Generate JSON schema prompt for OfferLogix conversations
+ */
+export function getOfferLogixConversationSchemaPrompt(): string {
+  return `Return JSON for financing conversation:
+{
+  "message": "Your response to the customer",
+  "stage": "greeting|qualification|needs_assessment|credit_evaluation|vehicle_selection|financing_options|negotiation|documentation|closing|follow_up",
+  "intent": "information_seeking|price_inquiry|test_drive_request|financing_inquiry|trade_in_inquiry|credit_concern|ready_to_purchase|comparison_shopping",
+  "sentiment": "positive|neutral|negative|frustrated",
+  "suggestedActions": ["Schedule test drive", "Run credit check"],
+  "escalationNeeded": false,
+  "complianceFlags": ["ECOA disclosure needed"]
+}`;
+}
+
+// ========================================
 // ANALYTICS SCHEMAS
 // ========================================
 
@@ -350,6 +437,16 @@ export const SCHEMA_REGISTRY = {
     schema: IntentAnalysisSchema as z.ZodSchema<any>,
     promptTemplate: () => '{"primaryIntent": {"intent": "information_seeking", "confidence": 85, "reasoning": "..."}, "secondaryIntents": [], "intentStability": 75}',
     description: 'Customer intent classification analysis'
+  },
+  offerlogixCredit: {
+    schema: OfferLogixCreditDecisionSchema as z.ZodSchema<any>,
+    promptTemplate: getOfferLogixCreditSchemaPrompt,
+    description: 'OfferLogix instant credit decision'
+  },
+  offerlogixConversation: {
+    schema: OfferLogixConversationSchema as z.ZodSchema<any>,
+    promptTemplate: getOfferLogixConversationSchemaPrompt,
+    description: 'OfferLogix financing conversation response'
   }
 } as const;
 

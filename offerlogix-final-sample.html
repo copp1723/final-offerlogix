@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OfferLogix - Final Color Scheme Sample</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        :root {
+            /* ACTUAL OfferLogix Brand Colors - Simplified */
+            --background: hsl(0, 0%, 96%);     /* Light gray background */
+            --foreground: hsl(0, 0%, 13%);     /* Dark text */
+            --card: hsl(0, 0%, 100%);          /* White cards */
+            --primary: hsl(174, 62%, 47%);     /* Teal Primary - #4ECDC4 */
+            --primary-dark: hsl(174, 62%, 35%);/* Dark Teal for gradient */
+            --primary-light: hsl(174, 62%, 60%);/* Light Teal variation */
+            --accent: hsl(28, 100%, 50%);      /* Orange Accent - #FF9500 */
+            --secondary: hsl(0, 0%, 93%);      /* Light gray */
+            --muted: hsl(0, 0%, 93%);
+            --muted-foreground: hsl(0, 0%, 46%);
+            --border: hsl(0, 0%, 87%);
+        }
+
+        .dark {
+            --background: hsl(0, 0%, 9%);
+            --foreground: hsl(0, 0%, 93%);
+            --card: hsl(0, 0%, 11%);
+            --secondary: hsl(0, 0%, 15%);
+            --muted: hsl(0, 0%, 15%);
+            --muted-foreground: hsl(0, 0%, 60%);
+            --border: hsl(0, 0%, 18%);
+        }
+
+        body {
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+            font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+        }
+
+        /* OfferLogix Brand Styles */
+        .teal-primary { background-color: hsl(var(--primary)); color: white; }
+        .teal-primary:hover { background-color: hsl(var(--primary-dark)); }
+        .orange-accent { background-color: hsl(var(--accent)); color: white; }
+        .orange-accent:hover { background-color: hsl(28, 100%, 45%); }
+        .card { background-color: hsl(var(--card)); border: 1px solid hsl(var(--border)); }
+        .secondary { background-color: hsl(var(--secondary)); color: hsl(var(--foreground)); }
+
+        /* OfferLogix Gradients */
+        .gradient-teal { background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%); }
+        .gradient-light-teal { background: linear-gradient(135deg, hsl(var(--primary-light)) 0%, hsl(var(--primary)) 100%); }
+        .gradient-neutral { background: linear-gradient(135deg, hsl(var(--secondary)) 0%, hsl(var(--border)) 100%); }
+        
+        .text-gradient-teal {
+            background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .shadow-teal {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 
+                        0 10px 10px -5px rgba(0, 0, 0, 0.04),
+                        0 0 20px -3px hsla(var(--primary), 0.15);
+        }
+
+        /* Hero Background */
+        .hero-teal { background: linear-gradient(135deg, hsl(var(--primary)) 0%, hsl(var(--primary-dark)) 100%); }
+
+        /* Responsive grid */
+        .grid-responsive { display: grid; gap: 1.5rem; }
+        @media (min-width: 768px) { .grid-responsive { grid-template-columns: repeat(2, 1fr); } }
+        @media (min-width: 1024px) { .grid-responsive { grid-template-columns: repeat(4, 1fr); } }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen">
+    
+    <!-- Hero Section -->
+    <div class="hero-teal text-white p-8 text-center">
+        <div class="max-w-4xl mx-auto">
+            <h1 class="text-5xl font-bold mb-4">Defining Payment <span class="text-yellow-200">Excellence</span></h1>
+            <p class="text-xl mb-6 opacity-90">ACTUAL OfferLogix Brand Colors Implementation</p>
+            <div class="flex flex-wrap justify-center gap-4 text-sm font-medium">
+                <span class="bg-white bg-opacity-20 px-4 py-2 rounded-lg">PENNY PERFECT PAYMENTS</span>
+                <span class="bg-white bg-opacity-20 px-4 py-2 rounded-lg">REAL-TIME MARKET UPDATES</span>
+                <span class="bg-white bg-opacity-20 px-4 py-2 rounded-lg">PRE-QUALIFICATION MADE EASY</span>
+                <span class="bg-white bg-opacity-20 px-4 py-2 rounded-lg">SEAMLESS INTEGRATION</span>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto p-8">
+        
+        <!-- Color Palette Showcase -->
+        <div class="mb-12">
+            <h2 class="text-3xl font-bold mb-8 text-center">OfferLogix Brand Colors</h2>
+            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-xl mx-auto mb-3 shadow-lg teal-primary"></div>
+                    <h3 class="font-semibold">Teal Primary</h3>
+                    <p class="text-sm text-gray-600">#4ECDC4</p>
+                    <p class="text-xs text-gray-500">hsl(174, 62%, 47%)</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-xl mx-auto mb-3 shadow-lg orange-accent"></div>
+                    <h3 class="font-semibold">Orange Accent</h3>
+                    <p class="text-sm text-gray-600">#FF9500</p>
+                    <p class="text-xs text-gray-500">hsl(28, 100%, 50%)</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-xl mx-auto mb-3 shadow-lg gradient-teal"></div>
+                    <h3 class="font-semibold">Primary Gradient</h3>
+                    <p class="text-sm text-gray-600">Teal → Dark Teal</p>
+                    <p class="text-xs text-gray-500">Main gradient</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-xl mx-auto mb-3 shadow-lg gradient-light-teal"></div>
+                    <h3 class="font-semibold">Light Gradient</h3>
+                    <p class="text-sm text-gray-600">Light Teal → Teal</p>
+                    <p class="text-xs text-gray-500">Subtle variant</p>
+                </div>
+                <div class="text-center">
+                    <div class="w-24 h-24 rounded-xl mx-auto mb-3 shadow-lg secondary"></div>
+                    <h3 class="font-semibold">Neutral Gray</h3>
+                    <p class="text-sm text-gray-600">#F0F0F0</p>
+                    <p class="text-xs text-gray-500">Backgrounds</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Buttons Showcase -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-bold mb-6">Button Styles</h2>
+            <div class="flex flex-wrap gap-4">
+                <button class="teal-primary px-6 py-3 rounded-lg font-medium transition-colors">Primary Button</button>
+                <button class="orange-accent px-6 py-3 rounded-lg font-medium transition-colors">Accent Button</button>
+                <button class="secondary px-6 py-3 rounded-lg font-medium border border-gray-300">Secondary Button</button>
+                <button class="gradient-teal px-6 py-3 rounded-lg font-medium text-white">Gradient Button</button>
+            </div>
+        </div>
+
+        <!-- Dashboard Preview -->
+        <div class="mb-12">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-gradient-teal">Dashboard Preview</h2>
+                    <p class="text-gray-600 mt-2">OfferLogix color scheme in action</p>
+                </div>
+                <div class="flex gap-3">
+                    <button class="orange-accent px-4 py-2 rounded-lg font-medium">New Campaign</button>
+                    <button class="teal-primary px-4 py-2 rounded-lg font-medium">Settings</button>
+                </div>
+            </div>
+
+            <!-- Stats Cards -->
+            <div class="grid-responsive mb-8">
+                <div class="card p-6 rounded-xl shadow-teal">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 mb-1">Active Campaigns</p>
+                            <p class="text-3xl font-bold">24</p>
+                            <p class="text-sm text-green-600 mt-1">↗ +12% from last month</p>
+                        </div>
+                        <div class="w-14 h-14 gradient-teal rounded-xl flex items-center justify-center text-white text-2xl">📊</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-teal">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 mb-1">Total Leads</p>
+                            <p class="text-3xl font-bold">1,247</p>
+                            <p class="text-sm text-green-600 mt-1">↗ +8% from last month</p>
+                        </div>
+                        <div class="w-14 h-14 orange-accent rounded-xl flex items-center justify-center text-white text-2xl">👥</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-teal">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 mb-1">Response Rate</p>
+                            <p class="text-3xl font-bold">87.3%</p>
+                            <p class="text-sm text-green-600 mt-1">↗ +2.1% from last month</p>
+                        </div>
+                        <div class="w-14 h-14 gradient-light-teal rounded-xl flex items-center justify-center text-white text-2xl">📈</div>
+                    </div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-teal">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm text-gray-600 mb-1">Payment Accuracy</p>
+                            <p class="text-3xl font-bold">99.9%</p>
+                            <p class="text-sm text-green-600 mt-1">Penny Perfect ✓</p>
+                        </div>
+                        <div class="w-14 h-14 teal-primary rounded-xl flex items-center justify-center text-white text-2xl">💰</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- OfferLogix Features -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-bold mb-8 text-center">OfferLogix Core Features</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div class="card p-6 rounded-xl shadow-teal text-center">
+                    <div class="w-16 h-16 teal-primary rounded-full mx-auto mb-4 flex items-center justify-center text-2xl text-white">📱</div>
+                    <h3 class="text-xl font-bold mb-3" style="color: hsl(var(--primary))">PENNY PERFECT PAYMENTS</h3>
+                    <p class="text-gray-600 mb-4">Precise lease and finance calculations down to the penny for every vehicle in your inventory.</p>
+                    <div class="text-sm text-gray-500">✓ VIN-level accuracy ✓ Real-time updates ✓ Compliant calculations</div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-teal text-center">
+                    <div class="w-16 h-16 orange-accent rounded-full mx-auto mb-4 flex items-center justify-center text-2xl text-white">⚡</div>
+                    <h3 class="text-xl font-bold mb-3" style="color: hsl(var(--accent))">REAL-TIME MARKET UPDATES</h3>
+                    <p class="text-gray-600 mb-4">Stay ahead with OEM and dealer incentives delivered in under 36 hours for quick market adaptation.</p>
+                    <div class="text-sm text-gray-500">✓ <36hr updates ✓ All incentives ✓ Market adaptation</div>
+                </div>
+
+                <div class="card p-6 rounded-xl shadow-teal text-center">
+                    <div class="w-16 h-16 gradient-teal rounded-full mx-auto mb-4 flex items-center justify-center text-2xl text-white">🔗</div>
+                    <h3 class="text-xl font-bold mb-3 text-gradient-teal">SEAMLESS INTEGRATION</h3>
+                    <p class="text-gray-600 mb-4">Single-call API with Reg M and Reg Z compliance across all 50 states and Canada.</p>
+                    <div class="text-sm text-gray-500">✓ One-call API ✓ Full compliance ✓ Instant integration</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Mock Phone Interface -->
+        <div class="mb-12">
+            <h2 class="text-2xl font-bold mb-8 text-center">Mobile Experience</h2>
+            <div class="flex justify-center">
+                <div class="w-80 h-96 bg-black rounded-3xl p-2 shadow-2xl">
+                    <div class="w-full h-full bg-white rounded-2xl overflow-hidden">
+                        <!-- Phone Header -->
+                        <div class="gradient-teal p-4 text-white">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm font-medium">9:22 AM</span>
+                                <span class="text-sm font-medium">📶 📶📶 100%</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Car Listing -->
+                        <div class="p-4">
+                            <div class="text-sm text-gray-500 mb-2">← Back to Inventory</div>
+                            <h3 class="font-bold text-lg mb-2">2025 Audi Q5 Premium</h3>
+                            <div class="bg-gray-100 h-32 rounded-lg mb-4 flex items-center justify-center text-6xl">🚗</div>
+                            <div class="text-center">
+                                <p class="text-3xl font-bold mb-1" style="color: hsl(var(--primary))">$651.00</p>
+                                <p class="text-sm text-gray-500">per month / 36 months</p>
+                                <p class="text-xs text-gray-400 mt-2">VIN: WA1ELCAF7N2001234 • Stock: 8017A</p>
+                                <button class="orange-accent w-full mt-4 py-3 rounded-lg font-medium text-white">
+                                    Get Pre-Qualified
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dark Mode Toggle -->
+        <div class="text-center mb-8">
+            <button id="themeToggle" class="teal-primary px-6 py-3 rounded-lg font-medium transition-colors">
+                🌙 Toggle Dark Mode
+            </button>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-gray-600 text-sm border-t border-gray-200 pt-8">
+            <p class="mb-2">OfferLogix - Defining Payment Excellence</p>
+            <p>This sample demonstrates the actual OfferLogix brand color implementation</p>
+            <div class="mt-4 flex justify-center gap-6 text-xs">
+                <span>Teal Primary: #4ECDC4</span>
+                <span>Orange Accent: #FF9500</span>
+                <span>Teal → Dark Teal Gradient</span>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        const themeToggle = document.getElementById('themeToggle');
+        const body = document.body;
+        
+        themeToggle.addEventListener('click', () => {
+            body.classList.toggle('dark');
+            themeToggle.textContent = body.classList.contains('dark') ? '☀️ Toggle Light Mode' : '🌙 Toggle Dark Mode';
+        });
+    </script>
+</body>
+</html>
