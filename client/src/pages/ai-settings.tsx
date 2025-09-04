@@ -46,7 +46,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useLocation, Link } from 'wouter';
-import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap, Target, Mail, Users, Calendar, TestTube, Send, Loader2, X } from "lucide-react";
+import { Plus, Edit, Trash2, Check, Settings, Shield, Brain, Zap, Target, Mail, Users, Calendar, TestTube, Send, Loader2, X, CreditCard, Sparkles, CheckCircle } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Campaign } from "@shared/schema";
 // (EmailValidationPanel removed in favor of Campaigns management inside this center)
@@ -280,6 +280,65 @@ export default function AiSettingsPage() {
     );
   }
 
+  // OfferLogix Agent Templates
+  const agentTemplates = [
+    {
+      name: "OfferLogix Instant Credit Specialist",
+      description: "Expert in instant credit decisions and dealership financing",
+      tonality: "professional",
+      personality: "Expert automotive financing specialist with deep knowledge of instant credit decisioning",
+      responseStyle: "consultative",
+      dosList: [
+        "Emphasize instant approval capabilities",
+        "Highlight ROI and profit margins",
+        "Provide specific integration timelines",
+        "Share success metrics from other dealerships"
+      ],
+      dontsList: [
+        "Never make unrealistic promises about approval rates",
+        "Avoid discussing specific customer credit scores",
+        "Don't criticize competitor platforms directly"
+      ],
+      icon: CreditCard,
+      color: "bg-blue-500"
+    },
+    {
+      name: "OfferLogix Sales Engagement Specialist",
+      description: "B2B outbound sales expert for dealership prospecting",
+      tonality: "friendly",
+      personality: "Enthusiastic B2B sales professional specializing in automotive dealership partnerships",
+      responseStyle: "helpful",
+      dosList: [
+        "Research dealership background before outreach",
+        "Personalize messages with dealership-specific insights",
+        "Lead with value propositions",
+        "Offer free trials and pilot programs"
+      ],
+      dontsList: [
+        "Never send generic mass emails",
+        "Don't call before 9am or after 6pm local time",
+        "Avoid being pushy or aggressive"
+      ],
+      icon: Target,
+      color: "bg-green-500"
+    }
+  ];
+
+  const handleUseTemplate = (template: typeof agentTemplates[0]) => {
+    form.reset({
+      name: template.name,
+      tonality: template.tonality,
+      personality: template.personality,
+      dosList: template.dosList,
+      dontsList: template.dontsList,
+      industry: "automotive_b2b",
+      responseStyle: template.responseStyle,
+      model: "openai/gpt-4",
+      isActive: true
+    });
+    setEditDialogOpen(true);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header Section - V2 Style */}
@@ -399,6 +458,63 @@ export default function AiSettingsPage() {
               </CardContent>
             </Card>
           ) : null}
+
+          {/* OfferLogix Agent Templates */}
+          {(!configs || configs.length === 0) && (
+            <Card className="border border-gray-200 shadow-sm">
+              <CardHeader className="border-b border-gray-200">
+                <CardTitle className="text-lg font-semibold text-gray-900">Quick Start Templates</CardTitle>
+                <CardDescription>Use pre-configured OfferLogix agents to get started quickly</CardDescription>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="grid gap-4 md:grid-cols-2">
+                  {agentTemplates.map((template) => {
+                    const IconComponent = template.icon;
+                    return (
+                      <Card key={template.name} className="border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer"
+                            onClick={() => handleUseTemplate(template)}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start gap-3">
+                            <div className={`w-10 h-10 ${template.color} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                              <IconComponent className="h-5 w-5 text-white" />
+                            </div>
+                            <div className="flex-1 space-y-1">
+                              <CardTitle className="text-base font-semibold text-gray-900">{template.name}</CardTitle>
+                              <p className="text-sm text-gray-600">{template.description}</p>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent className="pt-0">
+                          <div className="space-y-2 text-xs">
+                            <div className="flex items-start gap-2">
+                              <CheckCircle className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                              <span className="text-gray-700">{template.dosList[0]}</span>
+                            </div>
+                            <div className="flex items-start gap-2">
+                              <CheckCircle className="h-3 w-3 text-green-600 mt-0.5 flex-shrink-0" />
+                              <span className="text-gray-700">{template.dosList[1]}</span>
+                            </div>
+                          </div>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="w-full mt-3"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleUseTemplate(template);
+                            }}
+                          >
+                            <Sparkles className="h-3 w-3 mr-1" />
+                            Use This Template
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          )}
 
           {/* AI Agent Configurations Grid - V2 Style */}
           <Card className="border border-gray-200 shadow-sm">
