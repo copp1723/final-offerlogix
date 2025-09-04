@@ -35,7 +35,7 @@ export class ClientBrandingService {
     primaryColor: '#2563eb',
     secondaryColor: '#1e40af',
     logoUrl: '/logo.svg',
-    companyName: 'MailMind',
+    companyName: 'OfferLogix',
     favicon: '',
     customCss: '',
     emailTemplateColors: {
@@ -195,7 +195,7 @@ export class ClientBrandingService {
   private static getDefaultClientConfig(domain: string): ClientConfig {
     return {
       id: 'default',
-      name: 'MailMind',
+      name: 'OfferLogix',
       domain,
       brandingConfig: this.DEFAULT_BRANDING,
       settings: {},
