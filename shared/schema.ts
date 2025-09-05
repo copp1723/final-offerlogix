@@ -170,6 +170,9 @@ export const leads = pgTable("leads", {
   clientId: uuid("client_id").references(() => clients.id),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+  
+  // HubSpot integration
+  hubspotContactId: varchar("hubspot_contact_id", { length: 255 }),
 });
 
 // Lead campaign state table to track replies and follow-up status
@@ -556,6 +559,14 @@ export const handoverEvents = pgTable("handover_events", {
   leadId: varchar("lead_id").references(() => leads.id),
   intent: text("intent").notNull(),
   triggeredAt: timestamp("triggered_at").defaultNow().notNull(),
+  
+  // HubSpot integration fields
+  syncedToHubspot: boolean("synced_to_hubspot").default(false),
+  hubspotSyncStatus: varchar("hubspot_sync_status", { length: 50 }),
+  hubspotSyncDate: timestamp("hubspot_sync_date"),
+  hubspotContactId: varchar("hubspot_contact_id", { length: 255 }),
+  hubspotDealId: varchar("hubspot_deal_id", { length: 255 }),
+  hubspotSyncError: text("hubspot_sync_error"),
 });
 
 export type HandoverEvent = typeof handoverEvents.$inferSelect;

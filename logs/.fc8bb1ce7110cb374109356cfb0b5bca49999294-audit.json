@@ -1,0 +1,15 @@
+{
+    "keep": {
+        "days": true,
+        "amount": 30
+    },
+    "auditLog": "/Users/joshcopp/Desktop/Swarm/OFFERLOGIX/logs/.fc8bb1ce7110cb374109356cfb0b5bca49999294-audit.json",
+    "files": [
+        {
+            "date": 1757077139365,
+            "name": "/Users/joshcopp/Desktop/Swarm/OFFERLOGIX/logs/application-2025-09-05.log",
+            "hash": "5932bf38e884b353cf2ffb4d10ad086cb64609ca9fa48cfeca787be1867d3fa0"
+        }
+    ],
+    "hashType": "sha256"
+}
