@@ -11,9 +11,6 @@ export async function sendThreadedReply(opts: {
   domainOverride?: string;
   conversationId?: string;
   campaignId?: string;
-  // Threading headers (optional but recommended)
-  inReplyTo?: string;        // angle-bracketed Message-ID of the email being replied to
-  references?: string[];     // chain of prior Message-IDs (angle-bracketed)
 }): Promise<boolean> {
   // Clean, professional sender - NO plus-addressing
   const idDomain = (opts.domainOverride || process.env.MAILGUN_DOMAIN || '')
@@ -43,9 +40,6 @@ export async function sendThreadedReply(opts: {
       // Simple personal reply
       isAutoResponse: false,
       domainOverride: opts.domainOverride,
-      // Ensure email clients thread properly
-      inReplyTo: opts.inReplyTo,
-      references: opts.references,
       // Add tracking headers (hidden from customer)
       headers: {
         'X-Conversation-ID': opts.conversationId || 'unknown',

@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import { apiRequest } from "@/lib/queryClient";
-import { Clock, User, Car, AlertTriangle, Target, TrendingUp, CheckCircle } from "lucide-react";
+import { Clock, User, Car, AlertTriangle, Target, TrendingUp, CheckCircle, Send, Loader2, XCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface HandoverBrief {
   leadName?: string;
@@ -35,12 +36,19 @@ interface HandoverItem {
   handoverReason: string;
   agentId: string;
   hasHandoverBrief: boolean;
+  syncedToHubspot?: boolean;
+  hubspotSyncStatus?: string;
+  hubspotContactId?: string;
+  hubspotDealId?: string;
 }
 
 export default function HandoversPage() {
   const [selectedBrief, setSelectedBrief] = useState<HandoverBrief | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [briefDialogOpen, setBriefDialogOpen] = useState(false);
+  const [syncingHandovers, setSyncingHandovers] = useState<Record<string, boolean>>({});
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   // Fetch pending handovers
   const { data: handovers, isLoading } = useQuery<HandoverItem[]>({
@@ -58,6 +66,44 @@ export default function HandoversPage() {
   const handleViewBrief = (conversationId: string) => {
     setSelectedConversationId(conversationId);
     setBriefDialogOpen(true);
+  };
+
+  // HubSpot sync mutation
+  const syncToHubSpotMutation = useMutation({
+    mutationFn: async (handoverId: string) => {
+      return await apiRequest('/api/zapier/send-handover', 'POST', {
+        handoverId
+      });
+    },
+    onMutate: (handoverId) => {
+      setSyncingHandovers(prev => ({ ...prev, [handoverId]: true }));
+    },
+    onSuccess: (data, handoverId) => {
+      setSyncingHandovers(prev => ({ ...prev, [handoverId]: false }));
+      
+      // Update the handover in the query cache
+      queryClient.invalidateQueries({ queryKey: ['/api/handovers'] });
+      
+      toast({
+        title: "Success",
+        description: "Handover sent to HubSpot via Zapier",
+        duration: 5000,
+      });
+    },
+    onError: (error: any, handoverId) => {
+      setSyncingHandovers(prev => ({ ...prev, [handoverId]: false }));
+      
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sync to HubSpot",
+        variant: "destructive",
+        duration: 5000,
+      });
+    }
+  });
+
+  const handleSyncToHubSpot = (handoverId: string) => {
+    syncToHubSpotMutation.mutate(handoverId);
   };
 
   const getUrgencyColor = (urgency: string) => {
@@ -154,13 +200,30 @@ export default function HandoversPage() {
                     </Badge>
                     
                     {handover.hasHandoverBrief && (
-                      <Button
-                        size="sm"
-                        onClick={() => handleViewBrief(handover.id)}
-                        className="bg-blue-600 hover:bg-blue-700"
-                      >
-                        View Brief
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          onClick={() => handleViewBrief(handover.id)}
+                          className="bg-blue-600 hover:bg-blue-700"
+                        >
+                          View Brief
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => handleSyncToHubSpot(handover.id)}
+                          disabled={handover.syncedToHubspot || syncingHandovers[handover.id]}
+                          className="flex items-center gap-1"
+                        >
+                          {syncingHandovers[handover.id] ? (
+                            <><Loader2 className="h-3 w-3 animate-spin" /> Syncing...</>
+                          ) : handover.syncedToHubspot ? (
+                            <><CheckCircle className="h-3 w-3 text-green-600" /> Synced</>
+                          ) : (
+                            <><Send className="h-3 w-3" /> Send to HubSpot</>
+                          )}
+                        </Button>
+                      </div>
                     )}
                   </div>
                 </div>
