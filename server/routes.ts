@@ -33,6 +33,7 @@ import { advancedPredictiveOptimizationService } from "./services/advanced-predi
 import { customerJourneyIntelligenceService } from "./services/customer-journey-intelligence";
 import { abTestingFramework } from "./services/ab-testing-framework";
 import { automotiveBusinessImpactService } from "./services/automotive-business-impact";
+import { zapierIntegration } from "./services/zapier-integration";
 
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -1372,6 +1373,14 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       // Broadcast new lead via WebSocket
       webSocketService.broadcastNewLead(lead);
       
+      // Trigger Zapier integration for new lead
+      try {
+        await zapierIntegration.sendLeadCreated(lead);
+      } catch (error) {
+        console.error('Zapier integration error for new lead:', error);
+        // Don't fail the request if Zapier integration fails
+      }
+      
       res.json(lead);
     } catch (error) {
       console.error('Create lead error:', error);
@@ -1412,6 +1421,17 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
       });
       if (leadsData.length === 0) return res.status(400).json({ message: 'No valid leads', errors });
       const createdLeads = await storage.createLeads(leadsData as any);
+      
+      // Trigger Zapier integration for each created lead
+      try {
+        for (const lead of createdLeads) {
+          await zapierIntegration.sendLeadCreated(lead, campaign);
+        }
+      } catch (error) {
+        console.error('Zapier integration error for CSV upload:', error);
+        // Don't fail the request if Zapier integration fails
+      }
+      
       res.json({ message: 'Leads uploaded', total: createdLeads.length, sample: createdLeads.slice(0,5), errors: errors.length?errors:undefined });
     } catch (error) {
       console.error('Campaign lead upload error:', error);
@@ -1422,9 +1442,30 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
   // Update a lead
   app.put("/api/leads/:id", async (req, res) => {
     try {
+      // Get the current lead state before updating
+      const currentLead = await storage.getLead(req.params.id);
+      const previousStatus = currentLead?.status;
+      
       const leadData = insertLeadSchema.partial().parse(req.body);
-      const lead = await storage.updateLead(req.params.id, leadData);
-      res.json(lead);
+      const updatedLead = await storage.updateLead(req.params.id, leadData);
+      
+      // Trigger Zapier integration for lead update
+      try {
+        const changedFields = Object.keys(leadData);
+        
+        // Send general update event
+        await zapierIntegration.sendLeadUpdated(updatedLead, changedFields, previousStatus);
+        
+        // Send specific status change event if status was updated
+        if (leadData.status && previousStatus && leadData.status !== previousStatus) {
+          await zapierIntegration.sendLeadStatusChanged(updatedLead, previousStatus);
+        }
+      } catch (error) {
+        console.error('Zapier integration error for lead update:', error);
+        // Don't fail the request if Zapier integration fails
+      }
+      
+      res.json(updatedLead);
     } catch (error) {
       res.status(400).json({ message: "Invalid lead data" });
     }
@@ -2347,6 +2388,66 @@ bob.johnson@example.com,Bob,Johnson,555-9012,Ford F-150,Referral,Wants trade-in 
 
     return Math.round(freshnessRatio * 100);
   }
+
+  // Zapier Integration Management Endpoints
+  
+  // Get Zapier integration status
+  app.get("/api/integrations/zapier/status", async (req, res) => {
+    try {
+      const status = zapierIntegration.getConfigStatus();
+      res.json(status);
+    } catch (error) {
+      console.error('Zapier status error:', error);
+      res.status(500).json({ error: 'Failed to get Zapier status' });
+    }
+  });
+
+  // Test Zapier webhook connection
+  app.post("/api/integrations/zapier/test", async (req, res) => {
+    try {
+      const result = await zapierIntegration.testConnection();
+      res.json(result);
+    } catch (error) {
+      console.error('Zapier test error:', error);
+      res.status(500).json({ error: 'Failed to test Zapier connection' });
+    }
+  });
+
+  // Manual webhook trigger for testing (admin only)
+  app.post("/api/integrations/zapier/trigger", async (req, res) => {
+    try {
+      const { leadId, event } = req.body;
+      
+      if (!leadId || !event) {
+        return res.status(400).json({ error: 'leadId and event are required' });
+      }
+
+      const lead = await storage.getLead(leadId);
+      if (!lead) {
+        return res.status(404).json({ error: 'Lead not found' });
+      }
+
+      let result;
+      switch (event) {
+        case 'lead_created':
+          result = await zapierIntegration.sendLeadCreated(lead);
+          break;
+        case 'lead_updated':
+          result = await zapierIntegration.sendLeadUpdated(lead, ['manual_trigger']);
+          break;
+        case 'lead_status_changed':
+          result = await zapierIntegration.sendLeadStatusChanged(lead, 'previous_status');
+          break;
+        default:
+          return res.status(400).json({ error: 'Invalid event type' });
+      }
+
+      res.json({ message: 'Webhook triggered', result });
+    } catch (error) {
+      console.error('Manual Zapier trigger error:', error);
+      res.status(500).json({ error: 'Failed to trigger webhook' });
+    }
+  });
 
   const httpServer = createServer(app);
 
