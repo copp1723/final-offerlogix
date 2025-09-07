@@ -6,8 +6,8 @@
 import { config } from 'dotenv';
 config();
 
-// Use the new OpenRouter key you provided
-const OPENROUTER_API_KEY = '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';
+// Use OpenRouter key from environment
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 
 console.log('🔑 OFFERLOGIX API KEY VERIFICATION');
@@ -101,40 +101,19 @@ async function testMailgun() {
   }
 }
 
-// Update .env file with new OpenRouter key
-async function updateEnvFile() {
-  console.log('\n📝 Updating .env file with new OpenRouter key...');
-  
-  try {
-    const fs = await import('fs/promises');
-    const path = await import('path');
-    const envPath = path.join(process.cwd(), '.env');
-    
-    let envContent = await fs.readFile(envPath, 'utf-8');
-    
-    // Update or add OpenRouter key
-    if (envContent.includes('OPENROUTER_API_KEY=')) {
-      envContent = envContent.replace(
-        /OPENROUTER_API_KEY=.*/,
-        `OPENROUTER_API_KEY=${OPENROUTER_API_KEY}`
-      );
-    } else {
-      envContent += `\nOPENROUTER_API_KEY=${OPENROUTER_API_KEY}`;
-    }
-    
-    await fs.writeFile(envPath, envContent);
-    console.log('✅ Updated .env file with new OpenRouter API key');
-  } catch (error) {
-    console.log('⚠️  Could not update .env file:', error);
+// Check if OpenRouter key is configured
+async function checkOpenRouterConfig() {
+  if (!OPENROUTER_API_KEY) {
+    console.log('\n⚠️  OpenRouter API key not found in environment');
+    console.log('   Please set OPENROUTER_API_KEY in your .env file or Render environment');
   }
 }
 
 // Main execution
 async function main() {
+  await checkOpenRouterConfig();
   const openRouterOk = await testOpenRouter();
   const mailgunOk = await testMailgun();
-  
-  await updateEnvFile();
   
   console.log('\n=====================================');
   console.log('📋 SUMMARY');
